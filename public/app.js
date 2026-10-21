@@ -2,7 +2,7 @@
 /* ====== أدوات ====== */
 const $ = (s, r = document) => r.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const S = { token: localStorage.getItem('tk'), me: null, meta: null, page: 'home', navOpen: false };
+const S = { token: localStorage.getItem('tk'), me: null, meta: null, page: 'home', open: {}, q: '', metab: null };
 const TZ = 'Africa/Cairo';
 const fmtTime = (iso) => (iso ? new Date(iso).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', timeZone: TZ }) : '—');
 const fmtDate = (d) => (d ? new Date(d + 'T00:00:00').toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'short', day: 'numeric', month: 'short' }) : '—');
@@ -197,41 +197,128 @@ function forgotForm(username) {
     modal(`<h3>تم إرسال الطلب</h3><p>لو اسم المستخدم صحيح، المدير هيوصله طلبك ويديكي كلمة مرور مؤقتة. تواصلي معه لو اتأخر.</p><div class="actions"><button class="btn" data-close>تمام</button></div>`);
   }); };
 }
-const NAV = [
-  ['home', '🕘', 'تسجيل الحضور', () => true],
-  ['me', '👤', 'حسابي', () => true],
-  ['dashboard', '📊', 'لوحة المعلومات', () => has('dashboard.view')],
-  ['employees', '👥', 'الموظفون', () => has('employees.view')],
-  ['attendance', '🗓️', 'سجل الحضور', () => has('attendance.view_all')],
-  ['requests', '📨', 'الطلبات', () => has('requests.view_all')],
-  ['payroll', '💰', 'المرتبات والخصومات', () => has('payroll.view')],
-  ['adjustments', '🎁', 'المكافآت والجزاءات', () => has('payroll.view')],
-  ['tiers', '⏱️', 'شرائح خصم التأخير', () => has('settings.manage')],
-  ['reports', '📑', 'التقارير', () => has('reports.view')],
-  ['permissions', '🔐', 'الصلاحيات', () => S.me.user.is_admin],
-  ['settings', '⚙️', 'الإعدادات', () => has('settings.manage')],
+/* ====== الأيقونات والقائمة ====== */
+const ICONS = {
+  grid: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/>',
+  users: '<circle cx="9" cy="8" r="3.5"/><path d="M2 20v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1"/><circle cx="17.5" cy="9" r="2.5"/><path d="M18 14a4 4 0 0 1 4 4v1"/>',
+  file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  wallet: '<path d="M3 7a2 2 0 0 1 2-2h13v4"/><path d="M3 7v11a2 2 0 0 0 2 2h14a1 1 0 0 0 1-1v-9a1 1 0 0 0-1-1H5a2 2 0 0 1-2-2z"/><circle cx="16" cy="14" r="1.2"/>',
+  chart: '<path d="M4 20V10M10 20V4M16 20v-8M22 20H2"/>',
+  sliders: '<path d="M4 6h10M18 6h2M4 12h2M10 12h10M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="8" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>',
+  calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  menu: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  chev: '<path d="M6 9l6 6 6-6"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  gift: '<path d="M20 12v9H4v-9M2 7h20v5H2zM12 21V7M12 7H8a2.5 2.5 0 1 1 0-5c2 0 4 2 4 5zM12 7h4a2.5 2.5 0 1 0 0-5c-2 0-4 2-4 5z"/>',
+  timer: '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>',
+  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  case: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/>',
+  check: '<path d="M20 6L9 17l-5-5"/>',
+};
+const ico = (n, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg>`;
+// قائمة بمجموعات (زي الشاشة): عنصر مفرد أو مجموعة فيها عناصر فرعية
+const MENU = [
+  { id: 'dashboard', ic: 'grid', t: 'لوحة المعلومات', ok: () => has('dashboard.view') },
+  { id: 'me', ic: 'user', t: 'حسابي', ok: () => true },
+  { g: 'emp', ic: 'users', t: 'الموظفون', items: [
+    ['employees', 'الموظفون', () => has('employees.view')], ['permissions', 'الصلاحيات', () => S.me.user.is_admin]] },
+  { id: 'requests', ic: 'file', t: 'الطلبات', ok: () => has('requests.view_all') },
+  { g: 'att', ic: 'clock', t: 'الحضور', items: [
+    ['home', 'تسجيل الحضور', () => true], ['attendance', 'سجل الحضور', () => has('attendance.view_all')]] },
+  { g: 'fin', ic: 'wallet', t: 'المالية', items: [
+    ['payroll', 'المرتبات والخصومات', () => has('payroll.view')], ['adjustments', 'المكافآت والجزاءات', () => has('payroll.view')], ['tiers', 'شرائح خصم التأخير', () => has('settings.manage')]] },
+  { id: 'reports', ic: 'chart', t: 'التقارير', ok: () => has('reports.view') },
+  { id: 'settings', ic: 'sliders', t: 'الإعدادات', ok: () => has('settings.manage') },
 ];
+const menuVisible = () => MENU.map((m) => (m.g ? { ...m, items: m.items.filter((i) => i[2]()) } : m)).filter((m) => (m.g ? m.items.length : m.ok()));
+const allPages = () => menuVisible().flatMap((m) => (m.g ? m.items.map((i) => i[0]) : [m.id]));
+function go(page, opts = {}) { S.page = page; if (opts.tab) S.metab = opts.tab; S.q = opts.q || ''; renderShell(); window.scrollTo(0, 0); }
+function menuHtml(sheet) {
+  return menuVisible().map((m) => {
+    if (!m.g) return `<button class="navi ${m.id === S.page ? 'on' : ''}" data-p="${m.id}">${ico(m.ic)}<span>${m.t}</span></button>`;
+    const has_on = m.items.some((i) => i[0] === S.page), open = sheet || has_on || S.open[m.g];
+    return `<div class="navgrp ${open ? 'open' : ''} ${has_on ? 'cur' : ''}"><button class="navi navg" data-g="${m.g}">${ico(m.ic)}<span>${m.t}</span>${ico('chev', 'chev')}</button>
+      <div class="sub">${m.items.map((i) => `<button class="navi sm ${i[0] === S.page ? 'on' : ''}" data-p="${i[0]}"><span>${i[1]}</span></button>`).join('')}</div></div>`;
+  }).join('');
+}
+function menuSheet() {
+  const o = modal(`<h3>القائمة</h3><nav class="nav sheetnav">${menuHtml(true)}</nav>
+    <div class="row" style="margin-top:14px"><button class="btn alt" id="spw" style="flex:1">${ico('lock')} كلمة المرور</button><button class="btn alt" id="slo" style="flex:1">${ico('logout')} خروج</button></div>`);
+  o.querySelectorAll('[data-p]').forEach((b) => (b.onclick = () => { o.close(); go(b.dataset.p); }));
+  $('#spw', o).onclick = () => { o.close(); changePassword(); };
+  $('#slo', o).onclick = () => { o.close(); logout(); };
+}
+function quickSheet() {
+  const o = modal(`<h3>إضافة سريعة</h3><div class="grid">
+    <button class="btn alt qa" data-q="req">${ico('file')} طلب جديد (إجازة / إذن / وقت إضافي)</button>
+    ${has('employees.manage') ? `<button class="btn alt qa" data-q="emp">${ico('users')} موظف جديد</button>` : ''}
+    ${has('payroll.manage') ? `<button class="btn alt qa" data-q="adj">${ico('gift')} مكافأة / جزاء / خصم</button>` : ''}
+    <button class="btn alt qa" data-q="notes">${ico('bell')} الإشعارات</button></div>`);
+  o.querySelectorAll('[data-q]').forEach((b) => (b.onclick = () => {
+    o.close();
+    const k = b.dataset.q;
+    if (k === 'req') requestForm(() => { if (S.page === 'me') renderShell(); });
+    else if (k === 'emp') { go('employees'); setTimeout(() => $('#add') && $('#add').click(), 400); }
+    else if (k === 'adj') { go('adjustments'); setTimeout(() => $('#aadd') && $('#aadd').click(), 400); }
+    else showNotes();
+  }));
+}
 function renderShell() {
-  const items = NAV.filter((n) => n[3]());
-  if (!items.find((n) => n[0] === S.page)) S.page = 'home';
+  S.open = S.open || {};
+  if (!allPages().includes(S.page)) S.page = 'home';
+  const u = S.me.user, canSearch = has('employees.view');
+  const bnav = [
+    ['home', 'الجدول', 'calendar'],
+    has('dashboard.view') ? ['dashboard', 'لوحة المعلومات', 'grid'] : ['me', 'حسابي', 'user'],
+    null,
+    has('employees.view') ? ['employees', 'الموظفون', 'users'] : ['me:attendance', 'سجلي', 'clock'],
+    ['menu', 'القائمة', 'menu'],
+  ];
   $('#app').innerHTML = `<div class="shell">
-    <aside class="side ${S.navOpen ? 'open' : ''}">
+    <header class="topbar">
       <div class="brand"><img src="/icon.svg" alt=""><span>${esc(S.me.settings.company_name)}</span></div>
-      <nav class="nav">${items.map((n) => `<button data-p="${n[0]}" class="${n[0] === S.page ? 'on' : ''}"><span class="ic">${n[1]}</span>${n[2]}</button>`).join('')}</nav>
-      <div style="margin-top:18px"><button class="btn alt sm" id="pw" style="width:100%">تغيير كلمة المرور</button>
-      <button class="btn alt sm" id="lo" style="width:100%;margin-top:8px">تسجيل الخروج</button></div>
-    </aside>
-    <div class="main">
-      <header class="top"><button class="iconbtn burger" id="bg">☰</button>
-        <div class="grow">${esc(S.me.user.name)}</div>
-        <button class="iconbtn" id="bell">🔔${S.me.unread ? `<span class="dot">${S.me.unread}</span>` : ''}</button></header>
-      <main class="content" id="view"></main>
-    </div></div>`;
-  document.querySelectorAll('.nav button').forEach((b) => (b.onclick = () => { S.page = b.dataset.p; S.navOpen = false; renderShell(); }));
-  $('#bg').onclick = () => { S.navOpen = !S.navOpen; $('.side').classList.toggle('open', S.navOpen); };
-  $('#lo').onclick = () => logout();
-  $('#pw').onclick = changePassword;
-  $('#bell').onclick = showNotes;
+      ${canSearch ? `<form class="search" id="srch">${ico('search')}<input id="sq" placeholder="ابحثي عن موظف بالاسم أو اسم المستخدم أو الهاتف..." autocomplete="off"></form>` : '<div class="grow"></div>'}
+      <div class="chip" id="cdate">${ico('calendar')}<span dir="ltr"></span></div>
+      <div class="chip" id="cclk">${ico('clock')}<span dir="ltr">--:--:--</span></div>
+      <button class="iconbtn" id="bell">${ico('bell')}${S.me.unread ? `<span class="dot">${S.me.unread}</span>` : ''}</button>
+      <div class="usermenu"><button class="chip userchip" id="um"><span class="avatar sm">${esc(initials(u.name))}</span><span class="uname">${esc(u.name)}</span>${ico('chev')}</button>
+        <div class="dropdown" id="umd" hidden><button id="pw">${ico('lock')} تغيير كلمة المرور</button><button id="lo">${ico('logout')} تسجيل الخروج</button></div></div>
+    </header>
+    <aside class="side"><div class="side-head">${ico('menu')}<span>القائمة</span></div><nav class="nav" id="nav">${menuHtml(false)}</nav></aside>
+    <header class="mtop"><div class="avatar big">${esc(initials(u.name))}</div>
+      <div class="info"><b>${esc(u.name)}</b><span>${esc(u.job_title || (u.is_admin ? 'مدير النظام' : 'موظف'))}</span><span>${esc(u.department || '')}</span></div>
+      <button class="iconbtn" id="mbell">${ico('bell')}${S.me.unread ? `<span class="dot">${S.me.unread}</span>` : ''}</button></header>
+    <main class="content" id="view"></main>
+    <nav class="bottom">${bnav.map((n) => (n ? `<button data-b="${n[0]}" class="${(n[0] === S.page || (n[0] === 'me:attendance' && S.page === 'me')) ? 'on' : ''}"><span class="bi">${ico(n[2])}</span><span>${n[1]}</span></button>` : '<span class="gap"></span>')).join('')}
+      <button class="fab" id="fab" aria-label="إضافة">${ico('plus')}</button></nav>
+  </div>`;
+  const bind = (root) => {
+    root.querySelectorAll('[data-p]').forEach((b) => (b.onclick = () => go(b.dataset.p)));
+    root.querySelectorAll('[data-g]').forEach((b) => (b.onclick = () => { S.open[b.dataset.g] = !b.parentElement.classList.contains('open'); b.parentElement.classList.toggle('open'); }));
+  };
+  bind($('#nav'));
+  document.querySelectorAll('.bottom [data-b]').forEach((b) => (b.onclick = () => {
+    const k = b.dataset.b;
+    if (k === 'menu') menuSheet(); else if (k === 'me:attendance') go('me', { tab: 'attendance' }); else go(k);
+  }));
+  $('#fab').onclick = quickSheet;
+  $('#bell').onclick = showNotes; $('#mbell').onclick = showNotes;
+  $('#um').onclick = (e) => { e.stopPropagation(); $('#umd').hidden = !$('#umd').hidden; };
+  document.onclick = () => { const d = $('#umd'); if (d) d.hidden = true; };
+  $('#lo').onclick = () => logout(); $('#pw').onclick = changePassword;
+  if ($('#srch')) $('#srch').onsubmit = (e) => { e.preventDefault(); go('employees', { q: $('#sq').value.trim() }); };
+  const tick = () => {
+    const c = $('#cclk span'); if (!c) return clearInterval(renderShell.t);
+    const n = new Date();
+    c.textContent = n.toLocaleTimeString('en-US', { timeZone: TZ });
+    $('#cdate span').textContent = n.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: TZ }).replace(/,/g, '');
+  };
+  tick(); clearInterval(renderShell.t); renderShell.t = setInterval(tick, 1000);
   (PAGES[S.page] || PAGES.home)($('#view'));
 }
 async function boot() {
@@ -276,11 +363,11 @@ PAGES.home = async (view) => {
   const weekend = String(S.me.settings.weekend_days || '').split(',').filter(Boolean).map(Number);
   const days = Array.from({ length: 7 }, (_, i) => addDays(today, i - 4));
   let sel = today, recs = {};
-  view.innerHTML = `<div class="card prof"><div class="avatar big">${esc(initials(u.name))}</div>
+  view.innerHTML = `<div class="narrow"><div class="card prof"><div class="avatar big">${esc(initials(u.name))}</div>
       <div class="info"><b>${esc(u.name)}</b><span class="muted">${esc(u.job_title || '')}</span><span class="muted">${esc(u.department || '')}</span></div></div>
     <div class="card" style="margin-top:12px"><div class="strip-head"><span class="strip-month" id="smon"></span><span class="muted" id="sdow"></span></div>
       <div class="strip" id="strip"></div></div>
-    <div class="card punchcard" id="pc" style="margin-top:12px"></div>`;
+    <div class="card punchcard" id="pc" style="margin-top:12px"></div></div>`;
   const loadRecs = async () => {
     const months = [...new Set([days[0].slice(0, 7), days[6].slice(0, 7)])];
     const lists = await Promise.all(months.map((m) => api('/attendance/mine?month=' + m)));
@@ -350,31 +437,79 @@ PAGES.home = async (view) => {
 /* --- حسابي --- */
 PAGES.me = async (view) => {
   const u = S.me.user;
-  view.innerHTML = `<div class="page-head"><h2>حسابي</h2><button class="btn" id="newreq">+ طلب جديد</button></div>
-    <div class="card emp" style="margin-bottom:12px"><div class="avatar">${esc(initials(u.name))}</div>
-      <div class="info"><b>${esc(u.name)}</b><span class="muted small">${esc(u.job_title || '')} ${u.department ? '· ' + esc(u.department) : ''}</span></div>
-      <span class="badge ${u.face_enrolled ? 'b-ok' : 'b-warn'}">${u.face_enrolled ? 'بصمة الوجه مسجلة' : 'بصمة الوجه غير مسجلة'}</span></div>
-    <div class="grid g4" id="bal"></div>
-    <div class="row" style="margin:16px 0 8px"><h3 style="flex:1">طلباتي</h3></div><div id="myreq"></div>
-    <div class="row" style="margin:20px 0 8px"><h3 style="flex:1">حضوري</h3><input type="month" id="amon" value="${thisMonth()}" style="width:auto"></div><div id="myatt"></div>
-    <div class="row" style="margin:20px 0 8px"><h3 style="flex:1">مفردات المرتب</h3><input type="month" id="pmon" value="${thisMonth()}" style="width:auto"></div><div id="mypay"></div>`;
+  let tab = S.metab || 'general'; S.metab = null;
+  const t = S.me.today, today = S.me.today_date;
+  const weekend = String(S.me.settings.weekend_days || '').split(',').filter(Boolean).map(Number);
+  const dow = new Date(today + 'T00:00:00Z').getUTCDay();
+  const chip = t && t.check_in ? (t.late_minutes > 0 ? ['b-warn', `متأخر ${t.late_minutes} د`] : ['b-ok', 'في الموعد']) : weekend.includes(dow) ? ['', 'عطلة'] : ['b-warn', 'لم يسجّل بعد'];
+  view.innerHTML = `<div class="card profile"><div class="avatar xl">${esc(initials(u.name))}</div>
+      <div class="pinfo"><h2>${esc(u.name)}</h2><div class="muted">${ico('case')} ${esc(u.job_title || (u.is_admin ? 'مدير النظام' : 'موظف'))}</div><div class="muted">${ico('users')} ${esc(u.department || '—')}</div></div>
+      <div class="pmid"><span class="badge ${chip[0]}">${chip[1]}</span> <b>${esc(fmt12(u.shift_start))} - ${esc(fmt12(u.shift_end))}</b>
+        <span class="badge ${u.face_enrolled ? 'b-ok' : 'b-warn'}">${u.face_enrolled ? 'بصمة الوجه مسجلة' : 'بصمة الوجه غير مسجلة'}</span></div>
+      <div class="pact"><button class="btn" id="newreq">${ico('plus')} طلب جديد</button></div></div>
+    <div class="grid g4 statrow" id="bal"></div>
+    <div class="tabs" id="tabs">${[['general', 'عام'], ['calendar', 'تقويم العمل'], ['attendance', 'سجل الحضور'], ['payroll', 'مفردات المرتب']].map(([k, l]) => `<button data-t="${k}" class="${k === tab ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div id="tabbody"></div>`;
   $('#newreq').onclick = () => requestForm(() => PAGES.me(view));
   const r = await api('/requests/mine');
-  const b = r.balances;
+  const bl = r.balances;
   $('#bal').innerHTML = [
-    ['إجازة سنوية (المتبقي)', `${b.annual_total - b.annual_used} / ${b.annual_total} يوم`],
-    ['إجازة مرضية', `${b.sick_used} يوم`], ['إجازة طارئة', `${b.emergency_used} يوم`], ['أذونات الشهر', `${b.permission_hours_month} ساعة`],
-  ].map(([k, v]) => `<div class="card stat"><b style="font-size:22px">${v}</b><span>${k}</span></div>`).join('');
-  $('#myreq').innerHTML = reqTable(r.requests, false);
-  document.querySelectorAll('[data-del]').forEach((bt) => (bt.onclick = () => run(bt, async () => { await api('/requests/' + bt.dataset.del, 'DELETE'); PAGES.me(view); })));
-  const loadAtt = async () => {
-    const rows = await api('/attendance/mine?month=' + $('#amon').value);
-    $('#myatt').innerHTML = rows.length ? `<div class="tablewrap"><table><tr><th>اليوم</th><th>حضور</th><th>انصراف</th><th>تأخير</th><th>انصراف مبكر</th></tr>
-      ${rows.map((a) => `<tr><td>${fmtDate(a.date)}</td><td>${fmtTime(a.check_in)}</td><td>${fmtTime(a.check_out)}</td><td class="${a.late_minutes ? 'neg' : ''}">${a.late_minutes} د</td><td class="${a.early_minutes ? 'neg' : ''}">${a.early_minutes} د</td></tr>`).join('')}</table></div>` : '<div class="card empty">لا توجد سجلات</div>';
+    ['إجازة سنوية', `${bl.annual_total - bl.annual_used} / ${bl.annual_total}`, 'يوم'], ['إجازة طارئة', bl.emergency_used, 'يوم'],
+    ['إجازة مرضية', bl.sick_used, 'يوم'], ['أذونات الشهر', bl.permission_hours_month, 'ساعة'],
+  ].map(([k, v, un]) => `<div class="card stat2"><span class="sicon">${ico('calendar')}</span><div><div class="sval"><b>${v}</b> <span class="muted small">${un}</span></div><div class="muted">${k}</div></div></div>`).join('');
+  const body = $('#tabbody');
+  const draw = {
+    general() {
+      body.innerHTML = `<div class="page-head" style="margin-top:6px"><h2>الطلبات</h2><div class="row noprint">
+        <select id="rtype" style="width:auto"><option value="">كل الأنواع</option>${Object.entries(TYPES()).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+        <select id="rst" style="width:auto"><option value="">كل الحالات</option><option value="pending">قيد الانتظار</option><option value="approved">مقبول</option><option value="rejected">مرفوض</option></select></div></div><div id="myreq"></div>`;
+      const show = () => {
+        const rows = r.requests.filter((x) => (!$('#rtype').value || x.type === $('#rtype').value) && (!$('#rst').value || x.status === $('#rst').value));
+        $('#myreq').innerHTML = reqTable(rows, false);
+        body.querySelectorAll('[data-del]').forEach((bt) => (bt.onclick = () => run(bt, async () => { await api('/requests/' + bt.dataset.del, 'DELETE'); PAGES.me(view); })));
+      };
+      $('#rtype').onchange = show; $('#rst').onchange = show; show();
+    },
+    async calendar() {
+      body.innerHTML = `<div class="page-head" style="margin-top:6px"><h2>تقويم العمل</h2><input type="month" id="cmon" value="${thisMonth()}" style="width:auto"></div><div id="cal"></div>
+        <div class="legend" style="margin-top:10px"><span style="--c:#15803d">حضور</span><span style="--c:#d97706">متأخر</span><span style="--c:#dc2626">غياب</span><span style="--c:#2563eb">إجازة</span><span style="--c:#cbd5e1">عطلة</span></div>`;
+      const load = async () => {
+        const m = $('#cmon').value, rows = await api('/attendance/mine?month=' + m), by = Object.fromEntries(rows.map((x) => [x.date, x]));
+        const leave = new Set();
+        r.requests.filter((x) => x.status === 'approved' && ['annual_leave', 'sick_leave', 'emergency_leave', 'work_mission'].includes(x.type)).forEach((x) => { for (let d = x.from_date; d <= x.to_date; d = addDays(d, 1)) leave.add(d); });
+        const [y, mo] = m.split('-').map(Number), n = new Date(Date.UTC(y, mo, 0)).getUTCDate(), first = new Date(Date.UTC(y, mo - 1, 1)).getUTCDay();
+        const cells = Array.from({ length: (first + 1) % 7 }, () => '<div class="cd empty"></div>');
+        for (let d = 1; d <= n; d++) {
+          const ds = `${m}-${String(d).padStart(2, '0')}`, w = new Date(ds + 'T00:00:00Z').getUTCDay(), a = by[ds];
+          let c = '', lb = '';
+          if (a && a.check_in) { c = a.late_minutes > 0 ? '#d97706' : '#15803d'; lb = fmtTime(a.check_in); }
+          else if (leave.has(ds)) { c = '#2563eb'; lb = 'إجازة'; }
+          else if (weekend.includes(w)) { c = '#cbd5e1'; lb = 'عطلة'; }
+          else if (ds < today && ds >= u.hire_date) { c = '#dc2626'; lb = 'غياب'; }
+          cells.push(`<div class="cd ${ds === today ? 'today' : ''}"><b>${d}</b>${c ? `<i style="background:${c}"></i><small>${lb}</small>` : ''}</div>`);
+        }
+        $('#cal').innerHTML = `<div class="card"><div class="calgrid">${['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].map((x) => `<div class="ch">${x}</div>`).join('')}${cells.join('')}</div></div>`;
+      };
+      $('#cmon').onchange = load; load();
+    },
+    async attendance() {
+      body.innerHTML = `<div class="page-head" style="margin-top:6px"><h2>سجل الحضور</h2><input type="month" id="amon" value="${thisMonth()}" style="width:auto"></div><div id="myatt"></div>`;
+      const load = async () => {
+        const rows = await api('/attendance/mine?month=' + $('#amon').value);
+        $('#myatt').innerHTML = rows.length ? `<div class="tablewrap"><table><tr><th>اليوم</th><th>حضور</th><th>مكان الحضور</th><th>انصراف</th><th>تأخير</th><th>انصراف مبكر</th></tr>
+          ${rows.map((a) => `<tr><td>${fmtDate(a.date)}</td><td>${fmtTime(a.check_in)}</td><td>${esc(a.in_loc || '—')}</td><td>${fmtTime(a.check_out)}</td><td class="${a.late_minutes ? 'neg' : ''}">${a.late_minutes} د</td><td class="${a.early_minutes ? 'neg' : ''}">${a.early_minutes} د</td></tr>`).join('')}</table></div>` : '<div class="card empty">لا توجد سجلات</div>';
+      };
+      $('#amon').onchange = load; load();
+    },
+    async payroll() {
+      body.innerHTML = `<div class="page-head" style="margin-top:6px"><h2>مفردات المرتب</h2><input type="month" id="pmon" value="${thisMonth()}" style="width:auto"></div><div id="mypay"></div>`;
+      const load = async () => { $('#mypay').innerHTML = payslip(await api('/payroll/mine?month=' + $('#pmon').value)); };
+      $('#pmon').onchange = load; load();
+    },
   };
-  const loadPay = async () => { $('#mypay').innerHTML = payslip(await api('/payroll/mine?month=' + $('#pmon').value)); };
-  $('#amon').onchange = loadAtt; $('#pmon').onchange = loadPay;
-  loadAtt(); loadPay();
+  const open = (k) => { tab = k; document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === k)); draw[k](); };
+  document.querySelectorAll('#tabs button').forEach((b) => (b.onclick = () => open(b.dataset.t)));
+  draw[tab]();
 };
 const ADJ = { bonus: ['مكافأة', 'pos', '＋'], penalty: ['جزاء', 'neg', '−'], deduction: ['خصم', 'neg', '−'] };
 function payslip(m) {
@@ -433,9 +568,10 @@ PAGES.dashboard = async (view) => {
 /* --- الموظفون --- */
 PAGES.employees = async (view) => {
   const [all, resets] = await Promise.all([api('/employees'), has('employees.manage') ? api('/password-resets') : []]);
-  const pend = all.filter((u) => u.pending), rows = all.filter((u) => !u.pending);
+  const q = (S.q || '').toLowerCase();
+  const pend = all.filter((u) => u.pending), rows = all.filter((u) => !u.pending && (!q || [u.name, u.username, u.phone, u.job_title, u.department].some((x) => String(x || '').toLowerCase().includes(q))));
   const sal = rows.some((r) => r.base_salary !== undefined);
-  view.innerHTML = `<div class="page-head"><h2>الموظفون (${rows.length})</h2>${has('employees.manage') ? '<button class="btn" id="add">+ موظف جديد</button>' : ''}</div>
+  view.innerHTML = `<div class="page-head"><h2>الموظفون (${rows.length})${q ? ` <span class="muted small">— نتائج البحث عن «${esc(S.q)}»</span>` : ''}</h2>${has('employees.manage') ? '<button class="btn" id="add">+ موظف جديد</button>' : ''}</div>
     ${pend.length ? `<div class="card" style="margin-bottom:12px;border-color:var(--warn)"><h3 style="margin-bottom:8px">طلبات إنشاء حساب (${pend.length})</h3>
       ${pend.map((u) => `<div class="row" style="justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)"><div class="info"><b>${esc(u.name)}</b> <span class="muted small">${esc(u.username)}${u.phone ? ' · ' + esc(u.phone) : ''}</span></div>
       <div class="row"><button class="btn sm ok" data-ap="${u.id}">قبول</button><button class="btn sm bad" data-rj="${u.id}">رفض</button></div></div>`).join('')}</div>` : ''}
