@@ -140,6 +140,13 @@ CREATE TABLE IF NOT EXISTS late_tiers (
   kind TEXT NOT NULL CHECK(kind IN ('fixed','day_fraction')),
   value DOUBLE PRECISION NOT NULL
 );
+CREATE TABLE IF NOT EXISTS work_locations (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  lat DOUBLE PRECISION NOT NULL,
+  lng DOUBLE PRECISION NOT NULL,
+  radius_m INTEGER NOT NULL DEFAULT 150
+);
 CREATE TABLE IF NOT EXISTS password_resets (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -193,10 +200,22 @@ async function init() {
   // حسابات التسجيل الذاتي: pending=1 يعني بانتظار موافقة المدير (ومش بيقدر يدخل)
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS pending INTEGER NOT NULL DEFAULT 0');
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT');
+  // مواقع الحضور المسموحة لكل موظف (قائمة ids). لو فاضية، الموظف يقدر يسجل من أي موقع معرّف.
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS location_ids TEXT NOT NULL DEFAULT '[]'");
+  await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS in_loc TEXT');
+  await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS out_loc TEXT');
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     await db.run('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO NOTHING', k, v);
   }
-  const st = await settings();
+  let st = await settings();
+  // ترحيل موقع العمل القديم (في الإعدادات) لأول موقع في جدول المواقع، مرة واحدة فقط
+  if (st.work_lat !== '' && st.work_lng !== '' && isFinite(Number(st.work_lat)) && isFinite(Number(st.work_lng))) {
+    if (!(await db.get('SELECT 1 FROM work_locations'))) {
+      await db.run('INSERT INTO work_locations(name,lat,lng,radius_m) VALUES(?,?,?,?)', 'الإدارة', Number(st.work_lat), Number(st.work_lng), parseInt(st.radius_m, 10) || 150);
+    }
+    await putSetting('work_lat', ''); await putSetting('work_lng', '');
+    settingsCache = null; st = await settings();
+  }
   jwtSecret = process.env.JWT_SECRET || st.jwt_secret;
   if (!jwtSecret) {
     jwtSecret = crypto.randomBytes(32).toString('hex');
@@ -253,11 +272,19 @@ function userPerms(u) {
   try { return JSON.parse(u.permissions || '[]'); } catch { return []; }
 }
 const can = (u, p) => u.is_admin || userPerms(u).includes(p);
+const parseIds = (t) => { try { const a = JSON.parse(t || '[]'); return Array.isArray(a) ? a.map(Number).filter(Number.isInteger) : []; } catch { return []; } };
+// المواقع اللي يقدر الموظف يسجّل منها: المحددة له، ولو مفيش فكل المواقع المعرّفة
+async function allowedLocations(u) {
+  const all = await db.all('SELECT * FROM work_locations ORDER BY id');
+  const ids = parseIds(u.location_ids);
+  const mine = all.filter((l) => ids.includes(l.id));
+  return mine.length ? mine : all;
+}
 function publicUser(u) {
   return {
     id: u.id, name: u.name, username: u.username, is_admin: !!u.is_admin, must_change: !!u.must_change,
     permissions: userPerms(u).filter((p) => p !== '*'), job_title: u.job_title, department: u.department,
-    phone: u.phone, shift_start: u.shift_start, shift_end: u.shift_end, hire_date: u.hire_date,
+    phone: u.phone, location_ids: parseIds(u.location_ids), shift_start: u.shift_start, shift_end: u.shift_end, hire_date: u.hire_date,
     annual_leave_days: u.annual_leave_days, face_enrolled: !!u.face_descriptor, active: !!u.active, pending: !!u.pending, email: u.email || '',
   };
 }
@@ -468,15 +495,17 @@ app.get('/api/meta', (req, res) => res.json({ permissions: PERMISSIONS, request_
 app.get('/api/me', auth, wrap(async (req, res) => {
   const st = await settings();
   const { date } = tzParts();
-  const [today, unread] = await Promise.all([
+  const [today, unread, locs] = await Promise.all([
     db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', req.user.id, date),
     db.get('SELECT COUNT(*)::int AS c FROM notifications WHERE user_id=? AND read=0', req.user.id),
+    allowedLocations(req.user),
   ]);
   res.json({
     user: publicUser(req.user), today: today || null, today_date: date, unread: unread.c,
     settings: {
       company_name: st.company_name, face_threshold: parseFloat(st.face_threshold),
-      work_lat: st.work_lat, work_lng: st.work_lng, radius_m: st.radius_m,
+      weekend_days: st.weekend_days, grace_minutes: parseInt(st.grace_minutes || 0, 10),
+      needs_geo: locs.length > 0, locations: locs.map((l) => l.name),
     },
   });
 }));
@@ -507,10 +536,15 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
   if (!validDescriptor(descriptor)) return res.status(400).json({ error: 'لم يتم التقاط الوجه' });
   const score = faceDistance(descriptor, JSON.parse(u.face_descriptor));
   if (score > parseFloat(st.face_threshold)) return res.status(403).json({ error: 'الوجه غير مطابق، حاولي مرة أخرى في إضاءة أفضل' });
-  if (st.work_lat !== '' && st.work_lng !== '') {
+  // الموقع إجباري لو فيه مواقع معرّفة: لازم يكون الموظف داخل نطاق واحد من مواقعه المسموحة
+  let where = null;
+  const locs = await allowedLocations(u);
+  if (locs.length) {
     if (typeof lat !== 'number' || typeof lng !== 'number') return res.status(400).json({ error: 'فعّلي خدمة الموقع (GPS)' });
-    const dist = haversine(lat, lng, parseFloat(st.work_lat), parseFloat(st.work_lng));
-    if (dist > parseFloat(st.radius_m)) return res.status(403).json({ error: `أنتِ خارج نطاق العمل (على بعد ${Math.round(dist)} متر)` });
+    const scored = locs.map((l) => ({ l, d: haversine(lat, lng, l.lat, l.lng) })).sort((a, b) => (a.d - a.l.radius_m) - (b.d - b.l.radius_m));
+    const best = scored[0];
+    if (best.d > best.l.radius_m) return res.status(403).json({ error: `أنتِ خارج نطاق العمل (على بعد ${Math.round(best.d)} متر من ${best.l.name})` });
+    where = best.l.name;
   }
   const la = num(lat), ln = num(lng);
   const now = tzParts();
@@ -521,8 +555,8 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
     const start = toMin(u.shift_start), grace = parseInt(st.grace_minutes || 0, 10);
     const late = now.minutes > start + grace ? now.minutes - start : 0;
     try {
-      if (rec) await db.run('UPDATE attendance SET check_in=?,in_lat=?,in_lng=?,in_face=?,late_minutes=? WHERE id=?', iso, la, ln, score, late, rec.id);
-      else await db.run('INSERT INTO attendance(user_id,date,check_in,in_lat,in_lng,in_face,late_minutes) VALUES(?,?,?,?,?,?,?)', u.id, now.date, iso, la, ln, score, late);
+      if (rec) await db.run('UPDATE attendance SET check_in=?,in_lat=?,in_lng=?,in_face=?,late_minutes=?,in_loc=? WHERE id=?', iso, la, ln, score, late, where, rec.id);
+      else await db.run('INSERT INTO attendance(user_id,date,check_in,in_lat,in_lng,in_face,late_minutes,in_loc) VALUES(?,?,?,?,?,?,?,?)', u.id, now.date, iso, la, ln, score, late, where);
     } catch (e) {
       if (e.code === '23505') return res.status(409).json({ error: 'تم تسجيل الحضور اليوم بالفعل' });
       throw e;
@@ -531,7 +565,7 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
     if (!rec || !rec.check_in) return res.status(409).json({ error: 'سجّلي الحضور أولاً' });
     if (rec.check_out) return res.status(409).json({ error: 'تم تسجيل الانصراف اليوم بالفعل' });
     const early = Math.max(0, toMin(u.shift_end) - now.minutes);
-    await db.run('UPDATE attendance SET check_out=?,out_lat=?,out_lng=?,out_face=?,early_minutes=? WHERE id=?', iso, la, ln, score, early, rec.id);
+    await db.run('UPDATE attendance SET check_out=?,out_lat=?,out_lng=?,out_face=?,early_minutes=?,out_loc=? WHERE id=?', iso, la, ln, score, early, where, rec.id);
   }
   res.json({ ok: true, record: await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date) });
 }));
@@ -671,9 +705,10 @@ app.post('/api/employees', auth, need('employees.manage'), wrap(async (req, res)
   if (!USERNAME_RE.test(String(b.username).trim())) return res.status(400).json({ error: 'اسم المستخدم من 3 إلى 30 حرف/رقم بدون مسافات' });
   if (b.role === 'admin' && !req.user.is_admin) return res.status(403).json({ error: 'إنشاء حساب مدير للمدير فقط' });
   if (await db.get('SELECT 1 FROM users WHERE lower(username)=?', String(b.username).toLowerCase())) return res.status(409).json({ error: 'اسم المستخدم مستخدم من قبل' });
-  const id = await db.insert(`INSERT INTO users(name,username,password_hash,job_title,department,phone,base_salary,allowances,shift_start,shift_end,hire_date,annual_leave_days,is_admin)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, b.name, String(b.username).trim(), bcrypt.hashSync(String(b.password), 10), b.job_title || '', b.department || '', b.phone || '',
-    Number(b.base_salary) || 0, Number(b.allowances) || 0, b.shift_start || '09:00', b.shift_end || '17:00', b.hire_date || tzParts().date, parseInt(b.annual_leave_days ?? 21, 10), b.role === 'admin' ? 1 : 0);
+  const locIds = b.location_ids === undefined ? [] : parseIds(JSON.stringify(b.location_ids));
+  const id = await db.insert(`INSERT INTO users(name,username,password_hash,job_title,department,phone,base_salary,allowances,shift_start,shift_end,hire_date,annual_leave_days,is_admin,location_ids)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, b.name, String(b.username).trim(), bcrypt.hashSync(String(b.password), 10), b.job_title || '', b.department || '', b.phone || '',
+    Number(b.base_salary) || 0, Number(b.allowances) || 0, b.shift_start || '09:00', b.shift_end || '17:00', b.hire_date || tzParts().date, parseInt(b.annual_leave_days ?? 21, 10), b.role === 'admin' ? 1 : 0, JSON.stringify(locIds));
   res.json({ id });
 }));
 app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, res) => {
@@ -689,6 +724,11 @@ app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, r
     if (b[f] === undefined) continue;
     sets.push(`${f}=?`);
     vals.push(['base_salary', 'allowances'].includes(f) ? Number(b[f]) : f === 'annual_leave_days' ? parseInt(b[f], 10) : b[f]);
+  }
+  if (b.location_ids !== undefined) {
+    const ids = parseIds(JSON.stringify(b.location_ids));
+    const ok = ids.length ? (await db.all('SELECT id FROM work_locations WHERE id = ANY(?::int[])', ids)).map((r) => r.id) : [];
+    sets.push('location_ids=?'); vals.push(JSON.stringify(ok));
   }
   if (b.password) { sets.push('password_hash=?', 'must_change=1'); vals.push(bcrypt.hashSync(String(b.password), 10)); }
   if (b.active !== undefined && !u.is_admin && !u.pending) { sets.push('active=?'); vals.push(b.active ? 1 : 0); }
@@ -823,6 +863,36 @@ app.post('/api/adjustments', auth, need('payroll.manage'), wrap(async (req, res)
 app.delete('/api/adjustments/:id', auth, need('payroll.manage'), wrap(async (req, res) => {
   const id = toId(req.params.id);
   if (id) await db.run('DELETE FROM adjustments WHERE id=?', id);
+  res.json({ ok: true });
+}));
+
+/* ----- مواقع العمل ----- */
+const needLocAccess = (req, res, next) => (can(req.user, 'settings.manage') || can(req.user, 'employees.manage') ? next() : res.status(403).json({ error: 'ليس لديك صلاحية لهذا الإجراء' }));
+function parseLoc(b) {
+  const name = String(b.name || '').trim().slice(0, 60), lat = Number(b.lat), lng = Number(b.lng), radius = parseInt(b.radius_m, 10);
+  if (!name) return { error: 'اكتبي اسم الموقع' };
+  if (!(b.lat !== '' && b.lng !== '' && isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180)) return { error: 'إحداثيات غير صحيحة' };
+  if (!(radius >= 20 && radius <= 5000)) return { error: 'النطاق من 20 إلى 5000 متر' };
+  return { name, lat, lng, radius };
+}
+app.get('/api/locations', auth, needLocAccess, wrap(async (req, res) => {
+  res.json(await db.all('SELECT * FROM work_locations ORDER BY id'));
+}));
+app.post('/api/locations', auth, need('settings.manage'), wrap(async (req, res) => {
+  const l = parseLoc(req.body || {});
+  if (l.error) return res.status(400).json({ error: l.error });
+  res.json({ id: await db.insert('INSERT INTO work_locations(name,lat,lng,radius_m) VALUES(?,?,?,?)', l.name, l.lat, l.lng, l.radius) });
+}));
+app.put('/api/locations/:id', auth, need('settings.manage'), wrap(async (req, res) => {
+  const id = toId(req.params.id), l = parseLoc(req.body || {});
+  if (l.error) return res.status(400).json({ error: l.error });
+  const r = id && await db.run('UPDATE work_locations SET name=?,lat=?,lng=?,radius_m=? WHERE id=?', l.name, l.lat, l.lng, l.radius, id);
+  if (!r || !r.rowCount) return res.status(404).json({ error: 'غير موجود' });
+  res.json({ ok: true });
+}));
+app.delete('/api/locations/:id', auth, need('settings.manage'), wrap(async (req, res) => {
+  const id = toId(req.params.id);
+  if (id) await db.run('DELETE FROM work_locations WHERE id=?', id);
   res.json({ ok: true });
 }));
 

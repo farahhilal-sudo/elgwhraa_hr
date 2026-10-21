@@ -268,58 +268,83 @@ async function showNotes() {
 const PAGES = {};
 
 /* --- تسجيل الحضور --- */
+const fmt12 = (hhmm) => { const [h, m] = String(hhmm || '0:0').split(':').map(Number); return `${String(h % 12 || 12).padStart(2, '0')}:${String(m || 0).padStart(2, '0')} ${h >= 12 ? 'م' : 'ص'}`; };
+const addDays = (d, n) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+const timeAr = (iso) => (iso ? new Date(iso).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: TZ }) : '');
 PAGES.home = async (view) => {
-  const u = S.me.user;
-  view.innerHTML = `<div class="page-head"><h2>تسجيل الحضور والانصراف</h2></div>
-    <div class="grid g2" style="align-items:start">
-      <div class="card"><div class="clock"><div class="t" id="clk">--:--:--</div><div class="d" id="cdate"></div></div>
-        <div class="muted" style="text-align:center">وردية اليوم: ${esc(u.shift_start)} – ${esc(u.shift_end)}</div>
-        <div id="punch" style="margin-top:16px"></div></div>
-      <div class="card"><h3 style="margin-bottom:10px">اليوم</h3><div id="today"></div></div>
-    </div>`;
-  const tick = () => {
-    const n = new Date();
-    const c = $('#clk'); if (!c) return clearInterval(PAGES.home.t);
-    c.textContent = n.toLocaleTimeString('en-GB', { timeZone: TZ });
-    $('#cdate').textContent = n.toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long', day: 'numeric', month: 'long', timeZone: TZ });
+  const u = S.me.user, today = S.me.today_date;
+  const weekend = String(S.me.settings.weekend_days || '').split(',').filter(Boolean).map(Number);
+  const days = Array.from({ length: 7 }, (_, i) => addDays(today, i - 4));
+  let sel = today, recs = {};
+  view.innerHTML = `<div class="card prof"><div class="avatar big">${esc(initials(u.name))}</div>
+      <div class="info"><b>${esc(u.name)}</b><span class="muted">${esc(u.job_title || '')}</span><span class="muted">${esc(u.department || '')}</span></div></div>
+    <div class="card" style="margin-top:12px"><div class="strip-head"><span class="strip-month" id="smon"></span><span class="muted" id="sdow"></span></div>
+      <div class="strip" id="strip"></div></div>
+    <div class="card punchcard" id="pc" style="margin-top:12px"></div>`;
+  const loadRecs = async () => {
+    const months = [...new Set([days[0].slice(0, 7), days[6].slice(0, 7)])];
+    const lists = await Promise.all(months.map((m) => api('/attendance/mine?month=' + m)));
+    recs = {}; lists.flat().forEach((r) => { recs[r.date] = r; });
+    if (S.me.today) recs[today] = S.me.today;
   };
-  tick(); clearInterval(PAGES.home.t); PAGES.home.t = setInterval(tick, 1000);
+  const dotColor = (d) => {
+    const r = recs[d], dow = new Date(d + 'T00:00:00Z').getUTCDay();
+    if (r && r.check_in) return r.late_minutes > 0 ? '#d97706' : '#15803d';
+    if (d < today && !weekend.includes(dow) && d >= u.hire_date) return '#dc2626';
+    return '#cbd5e1';
+  };
+  const drawStrip = () => {
+    const dt = new Date(sel + 'T00:00:00');
+    $('#smon').textContent = dt.toLocaleDateString('ar-EG-u-nu-latn', { month: 'long', year: 'numeric' });
+    $('#sdow').textContent = `(${dt.toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long' })})`;
+    $('#strip').innerHTML = days.map((d) => `<button class="day ${d === sel ? 'on' : ''}" data-d="${d}"><b>${Number(d.slice(8))}</b><i style="background:${d === sel ? '#0ea5e9' : dotColor(d)}"></i></button>`).join('');
+    view.querySelectorAll('.day').forEach((b) => (b.onclick = () => { sel = b.dataset.d; draw(); }));
+  };
+  const row = (kind, iso, loc) => `<div class="prow"><span class="pi ${kind}">${kind === 'in' ? '⇥' : '⇤'}</span><b>${timeAr(iso)}</b><span class="ploc">${esc(loc || 'بدون موقع')}</span></div>`;
   const draw = () => {
-    const t = S.me.today;
-    $('#today').innerHTML = `<div class="punchrow"><div class="cell"><span class="muted small">الحضور</span><b>${fmtTime(t?.check_in)}</b></div>
-      <div class="cell"><span class="muted small">الانصراف</span><b>${fmtTime(t?.check_out)}</b></div></div>
-      ${t?.late_minutes ? `<p class="small neg">تأخير ${t.late_minutes} دقيقة</p>` : ''}
-      ${t?.early_minutes ? `<p class="small neg">انصراف مبكر ${t.early_minutes} دقيقة</p>` : ''}`;
-    const p = $('#punch');
-    if (!u.face_enrolled) {
-      p.innerHTML = `<p class="small" style="background:var(--warn-l);color:var(--warn);padding:10px;border-radius:10px">لازم تسجّلي بصمة وجهك مرة واحدة قبل أول تسجيل حضور.</p>
-        <button class="btn big" id="enroll">تسجيل بصمة الوجه</button>`;
-      $('#enroll').onclick = (e) => run(e.target, async () => {
-        const d = await captureFace('تسجيل بصمة الوجه');
-        await api('/me/face', 'POST', { descriptor: d });
-        toast('تم تسجيل بصمة الوجه'); await boot();
-      });
-    } else if (!t?.check_in) {
-      p.innerHTML = `<button class="btn big ok" id="go">تسجيل حضور</button>`;
-      $('#go').onclick = (e) => punch('in', e.target);
-    } else if (!t.check_out) {
-      p.innerHTML = `<button class="btn big bad" id="go">تسجيل انصراف</button>`;
-      $('#go').onclick = (e) => punch('out', e.target);
-    } else p.innerHTML = `<p class="pos" style="text-align:center;font-weight:700">✔ تم تسجيل حضورك وانصرافك اليوم</p>`;
+    drawStrip();
+    const r = recs[sel], dow = new Date(sel + 'T00:00:00Z').getUTCDay(), isToday = sel === today;
+    const grace = S.me.settings.grace_minutes || 0;
+    const [sh, sm] = u.shift_start.split(':').map(Number), endGrace = `${String(Math.floor((sh * 60 + sm + grace) / 60) % 24).padStart(2, '0')}:${String((sm + grace) % 60).padStart(2, '0')}`;
+    let status = '', body = '', action = '';
+    if (r && r.check_in) {
+      status = r.late_minutes > 0 ? `<div class="pstat warn">متأخر ${r.late_minutes} دقيقة</div>` : '<div class="pstat ok">في الموعد</div>';
+      body = `<div class="recbox">${row('in', r.check_in, r.in_loc)}${r.check_out ? row('out', r.check_out, r.out_loc) : ''}</div>
+        ${r.early_minutes ? `<p class="small neg" style="text-align:center">انصراف مبكر ${r.early_minutes} دقيقة</p>` : ''}`;
+      if (isToday && !r.check_out) action = '<button class="pbtn out" id="go">تسجيل الانصراف <span>⇤</span></button>';
+      else if (isToday) action = '<p class="pos" style="text-align:center;font-weight:700;margin:12px 0 0">✔ تم تسجيل حضورك وانصرافك اليوم</p>';
+    } else if (weekend.includes(dow)) status = '<div class="pstat">عطلة أسبوعية</div>';
+    else if (sel > today) status = '<div class="pstat">لم يحن موعد هذا اليوم بعد</div>';
+    else if (!isToday) status = '<div class="pstat bad">لا يوجد تسجيل حضور</div>';
+    else {
+      status = `<div class="muted" style="text-align:center">موعد تسجيل الحضور - ${fmt12(u.shift_start)} - ${fmt12(endGrace)}</div>`;
+      action = !u.face_enrolled
+        ? `<p class="small" style="background:var(--warn-l);color:var(--warn);padding:10px;border-radius:10px;margin:14px 0 10px">لازم تسجّلي بصمة وجهك مرة واحدة قبل أول تسجيل حضور.</p><button class="pbtn" id="enroll">تسجيل بصمة الوجه</button>`
+        : '<button class="pbtn" id="go">تسجيل الحضور <span>⇥</span></button>';
+    }
+    $('#pc').innerHTML = `<div class="shift">(${esc(fmt12(u.shift_start))} - ${esc(fmt12(u.shift_end))})</div>${status}${body}${action}
+      ${isToday && !(r && r.check_out) ? `<p class="muted small" style="text-align:center;margin:12px 0 0">التسجيل بالوجه ${S.me.settings.needs_geo ? 'والموقع (' + esc(S.me.settings.locations.join('، ')) + ')' : ''}</p>` : ''}`;
+    if ($('#enroll')) $('#enroll').onclick = (e) => run(e.target, async () => {
+      const d = await captureFace('تسجيل بصمة الوجه');
+      await api('/me/face', 'POST', { descriptor: d });
+      toast('تم تسجيل بصمة الوجه'); await boot();
+    });
+    if ($('#go')) $('#go').onclick = (e) => punch(r && r.check_in ? 'out' : 'in', e.currentTarget);
   };
   async function punch(type, btn) {
+    const label = btn.innerHTML;
     await run(btn, async () => {
       let pos = null;
-      const needGeo = S.me.settings.work_lat !== '' && S.me.settings.work_lng !== '';
-      if (needGeo) { btn.textContent = 'جارٍ تحديد موقعك...'; pos = await getPos(); }
+      if (S.me.settings.needs_geo) { btn.textContent = 'جارٍ تحديد موقعك...'; pos = await getPos(); }
       const d = await captureFace(type === 'in' ? 'تأكيد الوجه للحضور' : 'تأكيد الوجه للانصراف');
       await api('/attendance/punch', 'POST', { type, lat: pos?.lat, lng: pos?.lng, descriptor: d });
       toast(type === 'in' ? 'تم تسجيل الحضور ✔' : 'تم تسجيل الانصراف ✔');
-      S.me = await api('/me'); draw();
+      S.me = await api('/me'); await loadRecs(); draw();
     });
-    if (btn.isConnected && btn.disabled === false) btn.textContent = type === 'in' ? 'تسجيل حضور' : 'تسجيل انصراف';
+    if (btn.isConnected) btn.innerHTML = label;
   }
   draw();
+  loadRecs().then(() => { if ($('#strip')) draw(); }).catch(() => {});
 };
 
 /* --- حسابي --- */
@@ -441,7 +466,9 @@ PAGES.employees = async (view) => {
     view.querySelectorAll('[data-rf]').forEach((b) => (b.onclick = () => { if (confirm('إعادة ضبط بصمة وجه الموظف؟ هيسجّلها من جديد.')) run(b, async () => { await api(`/employees/${b.dataset.rf}/reset-face`, 'POST'); toast('تمت إعادة الضبط'); PAGES.employees(view); }); }));
   }
 };
-function empForm(u, done) {
+async function empForm(u, done) {
+  let locs = [];
+  try { locs = await api('/locations'); } catch { /* مفيش صلاحية: نكمل من غير */ }
   const isNew = !u, canSal = isNew || u.base_salary !== undefined;
   const o = modal(`<h3>${isNew ? 'موظف جديد' : 'تعديل ' + esc(u.name)}</h3><form class="form" id="ef">
     <label class="f full">الاسم<input name="name" value="${esc(u?.name)}" required></label>
@@ -455,6 +482,7 @@ function empForm(u, done) {
     <label class="f">البدلات<input type="number" step="0.01" min="0" name="allowances" value="${u?.allowances ?? 0}"></label>` : ''}
     <label class="f">بداية الوردية<input type="time" name="shift_start" value="${esc(u?.shift_start || '09:00')}"></label>
     <label class="f">نهاية الوردية<input type="time" name="shift_end" value="${esc(u?.shift_end || '17:00')}"></label>
+    ${locs.length ? `<div class="full"><div class="muted small" style="margin-bottom:4px;font-weight:600">مواقع الحضور المسموحة (لو ماحددتيش، يسجّل من أي موقع)</div><div class="row">${locs.map((l) => `<label class="perm"><input type="checkbox" data-loc="${l.id}" ${u?.location_ids?.includes(l.id) ? 'checked' : ''}>${esc(l.name)}</label>`).join('')}</div></div>` : ''}
     <label class="f">رصيد الإجازة السنوية (يوم)<input type="number" min="0" name="annual_leave_days" value="${u?.annual_leave_days ?? 21}"></label>
     ${S.me.user.is_admin && (isNew || u.id !== S.me.user.id) ? `<label class="f">نوع الحساب<select name="role"><option value="employee" ${u?.is_admin ? '' : 'selected'}>موظف (بصلاحيات يحددها المدير)</option><option value="admin" ${u?.is_admin ? 'selected' : ''}>مدير (كل الصلاحيات)</option></select></label>` : ''}
     ${!isNew && !u.is_admin ? `<label class="f">الحالة<select name="active"><option value="1" ${u.active ? 'selected' : ''}>نشط</option><option value="0" ${u.active ? '' : 'selected'}>موقوف</option></select></label>` : ''}
@@ -464,6 +492,7 @@ function empForm(u, done) {
     const b = Object.fromEntries(new FormData(f));
     if (b.active !== undefined) b.active = b.active === '1';
     if (!b.password) delete b.password;
+    if (locs.length) b.location_ids = [...f.querySelectorAll('[data-loc]:checked')].map((x) => Number(x.dataset.loc));
     await api(isNew ? '/employees' : '/employees/' + u.id, isNew ? 'POST' : 'PUT', b);
     o.close(); toast('تم الحفظ'); done();
   }); };
@@ -481,7 +510,7 @@ PAGES.attendance = async (view) => {
     rows = await api(`/attendance?from=${$('#f1').value}&to=${$('#f2').value}&user_id=${$('#f3').value}`);
     $('#al').innerHTML = rows.length ? `<div class="tablewrap"><table><tr><th>اليوم</th><th>الموظف</th><th>حضور</th><th>انصراف</th><th>تأخير</th><th>مبكر</th><th>تطابق الوجه</th><th>الموقع</th><th></th></tr>
       ${rows.map((a) => `<tr><td>${fmtDate(a.date)}</td><td>${esc(a.user_name)}</td><td>${fmtTime(a.check_in)}</td><td>${fmtTime(a.check_out)}</td><td class="${a.late_minutes ? 'neg' : ''}">${a.late_minutes} د</td><td class="${a.early_minutes ? 'neg' : ''}">${a.early_minutes} د</td>
-      <td>${a.in_face != null ? (100 - Math.round(a.in_face * 100)) + '%' : (a.note ? 'يدوي' : '—')}</td><td>${a.in_lat != null ? `<a target="_blank" rel="noopener" href="https://www.google.com/maps?q=${a.in_lat},${a.in_lng}">خريطة</a>` : '—'}</td>
+      <td>${a.in_face != null ? (100 - Math.round(a.in_face * 100)) + '%' : (a.note ? 'يدوي' : '—')}</td><td>${a.in_loc ? esc(a.in_loc) + ' ' : ''}${a.in_lat != null ? `<a target="_blank" rel="noopener" href="https://www.google.com/maps?q=${a.in_lat},${a.in_lng}">خريطة</a>` : '—'}</td>
       <td>${has('attendance.edit') ? `<button class="btn alt sm" data-ed="${a.id}">تعديل</button> <button class="btn alt sm" data-rm="${a.id}">حذف</button>` : ''}</td></tr>`).join('')}</table></div>` : '<div class="card empty">لا توجد سجلات</div>';
     view.querySelectorAll('[data-rm]').forEach((b) => (b.onclick = () => { if (confirm('حذف السجل؟')) run(b, async () => { await api('/attendance/' + b.dataset.rm, 'DELETE'); load(); }); }));
     view.querySelectorAll('[data-ed]').forEach((b) => (b.onclick = () => { const a = rows.find((r) => r.id == b.dataset.ed); manualAtt(emps, a, load); }));
@@ -599,9 +628,9 @@ PAGES.settings = async (view) => {
   const wk = String(s.weekend_days).split(',').filter(Boolean).map(Number);
   view.innerHTML = `<div class="page-head"><h2>الإعدادات</h2></div><form class="card form" id="sf">
     <label class="f full">اسم الشركة<input name="company_name" value="${esc(s.company_name)}"></label>
-    <div class="full card" style="background:var(--bg)"><h3>موقع العمل</h3><p class="muted small" style="margin:4px 0 10px">لو سبتيهم فاضيين، مش هيتم التحقق من الموقع. الأفضل تفتحي الصفحة وانتِ في مكان العمل وتضغطي الزرار.</p>
-      <div class="form"><label class="f">خط العرض<input name="work_lat" value="${esc(s.work_lat)}" inputmode="decimal"></label><label class="f">خط الطول<input name="work_lng" value="${esc(s.work_lng)}" inputmode="decimal"></label>
-      <label class="f">النطاق المسموح (متر)<input type="number" name="radius_m" min="20" value="${esc(s.radius_m)}"></label><div style="align-self:end"><button type="button" class="btn alt" id="here">استخدام موقعي الحالي</button></div></div></div>
+    <div class="full card" style="background:var(--bg)"><div class="row" style="justify-content:space-between"><h3>مواقع العمل</h3><button type="button" class="btn sm" id="locadd">+ موقع جديد</button></div>
+      <p class="muted small" style="margin:4px 0 10px">الموظف مش بيقدر يسجّل حضور أو انصراف إلا لو كان داخل نطاق أحد المواقع المسموحة له. تحددي المواقع المسموحة لكل موظف من «الموظفون ← تعديل». لو الموظف معندوش مواقع محددة، بيقدر يسجّل من أي موقع هنا. ولو مفيش مواقع خالص، مش بيتم التحقق من الموقع.</p>
+      <div id="loclist"></div></div>
     <label class="perm full"><input type="checkbox" name="signup_enabled" value="1" ${s.signup_enabled !== '0' ? 'checked' : ''}>السماح بإنشاء حساب جديد من صفحة الدخول (بيحتاج موافقتك)</label>
     <label class="f">سماح التأخير (دقيقة)<input type="number" name="grace_minutes" min="0" value="${esc(s.grace_minutes)}"></label>
     <label class="f">حساسية مطابقة الوجه (0.3 أشد – 0.7 أخف)<input type="number" step="0.05" min="0.3" max="0.7" name="face_threshold" value="${esc(s.face_threshold)}"></label>
@@ -610,7 +639,15 @@ PAGES.settings = async (view) => {
     <label class="f">معامل الوقت الإضافي<input type="number" step="0.25" min="0" name="overtime_factor" value="${esc(s.overtime_factor)}"></label>
     <div class="full"><div class="muted small" style="margin-bottom:6px;font-weight:600">أيام الإجازة الأسبوعية</div><div class="row">${days.map((d, i) => `<label class="perm"><input type="checkbox" data-d="${i}" ${wk.includes(i) ? 'checked' : ''}>${d}</label>`).join('')}</div></div>
     <div class="actions full" style="justify-content:flex-start"><button class="btn">حفظ الإعدادات</button></div></form>`;
-  $('#here').onclick = (e) => run(e.target, async () => { const p = await getPos(); $('[name=work_lat]').value = p.lat.toFixed(6); $('[name=work_lng]').value = p.lng.toFixed(6); toast(`تم التقاط الموقع (دقة ~${Math.round(p.acc)} م)`); });
+  const loadLocs = async () => {
+    const locs = await api('/locations');
+    $('#loclist').innerHTML = locs.map((l) => `<div class="row" style="justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)"><div class="info"><b>${esc(l.name)}</b> <span class="muted small">نطاق ${l.radius_m} م · ${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}</span></div>
+      <div class="row"><button type="button" class="btn alt sm" data-le="${l.id}">تعديل</button><button type="button" class="btn alt sm" data-ld="${l.id}">حذف</button></div></div>`).join('') || '<div class="muted small">مفيش مواقع مضافة.</div>';
+    $('#loclist').querySelectorAll('[data-le]').forEach((b) => (b.onclick = () => locForm(locs.find((x) => x.id == b.dataset.le), loadLocs)));
+    $('#loclist').querySelectorAll('[data-ld]').forEach((b) => (b.onclick = () => { if (confirm('حذف الموقع ده؟')) run(b, async () => { await api('/locations/' + b.dataset.ld, 'DELETE'); loadLocs(); }); }));
+  };
+  $('#locadd').onclick = () => locForm(null, loadLocs);
+  loadLocs();
   $('#sf').onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', e.target), async () => {
     const b = Object.fromEntries(new FormData(e.target));
     b.signup_enabled = e.target.signup_enabled.checked ? '1' : '0';
@@ -618,6 +655,24 @@ PAGES.settings = async (view) => {
     await api('/settings', 'PUT', b); S.me = await api('/me'); toast('تم حفظ الإعدادات');
   }); };
 };
+
+function locForm(l, done) {
+  const o = modal(`<h3>${l ? 'تعديل موقع' : 'موقع عمل جديد'}</h3><form class="form" id="lcf">
+    <label class="f full">اسم الموقع (مثلاً: الإدارة)<input name="name" value="${esc(l?.name)}" required maxlength="60"></label>
+    <label class="f">خط العرض<input name="lat" value="${esc(l?.lat ?? '')}" inputmode="decimal" required></label>
+    <label class="f">خط الطول<input name="lng" value="${esc(l?.lng ?? '')}" inputmode="decimal" required></label>
+    <label class="f">النطاق المسموح (متر)<input type="number" name="radius_m" min="20" max="5000" value="${l?.radius_m ?? 150}" required></label>
+    <div style="align-self:end"><button type="button" class="btn alt" id="here" style="width:100%">استخدام موقعي الحالي</button></div>
+    <p class="muted small full" style="margin:0">الأفضل تفتحي الصفحة وانتِ في مكان العمل وتضغطي «استخدام موقعي الحالي».</p>
+    <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
+  const f = $('#lcf', o);
+  $('#here', o).onclick = (e) => run(e.target, async () => { const p = await getPos(); f.lat.value = p.lat.toFixed(6); f.lng.value = p.lng.toFixed(6); toast(`تم التقاط الموقع (دقة ~${Math.round(p.acc)} م)`); });
+  f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
+    const b = { name: f.name.value, lat: f.lat.value, lng: f.lng.value, radius_m: f.radius_m.value };
+    await api(l ? '/locations/' + l.id : '/locations', l ? 'PUT' : 'POST', b);
+    o.close(); toast('تم الحفظ'); done();
+  }); };
+}
 
 /* --- المكافآت والجزاءات والخصومات --- */
 PAGES.adjustments = async (view) => {
