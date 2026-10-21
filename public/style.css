@@ -81,6 +81,9 @@ td.num, th.num { text-align: end; font-variant-numeric: tabular-nums; }
 .punchrow .cell { background: var(--bg); border-radius: 12px; padding: 12px; text-align: center; }
 .punchrow .cell b { display: block; font-size: 20px; }
 
+button.link { border: 0; background: none; color: var(--brand); font-weight: 600; cursor: pointer; padding: 4px 0; }
+button.link:hover { text-decoration: underline; }
+
 /* perms */
 .perm { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
 .perm input { width: 18px; height: 18px; flex: none; }

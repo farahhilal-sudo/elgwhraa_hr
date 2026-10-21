@@ -137,7 +137,9 @@ function logout(silent) {
   if (!silent) toast('تم تسجيل الخروج');
   renderLogin();
 }
-function renderLogin() {
+async function renderLogin() {
+  let pub = { signup_enabled: true };
+  try { pub = await api('/public'); } catch { /* نكمل بالافتراضي */ }
   $('#app').innerHTML = `<div class="login"><form class="card" id="lf">
     <img class="logo" src="/icon.svg" alt="">
     <h2 style="text-align:center;margin-bottom:4px">تسجيل الدخول</h2>
@@ -146,7 +148,13 @@ function renderLogin() {
       <label class="f">اسم المستخدم<input name="u" autocomplete="username" autocapitalize="none" required></label>
       <label class="f">كلمة المرور<input name="p" type="password" autocomplete="current-password" required></label>
       <button class="btn big" style="font-size:16px;padding:12px">دخول</button>
+      <div class="row" style="justify-content:space-between">
+        <button type="button" class="link" id="forgot">نسيت كلمة المرور؟</button>
+        ${pub.signup_enabled ? '<button type="button" class="link" id="signup">إنشاء حساب جديد</button>' : ''}
+      </div>
     </div></form></div>`;
+  $('#forgot').onclick = () => forgotForm($('[name=u]').value.trim());
+  if ($('#signup')) $('#signup').onclick = signupForm;
   $('#lf').onsubmit = (e) => {
     e.preventDefault();
     const f = e.target;
@@ -156,6 +164,38 @@ function renderLogin() {
       await boot();
     });
   };
+}
+function signupForm() {
+  const o = modal(`<h3>إنشاء حساب جديد</h3>
+    <p class="muted small" style="margin:0 0 12px">هيتم إنشاء حساب موظف، وهتقدري تدخلي بعد ما المدير يوافق عليه. المدير هو اللي بيحدد صلاحياتك.</p>
+    <form class="form" id="sg">
+      <label class="f full">الاسم بالكامل<input name="name" required minlength="3" maxlength="80" autocomplete="name"></label>
+      <label class="f">اسم المستخدم (للدخول)<input name="username" required minlength="3" maxlength="30" autocapitalize="none" autocomplete="username"></label>
+      <label class="f">رقم الهاتف<input name="phone" type="tel" maxlength="30" autocomplete="tel"></label>
+      <label class="f">كلمة المرور (6 أحرف على الأقل)<input name="password" type="password" minlength="6" required autocomplete="new-password"></label>
+      <label class="f">تأكيد كلمة المرور<input name="password2" type="password" minlength="6" required autocomplete="new-password"></label>
+      <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">إنشاء الحساب</button></div></form>`);
+  const f = $('#sg', o);
+  f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
+    if (f.password.value !== f.password2.value) throw new Error('كلمتا المرور غير متطابقتين');
+    await api('/signup', 'POST', { name: f.name.value, username: f.username.value.trim(), phone: f.phone.value, password: f.password.value });
+    o.close();
+    modal(`<h3>تم إرسال طلبك ✔</h3><p>حسابك بانتظار موافقة المدير. هتقدري تدخلي باسم المستخدم وكلمة المرور بعد القبول.</p><div class="actions"><button class="btn" data-close>تمام</button></div>`);
+  }); };
+}
+function forgotForm(username) {
+  const o = modal(`<h3>نسيت كلمة المرور</h3>
+    <p class="muted small" style="margin:0 0 12px">اكتبي اسم المستخدم وهيوصل طلب للمدير. بعد ما يراجعه هيدّيكي كلمة مرور مؤقتة، وتغيّريها أول ما تدخلي.</p>
+    <form class="grid" id="fg">
+      <label class="f">اسم المستخدم<input name="username" value="${esc(username)}" required autocapitalize="none"></label>
+      <label class="f">رقم الهاتف أو ملاحظة تساعد المدير يتأكد إنك أنتِ (اختياري)<input name="note" maxlength="200"></label>
+      <div class="actions"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">إرسال الطلب</button></div></form>`);
+  const f = $('#fg', o);
+  f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
+    await api('/forgot-password', 'POST', { username: f.username.value.trim(), note: f.note.value });
+    o.close();
+    modal(`<h3>تم إرسال الطلب</h3><p>لو اسم المستخدم صحيح، المدير هيوصله طلبك ويديكي كلمة مرور مؤقتة. تواصلي معه لو اتأخر.</p><div class="actions"><button class="btn" data-close>تمام</button></div>`);
+  }); };
 }
 const NAV = [
   ['home', '🕘', 'تسجيل الحضور', () => true],
@@ -367,15 +407,35 @@ PAGES.dashboard = async (view) => {
 
 /* --- الموظفون --- */
 PAGES.employees = async (view) => {
-  const rows = await api('/employees');
+  const [all, resets] = await Promise.all([api('/employees'), has('employees.manage') ? api('/password-resets') : []]);
+  const pend = all.filter((u) => u.pending), rows = all.filter((u) => !u.pending);
   const sal = rows.some((r) => r.base_salary !== undefined);
   view.innerHTML = `<div class="page-head"><h2>الموظفون (${rows.length})</h2>${has('employees.manage') ? '<button class="btn" id="add">+ موظف جديد</button>' : ''}</div>
+    ${pend.length ? `<div class="card" style="margin-bottom:12px;border-color:var(--warn)"><h3 style="margin-bottom:8px">طلبات إنشاء حساب (${pend.length})</h3>
+      ${pend.map((u) => `<div class="row" style="justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)"><div class="info"><b>${esc(u.name)}</b> <span class="muted small">${esc(u.username)}${u.phone ? ' · ' + esc(u.phone) : ''}</span></div>
+      <div class="row"><button class="btn sm ok" data-ap="${u.id}">قبول</button><button class="btn sm bad" data-rj="${u.id}">رفض</button></div></div>`).join('')}</div>` : ''}
+    ${resets.length ? `<div class="card" style="margin-bottom:12px;border-color:var(--warn)"><h3 style="margin-bottom:8px">طلبات استعادة كلمة المرور (${resets.length})</h3>
+      ${resets.map((r) => `<div class="row" style="justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)"><div class="info"><b>${esc(r.name)}</b> <span class="muted small">${esc(r.username)}${r.is_admin ? ' · مدير' : ''}${r.note ? ' · ' + esc(r.note) : ''}</span></div>
+      <div class="row"><button class="btn sm" data-rs="${r.id}">إنشاء كلمة مؤقتة</button><button class="btn alt sm" data-dm="${r.id}">تجاهل</button></div></div>`).join('')}</div>` : ''}
     <div class="grid g3">${rows.map((u) => `<div class="card"><div class="emp"><div class="avatar">${esc(initials(u.name))}</div>
       <div class="info"><b>${esc(u.name)}</b><span class="muted small">${esc(u.job_title || '')}${u.department ? ' · ' + esc(u.department) : ''}</span></div>
       ${u.active ? '' : '<span class="badge b-bad">موقوف</span>'}</div>
-      <div class="small muted" style="margin:10px 0">وردية ${esc(u.shift_start)}–${esc(u.shift_end)} · ${u.face_enrolled ? '✔ بصمة وجه' : '✖ بدون بصمة'}${u.is_admin ? ' · مدير النظام' : ''}${sal && !u.is_admin ? ` · أساسي ${money(u.base_salary)}` : ''}</div>
+      <div class="small muted" style="margin:10px 0">${u.is_admin ? '<span class="badge b-info">مدير</span> ' : '<span class="badge">موظف</span> '}وردية ${esc(u.shift_start)}–${esc(u.shift_end)} · ${u.face_enrolled ? '✔ بصمة وجه' : '✖ بدون بصمة'}${sal && !u.is_admin ? ` · أساسي ${money(u.base_salary)}` : ''}</div>
       ${has('employees.manage') ? `<div class="row"><button class="btn alt sm" data-e="${u.id}">تعديل</button>${u.face_enrolled && !u.is_admin ? `<button class="btn alt sm" data-rf="${u.id}">إعادة ضبط الوجه</button>` : ''}</div>` : ''}</div>`).join('')}</div>`;
   if (has('employees.manage')) {
+    const again = () => PAGES.employees(view);
+    view.querySelectorAll('[data-ap]').forEach((b) => (b.onclick = () => run(b, async () => { await api(`/employees/${b.dataset.ap}/approve`, 'POST'); toast('تم قبول الحساب'); again(); })));
+    view.querySelectorAll('[data-rj]').forEach((b) => (b.onclick = () => { if (confirm('رفض الطلب ومسحه؟')) run(b, async () => { await api(`/employees/${b.dataset.rj}/reject`, 'POST'); toast('تم رفض الطلب'); again(); }); }));
+    view.querySelectorAll('[data-dm]').forEach((b) => (b.onclick = () => run(b, async () => { await api(`/password-resets/${b.dataset.dm}/dismiss`, 'POST'); again(); })));
+    view.querySelectorAll('[data-rs]').forEach((b) => (b.onclick = () => { if (confirm('إنشاء كلمة مرور مؤقتة جديدة؟ كلمة المرور القديمة هتتلغي.')) run(b, async () => {
+      const r = await api(`/password-resets/${b.dataset.rs}/resolve`, 'POST');
+      modal(`<h3>كلمة المرور المؤقتة</h3><p>سلّميها للموظف بشكل آمن. <b>مش هتظهر تاني</b>، وهيطلب منه النظام يغيّرها عند أول دخول.</p>
+        <input readonly value="${esc(r.temp_password)}" style="font-size:22px;text-align:center;letter-spacing:2px;direction:ltr" onfocus="this.select()">
+        <div class="actions"><button class="btn alt" id="cpy">نسخ</button><button class="btn" data-close>تم</button></div>`, (m) => {
+        $('#cpy', m).onclick = () => { navigator.clipboard?.writeText(r.temp_password); toast('تم النسخ'); };
+        m.onclose = again;
+      });
+    }); }));
     $('#add').onclick = () => empForm(null, () => PAGES.employees(view));
     view.querySelectorAll('[data-e]').forEach((b) => (b.onclick = () => empForm(rows.find((r) => r.id == b.dataset.e), () => PAGES.employees(view))));
     view.querySelectorAll('[data-rf]').forEach((b) => (b.onclick = () => { if (confirm('إعادة ضبط بصمة وجه الموظف؟ هيسجّلها من جديد.')) run(b, async () => { await api(`/employees/${b.dataset.rf}/reset-face`, 'POST'); toast('تمت إعادة الضبط'); PAGES.employees(view); }); }));
@@ -396,6 +456,7 @@ function empForm(u, done) {
     <label class="f">بداية الوردية<input type="time" name="shift_start" value="${esc(u?.shift_start || '09:00')}"></label>
     <label class="f">نهاية الوردية<input type="time" name="shift_end" value="${esc(u?.shift_end || '17:00')}"></label>
     <label class="f">رصيد الإجازة السنوية (يوم)<input type="number" min="0" name="annual_leave_days" value="${u?.annual_leave_days ?? 21}"></label>
+    ${S.me.user.is_admin && (isNew || u.id !== S.me.user.id) ? `<label class="f">نوع الحساب<select name="role"><option value="employee" ${u?.is_admin ? '' : 'selected'}>موظف (بصلاحيات يحددها المدير)</option><option value="admin" ${u?.is_admin ? 'selected' : ''}>مدير (كل الصلاحيات)</option></select></label>` : ''}
     ${!isNew && !u.is_admin ? `<label class="f">الحالة<select name="active"><option value="1" ${u.active ? 'selected' : ''}>نشط</option><option value="0" ${u.active ? '' : 'selected'}>موقوف</option></select></label>` : ''}
     <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
   const f = $('#ef', o);
@@ -511,7 +572,7 @@ PAGES.reports = async (view) => {
 
 /* --- الصلاحيات (المدير فقط) --- */
 PAGES.permissions = async (view) => {
-  const emps = (await api('/employees')).filter((e) => !e.is_admin);
+  const emps = (await api('/employees')).filter((e) => !e.is_admin && !e.pending);
   const P = S.meta.permissions;
   const ALL = Object.keys(P);
   view.innerHTML = `<div class="page-head"><h2>الصلاحيات</h2></div>
@@ -541,6 +602,7 @@ PAGES.settings = async (view) => {
     <div class="full card" style="background:var(--bg)"><h3>موقع العمل</h3><p class="muted small" style="margin:4px 0 10px">لو سبتيهم فاضيين، مش هيتم التحقق من الموقع. الأفضل تفتحي الصفحة وانتِ في مكان العمل وتضغطي الزرار.</p>
       <div class="form"><label class="f">خط العرض<input name="work_lat" value="${esc(s.work_lat)}" inputmode="decimal"></label><label class="f">خط الطول<input name="work_lng" value="${esc(s.work_lng)}" inputmode="decimal"></label>
       <label class="f">النطاق المسموح (متر)<input type="number" name="radius_m" min="20" value="${esc(s.radius_m)}"></label><div style="align-self:end"><button type="button" class="btn alt" id="here">استخدام موقعي الحالي</button></div></div></div>
+    <label class="perm full"><input type="checkbox" name="signup_enabled" value="1" ${s.signup_enabled !== '0' ? 'checked' : ''}>السماح بإنشاء حساب جديد من صفحة الدخول (بيحتاج موافقتك)</label>
     <label class="f">سماح التأخير (دقيقة)<input type="number" name="grace_minutes" min="0" value="${esc(s.grace_minutes)}"></label>
     <label class="f">حساسية مطابقة الوجه (0.3 أشد – 0.7 أخف)<input type="number" step="0.05" min="0.3" max="0.7" name="face_threshold" value="${esc(s.face_threshold)}"></label>
     <label class="f">معامل خصم التأخير<input type="number" step="0.25" min="0" name="late_factor" value="${esc(s.late_factor)}"></label>
@@ -551,6 +613,7 @@ PAGES.settings = async (view) => {
   $('#here').onclick = (e) => run(e.target, async () => { const p = await getPos(); $('[name=work_lat]').value = p.lat.toFixed(6); $('[name=work_lng]').value = p.lng.toFixed(6); toast(`تم التقاط الموقع (دقة ~${Math.round(p.acc)} م)`); });
   $('#sf').onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', e.target), async () => {
     const b = Object.fromEntries(new FormData(e.target));
+    b.signup_enabled = e.target.signup_enabled.checked ? '1' : '0';
     b.weekend_days = [...document.querySelectorAll('[data-d]:checked')].map((x) => x.dataset.d).join(',');
     await api('/settings', 'PUT', b); S.me = await api('/me'); toast('تم حفظ الإعدادات');
   }); };

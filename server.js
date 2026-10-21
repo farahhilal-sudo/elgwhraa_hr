@@ -140,6 +140,14 @@ CREATE TABLE IF NOT EXISTS late_tiers (
   kind TEXT NOT NULL CHECK(kind IN ('fixed','day_fraction')),
   value DOUBLE PRECISION NOT NULL
 );
+CREATE TABLE IF NOT EXISTS password_resets (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  note TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending',
+  handled_by INTEGER, handled_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
 CREATE TABLE IF NOT EXISTS notifications (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -158,6 +166,7 @@ const DEFAULT_SETTINGS = {
   grace_minutes: '5',
   face_threshold: '0.5',
   weekend_days: '5,6', // الجمعة والسبت (0=الأحد)
+  signup_enabled: '1', // السماح بإنشاء حساب جديد من صفحة الدخول (بيحتاج موافقة المدير)
   late_factor: '1',
   absence_factor: '1',
   overtime_factor: '1.5',
@@ -181,6 +190,9 @@ async function init() {
   // قواعد البيانات القديمة: نسمح بنوع "جزاء" في البنود الإضافية
   await pool.query('ALTER TABLE adjustments DROP CONSTRAINT IF EXISTS adjustments_kind_check');
   await pool.query("ALTER TABLE adjustments ADD CONSTRAINT adjustments_kind_check CHECK (kind IN ('deduction','bonus','penalty'))");
+  // حسابات التسجيل الذاتي: pending=1 يعني بانتظار موافقة المدير (ومش بيقدر يدخل)
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS pending INTEGER NOT NULL DEFAULT 0');
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT');
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     await db.run('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO NOTHING', k, v);
   }
@@ -196,6 +208,11 @@ async function init() {
     await db.run('INSERT INTO users(name,username,password_hash,is_admin,must_change,job_title) VALUES(?,?,?,?,?,?) ON CONFLICT(username) DO NOTHING',
       'مدير النظام', 'admin', bcrypt.hashSync(pw, 10), 1, process.env.ADMIN_PASSWORD ? 0 : 1, 'مدير النظام');
     console.log('تم إنشاء حساب المدير: admin');
+  }
+  // طوارئ: لو المدير نسي كلمة المرور ومفيش مدير تاني، حطي RESET_ADMIN_PASSWORD وأعيدي التشغيل (وبعدها شيليه)
+  if (process.env.RESET_ADMIN_PASSWORD) {
+    await db.run('UPDATE users SET password_hash=?, must_change=1, active=1, pending=0 WHERE username=? AND is_admin=1', bcrypt.hashSync(process.env.RESET_ADMIN_PASSWORD, 10), process.env.RESET_ADMIN_USERNAME || 'admin');
+    console.log('تمت إعادة تعيين كلمة مرور المدير (RESET_ADMIN_PASSWORD). شيلي المتغير بعد الدخول.');
   }
 }
 const ready = init();
@@ -241,16 +258,28 @@ function publicUser(u) {
     id: u.id, name: u.name, username: u.username, is_admin: !!u.is_admin, must_change: !!u.must_change,
     permissions: userPerms(u).filter((p) => p !== '*'), job_title: u.job_title, department: u.department,
     phone: u.phone, shift_start: u.shift_start, shift_end: u.shift_end, hire_date: u.hire_date,
-    annual_leave_days: u.annual_leave_days, face_enrolled: !!u.face_descriptor, active: !!u.active,
+    annual_leave_days: u.annual_leave_days, face_enrolled: !!u.face_descriptor, active: !!u.active, pending: !!u.pending, email: u.email || '',
   };
 }
 function notify(userId, text) {
   return db.run('INSERT INTO notifications(user_id,text) VALUES(?,?)', userId, text);
 }
-async function notifyManagers(text, exceptId) {
+async function notifyManagers(text, exceptId, perm = 'requests.approve', adminsOnly = false) {
   const rows = await db.all('SELECT * FROM users WHERE active=1');
-  await Promise.all(rows.filter((u) => u.id !== exceptId && can(u, 'requests.approve')).map((u) => notify(u.id, text)));
+  await Promise.all(rows.filter((u) => u.id !== exceptId && (adminsOnly ? u.is_admin : can(u, perm))).map((u) => notify(u.id, text)));
 }
+const USERNAME_RE = /^[\p{L}\p{N}._-]{3,30}$/u;
+// تحديد معدل الطلبات المفتوحة (تسجيل / نسيت كلمة المرور) لكل IP
+const hits = new Map();
+const limited = (req, bucket, max, windowMs) => {
+  const k = bucket + ':' + (req.ip || '');
+  const now = Date.now();
+  const h = (hits.get(k) || []).filter((t) => now - t < windowMs);
+  if (h.length >= max) { hits.set(k, h); return true; }
+  h.push(now); hits.set(k, h);
+  if (hits.size > 5000) hits.clear();
+  return false;
+};
 function* eachDay(from, to) {
   const d = new Date(from + 'T00:00:00Z'), end = new Date(to + 'T00:00:00Z');
   for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) yield d.toISOString().slice(0, 10);
@@ -335,6 +364,7 @@ async function computeMonth(user, month, st, tiers = []) {
 
 /* ---------------- Express ---------------- */
 const app = express();
+app.set('trust proxy', 1); // وراء بروكسي الاستضافة، عشان IP الحقيقي يتحسب صح
 app.use(express.json({ limit: '200kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -361,7 +391,7 @@ async function auth(req, res, next) {
   } catch { return res.status(401).json({ error: 'سجّلي الدخول من جديد' }); }
   try {
     const u = await db.get('SELECT * FROM users WHERE id=?', id);
-    if (!u || !u.active) return res.status(401).json({ error: 'الحساب غير متاح' });
+    if (!u || !u.active || u.pending) return res.status(401).json({ error: 'الحساب غير متاح' });
     req.user = u;
     next();
   } catch (e) {
@@ -382,7 +412,9 @@ app.post('/api/login', wrap(async (req, res) => {
   const f = fails.get(key) || { n: 0, until: 0 };
   if (f.until > Date.now()) return res.status(429).json({ error: 'محاولات كثيرة، جرّبي بعد دقائق' });
   const u = await db.get('SELECT * FROM users WHERE lower(username)=?', key);
-  if (!u || !u.active || !bcrypt.compareSync(String(password), u.password_hash)) {
+  if (u && u.pending && bcrypt.compareSync(String(password), u.password_hash))
+    return res.status(403).json({ error: 'حسابك بانتظار موافقة المدير. هيوصلك الدخول بعد المراجعة.' });
+  if (!u || !u.active || u.pending || !bcrypt.compareSync(String(password), u.password_hash)) {
     f.n++; if (f.n >= 5) { f.until = Date.now() + 5 * 60 * 1000; f.n = 0; }
     fails.set(key, f);
     return res.status(401).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
@@ -390,6 +422,45 @@ app.post('/api/login', wrap(async (req, res) => {
   fails.delete(key);
   const token = jwt.sign({ id: u.id }, jwtSecret, { expiresIn: '30d' });
   res.json({ token, user: publicUser(u) });
+}));
+
+/* ----- إنشاء حساب ونسيت كلمة المرور (من غير تسجيل دخول) ----- */
+app.get('/api/public', wrap(async (req, res) => {
+  const st = await settings();
+  res.json({ company_name: st.company_name, signup_enabled: st.signup_enabled !== '0' });
+}));
+
+app.post('/api/signup', wrap(async (req, res) => {
+  const st = await settings();
+  if (st.signup_enabled === '0') return res.status(403).json({ error: 'إنشاء الحسابات الجديدة مغلق حالياً، تواصلي مع المدير' });
+  if (limited(req, 'signup', 5, 60 * 60 * 1000)) return res.status(429).json({ error: 'محاولات كثيرة، جرّبي بعد قليل' });
+  const b = req.body || {};
+  const name = String(b.name || '').trim().slice(0, 80), username = String(b.username || '').trim();
+  const password = String(b.password || ''), phone = String(b.phone || '').trim().slice(0, 30);
+  if (name.length < 3) return res.status(400).json({ error: 'اكتبي الاسم بالكامل' });
+  if (!USERNAME_RE.test(username)) return res.status(400).json({ error: 'اسم المستخدم من 3 إلى 30 حرف/رقم بدون مسافات' });
+  if (password.length < 6) return res.status(400).json({ error: 'كلمة المرور 6 أحرف على الأقل' });
+  if (await db.get('SELECT 1 FROM users WHERE lower(username)=?', username.toLowerCase())) return res.status(409).json({ error: 'اسم المستخدم مستخدم من قبل' });
+  // حساب موظف عادي، بدون أي صلاحيات، وبانتظار موافقة المدير
+  await db.run(`INSERT INTO users(name,username,password_hash,must_change,phone,active,pending,permissions,is_admin) VALUES(?,?,?,?,?,?,?,?,?)`,
+    name, username, bcrypt.hashSync(password, 10), 0, phone, 0, 1, '[]', 0);
+  await notifyManagers(`طلب إنشاء حساب جديد من ${name} (${username}) بانتظار موافقتك`, null, 'employees.manage');
+  res.json({ ok: true });
+}));
+
+app.post('/api/forgot-password', wrap(async (req, res) => {
+  if (limited(req, 'forgot', 5, 60 * 60 * 1000)) return res.status(429).json({ error: 'محاولات كثيرة، جرّبي بعد قليل' });
+  const username = String((req.body || {}).username || '').trim().toLowerCase();
+  const note = String((req.body || {}).note || '').trim().slice(0, 200);
+  if (!username) return res.status(400).json({ error: 'اكتبي اسم المستخدم' });
+  const u = await db.get('SELECT * FROM users WHERE lower(username)=? AND active=1 AND pending=0', username);
+  if (u && !(await db.get("SELECT 1 FROM password_resets WHERE user_id=? AND status='pending'", u.id))) {
+    await db.run('INSERT INTO password_resets(user_id,note) VALUES(?,?)', u.id, note);
+    // طلب المدير يروح للمديرين فقط؛ وطلب الموظف يروح لكل من عنده صلاحية إدارة الموظفين
+    await notifyManagers(`طلب استعادة كلمة المرور من ${u.name} (${u.username})`, u.id, 'employees.manage', !!u.is_admin);
+  }
+  // نفس الرد دايماً، عشان محدش يعرف مين له حساب ومين لأ
+  res.json({ ok: true });
 }));
 
 app.get('/api/meta', (req, res) => res.json({ permissions: PERMISSIONS, request_types: REQUEST_TYPES }));
@@ -588,20 +659,28 @@ app.get('/api/employees', auth, need('employees.view'), wrap(async (req, res) =>
     ...(can(req.user, 'payroll.view') ? { base_salary: u.base_salary, allowances: u.allowances } : {}),
   })));
 }));
+// مدير الموارد (غير المدير العام) ما يقدرش يلمس حسابات المديرين
+const guardAdminTarget = (req, res, u) => {
+  if (u.is_admin && !req.user.is_admin) { res.status(403).json({ error: 'حسابات المديرين يعدّلها المدير فقط' }); return false; }
+  return true;
+};
 app.post('/api/employees', auth, need('employees.manage'), wrap(async (req, res) => {
   const b = req.body || {};
   const err = validateEmp(b, false);
   if (err) return res.status(400).json({ error: err });
+  if (!USERNAME_RE.test(String(b.username).trim())) return res.status(400).json({ error: 'اسم المستخدم من 3 إلى 30 حرف/رقم بدون مسافات' });
+  if (b.role === 'admin' && !req.user.is_admin) return res.status(403).json({ error: 'إنشاء حساب مدير للمدير فقط' });
   if (await db.get('SELECT 1 FROM users WHERE lower(username)=?', String(b.username).toLowerCase())) return res.status(409).json({ error: 'اسم المستخدم مستخدم من قبل' });
-  const id = await db.insert(`INSERT INTO users(name,username,password_hash,job_title,department,phone,base_salary,allowances,shift_start,shift_end,hire_date,annual_leave_days)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, b.name, String(b.username).trim(), bcrypt.hashSync(String(b.password), 10), b.job_title || '', b.department || '', b.phone || '',
-    Number(b.base_salary) || 0, Number(b.allowances) || 0, b.shift_start || '09:00', b.shift_end || '17:00', b.hire_date || tzParts().date, parseInt(b.annual_leave_days ?? 21, 10));
+  const id = await db.insert(`INSERT INTO users(name,username,password_hash,job_title,department,phone,base_salary,allowances,shift_start,shift_end,hire_date,annual_leave_days,is_admin)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, b.name, String(b.username).trim(), bcrypt.hashSync(String(b.password), 10), b.job_title || '', b.department || '', b.phone || '',
+    Number(b.base_salary) || 0, Number(b.allowances) || 0, b.shift_start || '09:00', b.shift_end || '17:00', b.hire_date || tzParts().date, parseInt(b.annual_leave_days ?? 21, 10), b.role === 'admin' ? 1 : 0);
   res.json({ id });
 }));
 app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, res) => {
   const id = toId(req.params.id);
   const u = id && await db.get('SELECT * FROM users WHERE id=?', id);
   if (!u) return res.status(404).json({ error: 'غير موجود' });
+  if (!guardAdminTarget(req, res, u)) return;
   const b = req.body || {};
   const err = validateEmp(b, true);
   if (err) return res.status(400).json({ error: err });
@@ -612,15 +691,62 @@ app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, r
     vals.push(['base_salary', 'allowances'].includes(f) ? Number(b[f]) : f === 'annual_leave_days' ? parseInt(b[f], 10) : b[f]);
   }
   if (b.password) { sets.push('password_hash=?', 'must_change=1'); vals.push(bcrypt.hashSync(String(b.password), 10)); }
-  if (b.active !== undefined && !u.is_admin) { sets.push('active=?'); vals.push(b.active ? 1 : 0); }
+  if (b.active !== undefined && !u.is_admin && !u.pending) { sets.push('active=?'); vals.push(b.active ? 1 : 0); }
+  // تغيير نوع الحساب (مدير / موظف): للمدير فقط، ومش على حسابه الشخصي (عشان النظام ما يفضلش من غير مدير)
+  if (b.role !== undefined && ['admin', 'employee'].includes(b.role) && req.user.is_admin && u.id !== req.user.id) {
+    sets.push('is_admin=?'); vals.push(b.role === 'admin' ? 1 : 0);
+    if (b.role === 'admin') { sets.push('active=1'); }
+  }
   if (sets.length) await db.run(`UPDATE users SET ${sets.join(',')} WHERE id=?`, ...vals, u.id);
   res.json({ ok: true });
 }));
 app.post('/api/employees/:id/reset-face', auth, need('employees.manage'), wrap(async (req, res) => {
   const id = toId(req.params.id);
-  if (!id) return res.status(404).json({ error: 'غير موجود' });
+  const tu = id && await db.get('SELECT * FROM users WHERE id=?', id);
+  if (!tu) return res.status(404).json({ error: 'غير موجود' });
+  if (!guardAdminTarget(req, res, tu)) return;
   await db.run('UPDATE users SET face_descriptor=NULL WHERE id=?', id);
   await notify(id, 'تمت إعادة ضبط بصمة الوجه، سجّليها من جديد');
+  res.json({ ok: true });
+}));
+
+/* ----- طلبات إنشاء الحسابات ----- */
+app.post('/api/employees/:id/approve', auth, need('employees.manage'), wrap(async (req, res) => {
+  const id = toId(req.params.id);
+  const u = id && await db.get('SELECT * FROM users WHERE id=? AND pending=1', id);
+  if (!u) return res.status(404).json({ error: 'الطلب غير موجود' });
+  await db.run('UPDATE users SET pending=0, active=1 WHERE id=?', u.id);
+  await notify(u.id, 'تم قبول حسابك، أهلاً بك');
+  res.json({ ok: true });
+}));
+app.post('/api/employees/:id/reject', auth, need('employees.manage'), wrap(async (req, res) => {
+  const id = toId(req.params.id);
+  // الرفض بيمسح الطلب نهائياً (الحساب ما اتفعّلش أصلاً)
+  const r = id && await db.run('DELETE FROM users WHERE id=? AND pending=1', id);
+  if (!r || !r.rowCount) return res.status(404).json({ error: 'الطلب غير موجود' });
+  res.json({ ok: true });
+}));
+
+/* ----- طلبات استعادة كلمة المرور ----- */
+app.get('/api/password-resets', auth, need('employees.manage'), wrap(async (req, res) => {
+  res.json(await db.all(`SELECT p.id, p.note, p.created_at, u.id AS user_id, u.name, u.username, u.is_admin FROM password_resets p
+    JOIN users u ON u.id=p.user_id WHERE p.status='pending' ${req.user.is_admin ? '' : 'AND u.is_admin=0'} ORDER BY p.id`));
+}));
+app.post('/api/password-resets/:id/resolve', auth, need('employees.manage'), wrap(async (req, res) => {
+  const id = toId(req.params.id);
+  const p = id && await db.get("SELECT p.*, u.is_admin FROM password_resets p JOIN users u ON u.id=p.user_id WHERE p.id=? AND p.status='pending'", id);
+  if (!p) return res.status(404).json({ error: 'الطلب غير موجود' });
+  if (p.is_admin && !req.user.is_admin) return res.status(403).json({ error: 'حسابات المديرين يعدّلها المدير فقط' });
+  // كلمة مؤقتة عشوائية (من غير حروف متشابهة)، بتظهر مرة واحدة للمدير وبيتغيّرها الموظف عند أول دخول
+  const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const temp = Array.from(crypto.randomBytes(8), (b) => alphabet[b % alphabet.length]).join('');
+  await db.run('UPDATE users SET password_hash=?, must_change=1 WHERE id=?', bcrypt.hashSync(temp, 10), p.user_id);
+  await db.run(`UPDATE password_resets SET status='done', handled_by=?, handled_at=${NOW} WHERE id=?`, req.user.id, p.id);
+  res.json({ ok: true, temp_password: temp });
+}));
+app.post('/api/password-resets/:id/dismiss', auth, need('employees.manage'), wrap(async (req, res) => {
+  const id = toId(req.params.id);
+  if (id) await db.run(`UPDATE password_resets SET status='dismissed', handled_by=?, handled_at=${NOW} WHERE id=? AND status='pending'`, req.user.id, id);
   res.json({ ok: true });
 }));
 
@@ -757,6 +883,7 @@ app.put('/api/settings', auth, need('settings.manage'), wrap(async (req, res) =>
     const v = String(b[k]).trim();
     if (['work_lat', 'work_lng'].includes(k) && v !== '' && !isFinite(Number(v))) return res.status(400).json({ error: 'إحداثيات غير صحيحة' });
     if (['radius_m', 'grace_minutes', 'late_factor', 'absence_factor', 'overtime_factor'].includes(k) && !(Number(v) >= 0)) return res.status(400).json({ error: 'قيمة رقمية غير صحيحة' });
+    if (k === 'signup_enabled' && !['0', '1'].includes(v)) return res.status(400).json({ error: 'قيمة غير صحيحة' });
     if (k === 'face_threshold' && !(Number(v) >= 0.3 && Number(v) <= 0.7)) return res.status(400).json({ error: 'حساسية الوجه بين 0.3 و 0.7' });
     if (k === 'timezone') {
       try { new Intl.DateTimeFormat('en', { timeZone: v }); } catch { return res.status(400).json({ error: 'المنطقة الزمنية غير صحيحة' }); }
