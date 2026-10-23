@@ -231,6 +231,12 @@ const ICONS = {
   print: '<path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/>',
   building: '<path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M15 9h3a2 2 0 0 1 2 2v10M2 21h20M8 7h3M8 11h3M8 15h3"/>',
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  swap: '<path d="M4 8h14l-3-3M20 16H6l3 3"/>',
+  audit: '<path d="M4 6h10M4 12h6M4 18h8"/><circle cx="17" cy="15" r="3"/><path d="M19.5 17.5L22 20"/>',
+  pause: '<circle cx="12" cy="12" r="9"/><path d="M10 9v6M14 9v6"/>',
+  key: '<circle cx="8" cy="14" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
+  clockoff: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2M4 4l16 16"/>',
   copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
   archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4"/>',
 };
@@ -240,7 +246,12 @@ const MENU = [
   { id: 'dashboard', ic: 'grid', t: 'لوحة المعلومات', ok: () => has('dashboard.view') },
   { id: 'me', ic: 'user', t: 'حسابي', ok: () => true },
   { g: 'emp', ic: 'users', t: 'الموظفون', items: [
-    ['employees', 'الموظفون', () => has('employees.view')], ['permissions', 'الصلاحيات', () => S.me.user.is_admin]] },
+    ['employees', 'الموظفون', () => has('employees.view'), 'users'], ['workgroups', 'مجموعات العمل', () => has('employees.view'), 'clock'],
+    ['teams', 'فرق العمل', () => has('employees.view'), 'users'], ['emp_procedures', 'إجراءات الموظفين', () => has('employees.view'), 'user'],
+    ['emp_docs', 'مستندات الموظفين', () => has('employees.view'), 'file'], ['org_chart', 'الهيكل التنظيمي', () => has('employees.view'), 'grid'],
+    ['transfers_log', 'سجل النقل', () => has('employees.view'), 'file'], ['title_changes', 'تغيير المسمى الوظيفي', () => has('employees.view'), 'users'],
+    ['suspension_log', 'سجل الإيقاف', () => has('employees.view'), 'file'], ['pending_suspensions', 'الإيقافات المعلقة', () => has('employees.view'), 'file'],
+    ['permissions', 'الصلاحيات', () => S.me.user.is_admin, 'lock']] },
   { id: 'requests', ic: 'file', t: 'الطلبات', ok: () => has('requests.view_all') },
   { g: 'att', ic: 'clock', t: 'الحضور', items: [
     ['home', 'تسجيل الحضور', () => true], ['attendance', 'سجل الحضور', () => has('attendance.view_all')]] },
@@ -745,31 +756,101 @@ const TODAY_ST = {
 };
 const exportCsvBtn = (id) => `<button class="btn alt" id="${id}">${ico('download')} تصدير</button>`;
 
-/* --- الموظفون --- */
+/* --- الموظفون (على شكل الشاشة المرجعية) --- */
+const EMP_TABS = [
+  ['employees', 'الموظفون', 'users'], ['workgroups', 'مجموعات العمل', 'clock'], ['teams', 'فرق العمل', 'users'], ['emp_procedures', 'إجراءات الموظفين', 'user'],
+  ['emp_docs', 'مستندات الموظفين', 'file'], ['org_chart', 'الهيكل التنظيمي', 'grid'], ['transfers_log', 'سجل النقل', 'file'],
+  ['title_changes', 'تغييرات المسمى الوظيفي', 'users'], ['suspension_log', 'سجل الإيقاف', 'file'], ['pending_suspensions', 'الإيقافات المعلقة', 'file'],
+];
+function empTabsHtml(cur, counts = {}) {
+  const list = [EMP_TABS[0], ...(has('employees.manage') ? [['employees:pending', 'طلبات الحسابات', 'user'], ['employees:resets', 'استعادة كلمة المرور', 'lock']] : []), ...EMP_TABS.slice(1)];
+  return `<div class="card setnav etabs"><div class="stabs" id="etabs">${list.map(([k, l, ic]) => `<button data-et="${k}" class="${k === cur ? 'on' : ''}">${ico(ic)}<span>${l}</span>${counts[k] ? `<em class="cnt">${counts[k]}</em>` : ''}</button>`).join('')}</div>
+    <button class="tarrow" id="tarr" title="المزيد">${ico('chev', 'rotm90')}</button></div>`;
+}
+function bindEmpTabs(view) {
+  view.querySelectorAll('[data-et]').forEach((b) => (b.onclick = () => { const [p, t] = b.dataset.et.split(':'); S.emptab = t || 'list'; go(p); }));
+  const tb = $('#etabs', view);
+  $('#tarr', view).onclick = () => tb.scrollBy({ left: -260, behavior: 'smooth' });
+  const on = tb.querySelector('.on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
+}
+/* قائمة منسدلة صغيرة (زي قائمة ⋯ في الشاشة) */
+function popMenu(btn, items) {
+  document.querySelectorAll('.pmenu').forEach((m) => m.remove());
+  const m = document.createElement('div');
+  m.className = 'pmenu';
+  m.innerHTML = items.map((it, i) => `<button data-i="${i}" class="${it.cls || ''}">${ico(it.ic)}<span>${it.t}</span></button>`).join('');
+  document.body.appendChild(m);
+  const r = btn.getBoundingClientRect();
+  const top = r.bottom + 6 + m.offsetHeight > innerHeight ? r.top - 6 - m.offsetHeight : r.bottom + 6;
+  m.style.top = Math.max(8, top) + 'px';
+  m.style.left = Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8)) + 'px';
+  const close = () => { m.remove(); document.removeEventListener('click', close, true); window.removeEventListener('scroll', close, true); };
+  m.querySelectorAll('button').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); close(); items[Number(b.dataset.i)].fn(); }));
+  setTimeout(() => { document.addEventListener('click', close, true); window.addEventListener('scroll', close, true); });
+}
+
+/* صفحات الموارد البشرية المبنية على قوائم (مجموعات، فرق، إجراءات، مستندات، نقل...) */
+const empSel = (people) => ({ k: 'name', l: 'الموظف', t: 'select', o: people.map((u) => [u.name, u.name]), req: true, full: true });
+function logSpec(kind, newLabel, nameField, fields, extra = {}) {
+  return { ...simpleSpec(kind, newLabel, fields), nameField, noStatus: true, tabs: [['all', 'الكل', () => true]],
+    cols: [[nameField.l, (it) => `<b>${esc(it.name)}</b>`], ...fields.map((f) => [f.l, (it) => esc(showVal(f, it[f.k]))])], ...extra };
+}
+function empSpecs(people) {
+  const names = people.map((u) => [u.name, u.name]), nf = (l) => ({ k: 'name', l, req: true, full: true });
+  const mem = { k: 'members', l: 'الأعضاء', t: 'multi', o: people.map((u) => [String(u.id), u.name]) };
+  const date = (l = 'التاريخ') => ({ k: 'date', l, t: 'date', d: todayStr() });
+  const notes = { k: 'notes', l: 'ملاحظات', full: true };
+  const emp = (n) => people.find((u) => u.name === n);
+  const putEmp = (n, body) => { const u = emp(n); if (!u) throw new Error('الموظف مش موجود'); return api('/employees/' + u.id, 'PUT', body); };
+  const tc = logSpec('title_change', 'تغيير مسمى جديد', empSel(people), [{ k: 'old', l: 'المسمى السابق' }, { k: 'new', l: 'المسمى الجديد', req: true }, date()]);
+  const ps = logSpec('pending_suspension', 'إيقاف معلّق جديد', empSel(people), [{ k: 'date', l: 'تاريخ الإيقاف', t: 'date', req: true }, { k: 'reason', l: 'السبب', full: true }]);
+  return {
+    work_group: logSpec('work_group', 'مجموعة عمل جديدة', nf('اسم المجموعة'), [DESC, mem]),
+    team: logSpec('team', 'فريق جديد', nf('اسم الفريق'), [{ k: 'leader', l: 'قائد الفريق', t: 'select', o: [['', '—'], ...names] }, DESC, mem]),
+    emp_procedure: logSpec('emp_procedure', 'إجراء جديد', empSel(people), [{ k: 'type', l: 'نوع الإجراء', t: 'select', o: [['promotion', 'ترقية'], ['raise', 'تعديل راتب'], ['warning', 'إنذار'], ['thanks', 'شكر وتقدير'], ['other', 'أخرى']] }, date(), notes]),
+    emp_doc: logSpec('emp_doc', 'مستند جديد', empSel(people), [{ k: 'type', l: 'نوع المستند', t: 'select', o: [['id', 'بطاقة هوية'], ['contract', 'عقد عمل'], ['cert', 'شهادة'], ['license', 'رخصة'], ['other', 'أخرى']] }, { k: 'expires', l: 'تاريخ الانتهاء', t: 'date' }, notes]),
+    transfer: logSpec('transfer', 'عملية نقل جديدة', empSel(people), [{ k: 'from', l: 'من' }, { k: 'to', l: 'إلى' }, date(), { k: 'reason', l: 'السبب', full: true }]),
+    title_change: { ...tc, pre: (it, b) => { if (!b.old) b.old = (emp(b.name) || {}).job_title || ''; b.applied = it ? !!it.applied : false; },
+      extra: (it) => (it.applied ? '<span class="badge b-ok">تم التطبيق</span>' : `<button class="vchip" data-a="apply" data-id="${it.id}">تطبيق على الموظف</button>`),
+      act: async (a, it, reload) => { if (a !== 'apply') return; await putEmp(it.name, { job_title: it.new }); await tc.save(it, { name: it.name, old: it.old, new: it.new, date: it.date, applied: true }); toast('تم تحديث المسمى الوظيفي'); reload(); } },
+    pending_suspension: { ...ps, extra: (it) => `<button class="vchip" data-a="exec" data-id="${it.id}">تنفيذ الإيقاف</button>`,
+      act: async (a, it, reload) => { if (a !== 'exec' || !confirm('إيقاف حساب ' + it.name + ' الآن؟')) return; await putEmp(it.name, { active: false }); await ps.remove(it); toast('تم إيقاف الحساب'); reload(); } },
+  };
+}
+const EMP_KIND = { workgroups: 'work_group', teams: 'team', emp_procedures: 'emp_procedure', emp_docs: 'emp_doc', transfers_log: 'transfer', title_changes: 'title_change', pending_suspensions: 'pending_suspension' };
+async function empPage(view, key) {
+  view.innerHTML = empTabsHtml(key) + '<div id="ebody"><div class="empty"><span class="spin"></span></div></div>';
+  bindEmpTabs(view);
+  const body = $('#ebody', view);
+  try {
+    const people = (await api('/employees')).filter((u) => !u.pending);
+    if (key === 'org_chart') {
+      const act = people.filter((u) => u.active), groups = {};
+      act.forEach((u) => { const d = u.department || 'بدون قسم'; (groups[d] = groups[d] || []).push(u); });
+      const mgr = (u) => { const m = people.find((x) => x.id === u.manager_id); return m ? ` · يتبع ${esc(m.name)}` : ''; };
+      body.innerHTML = `<div class="grid g3">${Object.entries(groups).map(([d, arr]) => `<div class="card"><div class="orgh"><b>${esc(d)}</b><span class="badge b-info">${arr.length}</span></div>
+        ${arr.map((u) => `<div class="emp orgm"><div class="avatar sm">${esc(initials(u.name))}</div><div class="info"><b>${esc(u.name)}</b><span class="muted small">${esc(u.job_title || '—')}${mgr(u)}</span></div></div>`).join('')}</div>`).join('') || '<div class="card empty" style="grid-column:1/-1">لا يوجد موظفون</div>'}</div>`;
+    } else if (key === 'suspension_log') {
+      const off = people.filter((u) => !u.active);
+      body.innerHTML = `<div class="tablewrap st"><table><thead><tr><th>الموظف</th><th>المسمى الوظيفي</th><th>القسم</th><th>تاريخ التعيين</th><th class="actcol"></th></tr></thead><tbody>
+        ${off.map((u) => `<tr><td><b>${esc(u.name)}</b></td><td>${esc(u.job_title || '—')}</td><td>${esc(u.department || '—')}</td><td>${esc(u.hire_date)}</td><td class="actcol">${has('employees.manage') ? `<button class="btn alt sm" data-on="${u.id}">تفعيل الحساب</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">لا توجد حسابات موقوفة</td></tr>'}</tbody></table></div>`;
+      body.querySelectorAll('[data-on]').forEach((b) => (b.onclick = () => run(b, async () => { await api('/employees/' + b.dataset.on, 'PUT', { active: true }); toast('تم تفعيل الحساب'); empPage(view, key); })));
+    } else await catalog(body, empSpecs(people)[EMP_KIND[key]]);
+  } catch (e) { body.innerHTML = `<div class="card empty neg">${esc(e.message)}</div>`; }
+}
+Object.keys(EMP_KIND).concat(['org_chart', 'suspension_log']).forEach((k) => (PAGES[k] = (v) => empPage(v, k)));
+
 PAGES.employees = async (view) => {
   const manage = has('employees.manage');
-  const [all, resets, locs] = await Promise.all([api('/employees'), manage ? api('/password-resets') : [], manage || has('settings.manage') ? api('/locations').catch(() => []) : []]);
+  const [all, resets, locs, tpls] = await Promise.all([api('/employees'), manage ? api('/password-resets') : [], manage || has('settings.manage') ? api('/locations').catch(() => []) : [], api('/config/filter_template').catch(() => [])]);
   const pend = all.filter((u) => u.pending), people = all.filter((u) => !u.pending);
   const sal = people.some((r) => r.base_salary !== undefined);
   const tab = S.emptab || 'list';
-  const f = S.empf = S.empf || { role: '', dept: '', job: '', loc: '', status: '', q: '' };
-  if (S.q) { f.q = S.q; S.q = ''; }
-  const uniq = (k) => [...new Set(people.map((u) => u[k]).filter(Boolean))];
-  const opts = (arr, cur, label) => `<option value="">${label}</option>${arr.map((x) => `<option value="${esc(x[0] ?? x)}" ${String(cur) === String(x[0] ?? x) ? 'selected' : ''}>${esc(x[1] ?? x)}</option>`).join('')}`;
-  const match = (u) => {
-    const q = f.q.toLowerCase();
-    return (!q || [u.name, u.username, u.phone, u.job_title, u.department].some((x) => String(x || '').toLowerCase().includes(q)))
-      && (!f.role || (f.role === 'admin') === !!u.is_admin) && (!f.dept || u.department === f.dept) && (!f.job || u.job_title === f.job)
-      && (!f.loc || !locs.length || !u.location_ids.length || u.location_ids.includes(Number(f.loc)))
-      && (!f.status || (f.status === 'active' ? u.active : f.status === 'inactive' ? !u.active : u.active && u.today && u.today.status === f.status));
-  };
-  const rows = people.filter(match);
-  view.innerHTML = `${tabsBar([['list', 'الموظفون', 'users'], manage && ['pending', 'طلبات الحسابات', 'user', pend.length], manage && ['resets', 'استعادة كلمة المرور', 'lock', resets.length]].filter(Boolean), tab)}
-    <div id="empbody"></div>`;
-  bindTabs(view, (t) => { S.emptab = t; PAGES.employees(view); });
+  const cur = tab === 'pending' ? 'employees:pending' : tab === 'resets' ? 'employees:resets' : 'employees';
+  view.innerHTML = `${empTabsHtml(cur, { 'employees:pending': pend.length, 'employees:resets': resets.length })}<div id="empbody"></div>`;
+  bindEmpTabs(view);
   const body = $('#empbody');
   const again = () => PAGES.employees(view);
-
   if (tab === 'pending') {
     body.innerHTML = pend.length ? `<div class="tablewrap"><table><tr><th>الاسم</th><th>اسم المستخدم</th><th>الهاتف</th><th>تاريخ الطلب</th><th></th></tr>
       ${pend.map((u) => `<tr><td><b>${esc(u.name)}</b></td><td>${esc(u.username)}</td><td>${esc(u.phone || '—')}</td><td>—</td><td><button class="btn sm ok" data-ap="${u.id}">قبول</button> <button class="btn sm bad" data-rj="${u.id}">رفض</button></td></tr>`).join('')}</table></div>` : '<div class="card empty">لا توجد طلبات إنشاء حسابات</div>';
@@ -794,76 +875,156 @@ PAGES.employees = async (view) => {
     return;
   }
 
-  const statChips = ['present', 'absent', 'late', 'leave', 'not_yet'];
-  body.innerHTML = `<div class="card filters">
-      <div class="frow">
-        <select data-f="role">${opts([['admin', 'مدير'], ['employee', 'موظف']], f.role, 'الدور')}</select>
-        <select data-f="dept">${opts(uniq('department'), f.dept, 'القسم')}</select>
-        <select data-f="job">${opts(uniq('job_title'), f.job, 'المنصب')}</select>
-        ${locs.length ? `<select data-f="loc">${opts(locs.map((l) => [l.id, l.name]), f.loc, 'المكان')}</select>` : ''}
-        <label class="fsearch">${ico('search')}<input data-f="q" placeholder="بحث" value="${esc(f.q)}"></label>
-      </div>
-      <div class="frow">
-        <select data-f="status">${opts([['active', 'نشط'], ['inactive', 'موقوف'], ...statChips.map((k) => [k, 'اليوم: ' + TODAY_ST[k][0]])], f.status, 'الحالة')}</select>
-        <div class="chips">${ico('filter')}<span class="muted">الحالة</span>${statChips.map((k) => `<button class="fchip ${f.status === k ? 'on' : ''}" data-chip="${k}">${TODAY_ST[k][0]}</button>`).join('')}</div>
-      </div></div>
-    <div class="row actionbar">${manage ? `<button class="btn" id="add">${ico('plus')} موظف جديد</button>` : ''}${exportCsvBtn('exp')}
-      <button class="link" id="reset">${ico('filter')} إعادة تعيين المرشحات</button><span class="muted small" style="margin-inline-start:auto">${rows.length} من ${people.length}</span></div>
-    <div class="grid g3 ecards">${rows.map((u) => {
-      const t = u.today, st = u.active && t ? TODAY_ST[t.status] : null;
-      const line = !u.active ? ['bad', 'الحساب موقوف'] : t && (t.status === 'present' || t.status === 'late') ? [st[1], `${st[0]} ${fmtTime(t.check_in)}${t.late_minutes ? ' (' + t.late_minutes + ' د)' : ''}${t.check_out ? ' · انصرف ' + fmtTime(t.check_out) : ''}`] : st ? [st[1], st[0]] : ['', '—'];
-      return `<div class="card ecard"><div class="ehead"><div class="avatar lg">${esc(initials(u.name))}</div>
-        <div class="einfo"><b>${esc(u.name)}</b><span>${esc(u.job_title || '—')}</span><span>${esc(u.department || '')}</span></div>${u.is_admin ? '<span class="badge b-info">مدير</span>' : ''}</div>
-        <div class="estat"><span class="sline ${line[0]}">${ico('clock')}${esc(line[1])}</span>
-          ${has('attendance.edit') && u.active && t && ['absent', 'not_yet'].includes(t.status) ? `<button class="btn alt sm" data-in="${u.id}">${ico('clock')} تسجيل الحضور</button>` : ''}</div>
-        <div class="eact"><button class="sqbtn" data-more="${u.id}" title="المزيد">${ico('dots')}</button>
-          ${manage ? `<button class="sqbtn blue" data-e="${u.id}" title="تعديل">${ico('edit')}</button>` : ''}
-          <button class="sqbtn" data-info="${u.id}" title="بيانات">${ico('info')}</button>
-          ${u.phone ? `<a class="sqbtn" href="tel:${esc(u.phone)}" title="اتصال">${ico('phone')}</a>` : `<span class="sqbtn off">${ico('phone')}</span>`}</div></div>`;
-    }).join('') || '<div class="card empty" style="grid-column:1/-1">لا يوجد موظفون بهذه المرشحات</div>'}</div>`;
-  const redraw = () => PAGES.employees(view);
-  body.querySelectorAll('[data-f]').forEach((el) => (el[el.tagName === 'INPUT' ? 'oninput' : 'onchange'] = () => {
-    f[el.dataset.f] = el.value;
-    if (el.tagName === 'INPUT') { clearTimeout(redraw.t); redraw.t = setTimeout(async () => { await redraw(); const i = view.querySelector('input[data-f=q]'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }, 250); } else redraw();
-  }));
-  body.querySelectorAll('[data-chip]').forEach((b) => (b.onclick = () => { f.status = f.status === b.dataset.chip ? '' : b.dataset.chip; redraw(); }));
-  $('#reset').onclick = () => { S.empf = null; redraw(); };
-  $('#exp').onclick = () => csv('employees.csv', [['الاسم', 'اسم المستخدم', 'المسمى', 'القسم', 'الهاتف', 'الوردية', 'تاريخ التعيين', 'الحالة'], ...rows.map((u) => [u.name, u.username, u.job_title, u.department, u.phone, `${u.shift_start}-${u.shift_end}`, u.hire_date, u.active ? 'نشط' : 'موقوف'])]);
+  const ALLST = ['present', 'absent', 'late', 'leave', 'not_yet', 'off'];
+  const STL = { present: 'حاضر', absent: 'غائب', late: 'متأخر', leave: 'إجازة', not_yet: 'لم يسجل الحضور', off: 'عطلة' };
+  const EXTRA = { face_yes: ['بصمة الوجه مسجلة', (u) => u.face_enrolled], face_no: ['بصمة الوجه غير مسجلة', (u) => !u.face_enrolled], no_loc: ['بدون مكتب محدد', (u) => !u.location_ids.length], new30: ['عُيّن خلال آخر 30 يوم', (u) => u.hire_date >= addDays(todayStr(), -30)] };
+  const D = () => ({ tpl: '', q: '', loc: '', dept: '', job: '', role: '', mgr: '', nat: '', st: [...ALLST], activeOnly: true, extra: [], view: 'cards', more: false });
+  const f = S.empf = { ...D(), ...(S.empf || {}) };
+  if (S.q) { f.q = S.q; S.q = ''; }
+  const uniq = (k) => [...new Set(people.map((u) => u[k]).filter(Boolean))];
   const byId = (id) => all.find((x) => x.id == id);
-  if (manage) {
-    $('#add').onclick = () => empForm(null, redraw);
-    body.querySelectorAll('[data-e]').forEach((b) => (b.onclick = () => empForm(byId(b.dataset.e), redraw)));
-  }
-  body.querySelectorAll('[data-in]').forEach((b) => (b.onclick = () => manualAtt(people, { user_id: Number(b.dataset.in), date: S.me.today_date, manual_new: true }, redraw)));
-  body.querySelectorAll('[data-info]').forEach((b) => (b.onclick = () => {
-    const u = byId(b.dataset.info);
-    const kv = [['اسم المستخدم', u.username], ['الهاتف', u.phone || '—'], ['المسمى الوظيفي', u.job_title || '—'], ['القسم', u.department || '—'], ['تاريخ التعيين', u.hire_date], ['الوردية', `${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}`],
+  const match = (u) => {
+    const q = f.q.toLowerCase();
+    return (!q || [u.name, u.username, u.phone, u.job_title, u.department].some((x) => String(x || '').toLowerCase().includes(q)))
+      && (!f.role || (f.role === 'admin') === !!u.is_admin) && (!f.dept || u.department === f.dept) && (!f.job || u.job_title === f.job)
+      && (!f.loc || !locs.length || !u.location_ids.length || u.location_ids.includes(Number(f.loc)))
+      && (!f.mgr || String(u.manager_id) === f.mgr) && (!f.nat || u.nationality === f.nat) && (!f.activeOnly || u.active)
+      && (f.st.length >= ALLST.length || (u.active && u.today && f.st.includes(u.today.status)))
+      && f.extra.every((k) => EXTRA[k][1](u));
+  };
+  const sel2 = (k, ic, ph, arr) => `<label class="sel2 ${f[k] ? '' : 'ph'}">${ico(ic)}<select data-f="${k}"><option value="">${ph}</option>${arr.map((x) => { const v = Array.isArray(x) ? x[0] : x, l = Array.isArray(x) ? x[1] : x; return `<option value="${esc(v)}" ${String(f[k]) === String(v) ? 'selected' : ''}>${esc(l)}</option>`; }).join('')}</select></label>`;
+  const btns = (u) => `${u.phone ? `<a class="sqbtn blue" href="tel:${esc(u.phone)}" title="اتصال">${ico('phone')}</a>` : `<span class="sqbtn off">${ico('phone')}</span>`}
+    <button class="sqbtn" data-info="${u.id}" title="بيانات">${ico('info')}</button>
+    ${manage ? `<button class="sqbtn blue" data-e="${u.id}" title="تعديل">${ico('edit')}</button>` : ''}
+    <button class="sqbtn" data-more="${u.id}" title="المزيد">${ico('dots')}</button>`;
+  const lineOf = (u) => {
+    const t = u.today, st = u.active && t ? TODAY_ST[t.status] : null;
+    if (!u.active) return ['bad', 'الحساب موقوف', 'clockoff'];
+    if (t && (t.status === 'present' || t.status === 'late')) return [st[1], `${st[0]} ${fmtTime(t.check_in)}${t.late_minutes ? ' (' + t.late_minutes + ' د)' : ''}${t.check_out ? ' · انصرف ' + fmtTime(t.check_out) : ''}`, 'clock'];
+    return st ? [st[1], st[0] === 'لم يسجّل الحضور' ? 'لم يسجل الحضور' : st[0], ['absent', 'not_yet'].includes(t.status) ? 'clockoff' : 'clock'] : ['', '—', 'clock'];
+  };
+  const punchBtn = (u) => (has('attendance.edit') && u.active && u.today && ['absent', 'not_yet'].includes(u.today.status) ? `<button class="btn alt sm" data-in="${u.id}">${ico('clock')} تسجيل الحضور</button>` : '');
+  const card = (u) => { const l = lineOf(u); return `<div class="card ecard"><div class="ehead"><div class="avatar lg">${esc(initials(u.name))}</div>
+    <div class="einfo"><b>${esc(u.name)}</b><span>${esc(u.job_title || '—')}</span><span>${esc(u.department || '')}</span></div>${u.is_admin ? '<span class="badge b-info">مدير</span>' : ''}</div>
+    <div class="estat"><span class="sline ${l[0]}">${ico(l[2])}${esc(l[1])}</span>${punchBtn(u)}</div><div class="eact">${btns(u)}</div></div>`; };
+  const trow = (u) => { const l = lineOf(u); return `<tr><td><div class="emp"><div class="avatar sm">${esc(initials(u.name))}</div><b>${esc(u.name)}</b>${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}</div></td>
+    <td>${esc(u.job_title || '—')}</td><td>${esc(u.department || '—')}</td><td dir="ltr">${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}</td><td><span class="sline ${l[0]}">${ico(l[2])}${esc(l[1])}</span></td><td class="actcol"><div class="racts">${punchBtn(u)}${btns(u)}</div></td></tr>`; };
+
+  const render = () => {
+    const rows = people.filter(match), shown = f.more ? ALLST : ALLST.slice(0, 5);
+    body.innerHTML = `<div class="efil">
+      <div class="frow2">
+        <label class="sel2 ${f.tpl ? '' : 'ph'}">${ico('filter')}<select data-f="tpl"><option value="">حدد القالب</option>${tpls.map((t) => `<option value="${t.id}" ${String(f.tpl) === String(t.id) ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
+        ${manage ? `<button class="btn alt sm hk" id="tsv">حفظ كنموذج</button>` : ''}${manage && f.tpl ? `<button class="sqb" id="tdel" title="حذف القالب">${ico('trash')}</button>` : ''}
+        <label class="fs wide">${ico('search')}<input data-f="q" placeholder="بحث" value="${esc(f.q)}" autocomplete="off"></label>
+        ${locs.length ? sel2('loc', 'building', 'حدد المكتب', locs.map((l) => [l.id, l.name])) : ''}${sel2('dept', 'building', 'تحديد القسم', uniq('department'))}${sel2('job', 'user', 'اختر المنصب', uniq('job_title'))}
+      </div>
+      <div class="frow2">
+        ${sel2('role', 'users', 'حدد الدور', [['admin', 'مدير'], ['employee', 'موظف']])}${sel2('mgr', 'user', 'اختر مدير', people.map((u) => [String(u.id), u.name]))}${sel2('nat', 'pin', 'الجنسية', uniq('nationality'))}
+        <div class="sel2 stbox"><span>الحالة</span><i class="n">${f.st.length}</i><button id="stall" title="تحديد الكل">×</button></div>
+      </div>
+      <div class="frow2 chiprow">
+        <button class="addf" id="addf">${ico('filter')} اضف تصفية ${ico('chev')}</button>
+        <div class="chips2">${ico('filter')}<b>الحالة</b>${shown.map((k) => `<button class="fchip2 ${f.st.includes(k) ? 'on' : 'off'}" data-st="${k}">${STL[k]} <i>${f.st.includes(k) ? '×' : '+'}</i></button>`).join('')}
+          ${!f.more && ALLST.length > 5 ? `<button class="fchip2 more" id="stmore">+${ALLST.length - 5} المزيد</button>` : ''}
+          ${f.extra.map((k) => `<button class="fchip2 on" data-x="${k}">${EXTRA[k][0]} <i>×</i></button>`).join('')}</div>
+        <b class="xl">مرشح إضافي</b><button class="fchip2 ${f.activeOnly ? 'on' : 'off'}" id="actonly">نشط</button>
+      </div>
+      <div class="frow2">${manage ? `<button class="btn" id="add">${ico('plus')} موظف جديد</button>` : ''}
+        <button class="link rs" id="reset">${ico('filter')} إعادة تعيين المرشحات</button><span class="muted small">${rows.length} من ${people.length}</span><span class="grow"></span>
+        ${exportCsvBtn('exp')}<button class="btn vtog" id="vtog" title="تبديل العرض">${ico(f.view === 'cards' ? 'menu' : 'grid')}</button></div>
+    </div>
+    ${f.view === 'cards' ? `<div class="grid g3 ecards">${rows.map(card).join('') || '<div class="card empty" style="grid-column:1/-1">لا يوجد موظفون بهذه المرشحات</div>'}</div>`
+      : `<div class="tablewrap st"><table><thead><tr><th>الموظف</th><th>المسمى الوظيفي</th><th>القسم</th><th>الوردية</th><th>حالة اليوم</th><th class="actcol"></th></tr></thead><tbody>${rows.map(trow).join('') || '<tr><td colspan="6" class="empty">لا يوجد موظفون بهذه المرشحات</td></tr>'}</tbody></table></div>`}`;
+    bind(rows);
+  };
+  const applyTpl = (id) => {
+    const t = tpls.find((x) => String(x.id) === String(id));
+    let saved = {}; try { saved = JSON.parse((t || {}).filters || '{}'); } catch { /* تجاهل */ }
+    Object.assign(f, D(), saved, { tpl: t ? String(t.id) : '', view: f.view });
+  };
+  const bind = (rows) => {
+    body.querySelectorAll('[data-f]').forEach((el) => (el[el.tagName === 'INPUT' ? 'oninput' : 'onchange'] = () => {
+      if (el.dataset.f === 'tpl') applyTpl(el.value); else f[el.dataset.f] = el.value;
+      render();
+      if (el.tagName === 'INPUT') { const i = body.querySelector('input[data-f=q]'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }
+    }));
+    body.querySelectorAll('[data-st]').forEach((b) => (b.onclick = () => { const k = b.dataset.st; f.st = f.st.includes(k) ? f.st.filter((x) => x !== k) : [...f.st, k]; render(); }));
+    body.querySelectorAll('[data-x]').forEach((b) => (b.onclick = () => { f.extra = f.extra.filter((x) => x !== b.dataset.x); render(); }));
+    if ($('#stmore', body)) $('#stmore', body).onclick = () => { f.more = true; render(); };
+    $('#stall', body).onclick = () => { f.st = [...ALLST]; render(); };
+    $('#actonly', body).onclick = () => { f.activeOnly = !f.activeOnly; render(); };
+    $('#addf', body).onclick = (e) => popMenu(e.currentTarget, Object.entries(EXTRA).filter(([k]) => !f.extra.includes(k)).map(([k, v]) => ({ ic: 'filter', t: v[0], fn: () => { f.extra.push(k); render(); } })));
+    $('#reset', body).onclick = () => { S.empf = null; PAGES.employees(view); };
+    $('#vtog', body).onclick = () => { f.view = f.view === 'cards' ? 'table' : 'cards'; render(); };
+    if ($('#tsv', body)) $('#tsv', body).onclick = () => { const n = prompt('اسم القالب'); if (!n) return; const { tpl, ...rest } = f; run(null, async () => { const r = await api('/config/filter_template', 'POST', { name: n, filters: JSON.stringify(rest) }); toast('تم حفظ القالب'); S.empf.tpl = String(r.id); again(); }); };
+    if ($('#tdel', body)) $('#tdel', body).onclick = () => { if (confirm('حذف القالب ده؟')) run(null, async () => { await api('/config/filter_template/' + f.tpl, 'DELETE'); S.empf.tpl = ''; again(); }); };
+    $('#exp', body).onclick = () => csv('employees.csv', [['الاسم', 'اسم المستخدم', 'المسمى', 'القسم', 'الجنسية', 'الهاتف', 'الوردية', 'تاريخ التعيين', 'الحالة'], ...rows.map((u) => [u.name, u.username, u.job_title, u.department, u.nationality, u.phone, `${u.shift_start}-${u.shift_end}`, u.hire_date, u.active ? 'نشط' : 'موقوف'])]);
+    if (manage) {
+      $('#add', body).onclick = () => empForm(null, again);
+      body.querySelectorAll('[data-e]').forEach((b) => (b.onclick = () => empForm(byId(b.dataset.e), again)));
+    }
+    body.querySelectorAll('[data-in]').forEach((b) => (b.onclick = () => manualAtt(people, { user_id: Number(b.dataset.in), date: S.me.today_date, manual_new: true }, again)));
+    body.querySelectorAll('[data-info]').forEach((b) => (b.onclick = () => infoModal(byId(b.dataset.info))));
+    body.querySelectorAll('[data-more]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); popMenu(b, menuFor(byId(b.dataset.more))); }));
+  };
+  const infoModal = (u) => {
+    const mg = byId(u.manager_id);
+    const kv = [['اسم المستخدم', u.username], ['الهاتف', u.phone || '—'], ['المسمى الوظيفي', u.job_title || '—'], ['القسم', u.department || '—'], ['الجنسية', u.nationality || '—'], ['المدير المباشر', mg ? mg.name : '—'], ['تاريخ التعيين', u.hire_date], ['الوردية', `${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}`],
       ['رصيد الإجازة السنوية', u.annual_leave_days + ' يوم'], ['بصمة الوجه', u.face_enrolled ? 'مسجلة' : 'غير مسجلة'],
       ['أماكن الحضور', u.location_ids.length ? u.location_ids.map((i) => (locs.find((l) => l.id === i) || {}).name).filter(Boolean).join('، ') : 'أي موقع'],
       ...(u.base_salary !== undefined && !u.is_admin ? [['المرتب الأساسي', money(u.base_salary)], ['البدلات', money(u.allowances)]] : [])];
     modal(`<div class="emp" style="margin-bottom:12px"><div class="avatar lg">${esc(initials(u.name))}</div><div class="info"><b>${esc(u.name)}</b><span class="muted small">${u.is_admin ? 'مدير' : 'موظف'}</span></div></div>
       <div class="kv">${kv.map(([k, v]) => `<div><span class="muted">${k}</span><b>${esc(v)}</b></div>`).join('')}</div><div class="actions"><button class="btn" data-close>إغلاق</button></div>`);
-  }));
-  body.querySelectorAll('[data-more]').forEach((b) => (b.onclick = () => {
-    const u = byId(b.dataset.more);
-    const o = modal(`<h3>${esc(u.name)}</h3><div class="grid">
-      ${manage && u.face_enrolled && (!u.is_admin || S.me.user.is_admin) ? `<button class="btn alt qa" data-a="face">${ico('user')} إعادة ضبط بصمة الوجه</button>` : ''}
-      ${manage && !u.is_admin ? `<button class="btn alt qa" data-a="active">${ico('lock')} ${u.active ? 'إيقاف الحساب' : 'تفعيل الحساب'}</button>` : ''}
-      ${S.me.user.is_admin && !u.is_admin ? `<button class="btn alt qa" data-a="perm">${ico('lock')} تعديل الصلاحيات</button>` : ''}
-      ${manage && (!u.is_admin || S.me.user.is_admin) ? `<button class="btn alt qa" data-a="pw">${ico('lock')} تعيين كلمة مرور جديدة</button>` : ''}
-      <button class="btn alt qa" data-close>إغلاق</button></div>`);
-    o.querySelectorAll('[data-a]').forEach((x) => (x.onclick = () => {
-      const k = x.dataset.a;
-      if (k === 'perm') { o.close(); return go('permissions'); }
-      if (k === 'face') { if (!confirm('إعادة ضبط بصمة وجه الموظف؟ هيسجّلها من جديد.')) return; return run(x, async () => { await api(`/employees/${u.id}/reset-face`, 'POST'); o.close(); toast('تمت إعادة الضبط'); redraw(); }); }
-      if (k === 'active') return run(x, async () => { await api('/employees/' + u.id, 'PUT', { active: !u.active }); o.close(); toast('تم'); redraw(); });
-      if (k === 'pw') { const np = prompt('كلمة المرور المؤقتة الجديدة (6 أحرف على الأقل)'); if (!np) return; return run(x, async () => { await api('/employees/' + u.id, 'PUT', { password: np }); o.close(); toast('تم تعيين كلمة المرور، وهيغيّرها الموظف عند أول دخول'); }); }
-    }));
-  }));
+  };
+  const transferForm = (u) => {
+    const o = modal(`<h3>تحويل ${esc(u.name)}</h3><form class="form" id="tf">
+      <label class="f">القسم الجديد<input name="department" value="${esc(u.department)}" list="dl-dept"></label><label class="f">المنصب الجديد<input name="job_title" value="${esc(u.job_title)}" list="dl-job"></label>
+      <datalist id="dl-dept">${uniq('department').map((x) => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="dl-job">${uniq('job_title').map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
+      <label class="f">تاريخ التحويل<input type="date" name="date" value="${todayStr()}"></label><label class="f">السبب<input name="reason" maxlength="200"></label>
+      <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">تحويل</button></div></form>`);
+    const t = $('#tf', o);
+    t.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', t), async () => {
+      await api('/employees/' + u.id, 'PUT', { department: t.department.value, job_title: t.job_title.value });
+      await api('/config/transfer', 'POST', { name: u.name, from: [u.department, u.job_title].filter(Boolean).join(' / ') || '—', to: [t.department.value, t.job_title.value].filter(Boolean).join(' / ') || '—', date: t.date.value, reason: t.reason.value });
+      o.close(); toast('تم التحويل وتسجيله في سجل النقل'); again();
+    }); };
+  };
+  const auditModal = async (u) => {
+    let rows = [];
+    try { rows = await api(`/attendance?user_id=${u.id}&from=${addDays(todayStr(), -60)}&to=${todayStr()}`); } catch (e) { return toast(e.message, true); }
+    modal(`<h3>عمليات التدقيق: ${esc(u.name)}</h3><p class="muted small" style="margin:0 0 8px">آخر 60 يوم</p><div class="tablewrap"><table><tr><th>التاريخ</th><th>حضور</th><th>انصراف</th><th>تأخير (د)</th></tr>
+      ${rows.slice(0, 40).map((a) => `<tr><td>${esc(a.date)}</td><td>${fmtTime(a.check_in)}</td><td>${fmtTime(a.check_out)}</td><td>${a.late_minutes || 0}</td></tr>`).join('') || '<tr><td colspan="4" class="empty">لا توجد سجلات</td></tr>'}</table></div><div class="actions"><button class="btn" data-close>إغلاق</button></div>`);
+  };
+  const officeModal = async (u) => {
+    let log = [];
+    try { log = (await api('/config/transfer')).filter((x) => x.name === u.name); } catch { /* تجاهل */ }
+    const mine = u.location_ids.map((i) => (locs.find((l) => l.id === i) || {}).name).filter(Boolean);
+    modal(`<h3>تاريخ المكتب: ${esc(u.name)}</h3><div class="kv"><div><span class="muted">أماكن الحضور الحالية</span><b>${esc(mine.join('، ') || 'أي موقع')}</b></div><div><span class="muted">القسم الحالي</span><b>${esc(u.department || '—')}</b></div></div>
+      <h3 style="margin:14px 0 6px">سجل النقل</h3>${log.map((x) => `<div class="vrow"><span>${esc(x.from)} ← ${esc(x.to)}</span><span class="muted small">${esc(x.date || '')}</span></div>`).join('') || '<div class="muted small">لا توجد عمليات نقل.</div>'}
+      <div class="actions"><button class="btn" data-close>إغلاق</button></div>`);
+  };
+  const menuFor = (u) => {
+    const canT = manage && (!u.is_admin || S.me.user.is_admin), it = [];
+    if (canT) it.push({ ic: 'shield', t: 'تعيين كلمة مرور مؤقتة', fn: () => { const np = prompt('كلمة المرور المؤقتة الجديدة (6 أحرف على الأقل)'); if (np) run(null, async () => { await api('/employees/' + u.id, 'PUT', { password: np }); toast('تم تعيين كلمة المرور، وهيغيّرها الموظف عند أول دخول'); }); } });
+    if (manage) it.push({ ic: 'swap', t: 'تحويل', fn: () => transferForm(u) });
+    if (has('attendance.view_all')) it.push({ ic: 'audit', t: 'عمليات التدقيق', fn: () => auditModal(u) });
+    if (manage) it.push({ ic: 'building', t: 'تاريخ المكتب', fn: () => officeModal(u) });
+    if (manage && u.face_enrolled && canT) it.push({ ic: 'user', t: 'إعادة ضبط بصمة الوجه', fn: () => { if (confirm('إعادة ضبط بصمة وجه الموظف؟ هيسجّلها من جديد.')) run(null, async () => { await api(`/employees/${u.id}/reset-face`, 'POST'); toast('تمت إعادة الضبط'); again(); }); } });
+    if (manage && !u.is_admin) it.push({ ic: 'pause', t: u.active ? 'إيقاف' : 'تفعيل', fn: () => run(null, async () => { await api('/employees/' + u.id, 'PUT', { active: !u.active }); toast('تم'); again(); }) });
+    if (manage && !u.is_admin && u.id !== S.me.user.id) it.push({ ic: 'trash', t: 'إزالة', cls: 'bad', fn: () => { if (confirm(`إزالة ${u.name} نهائياً مع كل سجلاته (حضور وطلبات ومرتبات)؟ لا يمكن التراجع.`)) run(null, async () => { await api('/employees/' + u.id, 'DELETE'); toast('تمت الإزالة'); again(); }); } });
+    if (S.me.user.is_admin && !u.is_admin) it.push({ ic: 'key', t: 'إدارة الصلاحيات', fn: () => go('permissions') });
+    if (!it.length) it.push({ ic: 'info', t: 'بيانات الموظف', fn: () => infoModal(u) });
+    return it;
+  };
+  render();
 };
+
 async function empForm(u, done) {
   let locs = [];
   try { locs = await api('/locations'); } catch { /* مفيش صلاحية: نكمل من غير */ }
+  let ppl = [];
+  try { ppl = (await api('/employees')).filter((x) => !x.pending && (!u || x.id !== u.id)); } catch { /* تجاهل */ }
   let scheds = [];
   try { scheds = (await api('/config/schedule')).filter((x) => x.active); } catch { /* مفيش صلاحية إعدادات */ }
   const isNew = !u, canSal = isNew || u.base_salary !== undefined;
@@ -873,6 +1034,8 @@ async function empForm(u, done) {
     <label class="f">${isNew ? 'كلمة مرور مؤقتة' : 'كلمة مرور جديدة (اختياري)'}<input name="password" minlength="6" ${isNew ? 'required' : ''}></label>
     <label class="f">المسمى الوظيفي<input name="job_title" value="${esc(u?.job_title)}"></label>
     <label class="f">القسم<input name="department" value="${esc(u?.department)}"></label>
+    <label class="f">الجنسية<input name="nationality" value="${esc(u?.nationality)}"></label>
+    <label class="f">المدير المباشر<select name="manager_id"><option value="">—</option>${ppl.map((x) => `<option value="${x.id}" ${u?.manager_id === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
     <label class="f">الهاتف<input name="phone" value="${esc(u?.phone)}"></label>
     <label class="f">تاريخ التعيين<input type="date" name="hire_date" value="${esc(u?.hire_date || todayStr())}"></label>
     ${canSal ? `<label class="f">المرتب الأساسي<input type="number" step="0.01" min="0" name="base_salary" value="${u?.base_salary ?? 0}"></label>
@@ -1096,12 +1259,14 @@ function fieldHtml(f, v) {
   const val = v ?? f.d ?? '';
   const cls = `f${f.full ? ' full' : ''}`;
   if (f.t === 'select') return `<label class="${cls}">${f.l}<select name="${f.k}">${f.o.map(([a, b]) => `<option value="${esc(a)}" ${String(a) === String(val) ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select></label>`;
+  if (f.t === 'multi') { const on = new Set(String(val || '').split(',').filter(Boolean)); return `<div class="full"><div class="muted small" style="margin-bottom:6px;font-weight:600">${f.l}</div><div class="row mchk">${f.o.map(([a, b]) => `<label class="perm"><input type="checkbox" data-m="${f.k}" value="${esc(a)}" ${on.has(String(a)) ? 'checked' : ''}>${esc(b)}</label>`).join('')}</div></div>`; }
   if (f.t === 'check') return `<label class="perm full"><input type="checkbox" name="${f.k}" ${[true, 1, '1', 'true'].includes(val) ? 'checked' : ''}>${f.l}</label>`;
   return `<label class="${cls}">${f.l}<input name="${f.k}" type="${f.t || 'text'}" value="${esc(val)}" ${f.req ? 'required' : ''} ${f.attrs || ''}>${f.help ? `<span class="muted small" style="font-weight:400">${f.help}</span>` : ''}</label>`;
 }
 function readForm(f, fields) {
   const b = {};
   for (const x of fields) {
+    if (x.t === 'multi') { b[x.k] = [...f.querySelectorAll(`[data-m="${x.k}"]:checked`)].map((i) => i.value).join(','); continue; }
     const el = f.elements[x.k];
     if (!el) continue;
     b[x.k] = x.t === 'check' ? el.checked : (x.t === 'number' && el.value !== '' ? Number(el.value) : el.value);
@@ -1112,6 +1277,7 @@ const showVal = (f, v) => {
   if (v === undefined || v === null || v === '') return '—';
   if (f.t === 'select') return (f.o.find((o) => String(o[0]) === String(v)) || [0, v])[1];
   if (f.t === 'check') return v === true || v === 'true' ? '✓' : '—';
+  if (f.t === 'multi') return `${String(v).split(',').filter(Boolean).length} عضو`;
   return v;
 };
 
@@ -1120,7 +1286,7 @@ async function catalog(box, sp) {
   const PS = 10;
   const st = { tab: sp.tabs[0][0], chip: sp.chips ? sp.chips[0][0] : '', q: '', sel: '', page: 1 };
   let items = [];
-  const fields = [{ k: 'name', l: sp.nameLabel || 'الاسم', req: true, full: true }, ...sp.fields, ...(sp.noStatus ? [] : [{ k: 'active', l: 'الحالة', t: 'select', o: sp.statusOpts || [['1', 'نشط'], ['0', 'غير نشط']] }])];
+  const fields = [sp.nameField || { k: 'name', l: sp.nameLabel || 'الاسم', req: true, full: true }, ...sp.fields, ...(sp.noStatus ? [] : [{ k: 'active', l: 'الحالة', t: 'select', o: sp.statusOpts || [['1', 'نشط'], ['0', 'غير نشط']] }])];
   const reload = async () => { items = await sp.load(); draw(); };
   const filtered = () => {
     const tp = (sp.tabs.find((x) => x[0] === st.tab) || sp.tabs[0])[2];
@@ -1135,9 +1301,9 @@ async function catalog(box, sp) {
     const from = (st.page - 1) * PS, part = rows.slice(from, from + PS);
     $('#stab', box).innerHTML = `<div class="tablewrap st"><table><thead><tr>${sp.cols.map((c) => `<th>${c[0]}</th>`).join('')}<th class="actcol">${sp.actHead || ''}</th></tr></thead>
       <tbody>${part.map((it) => `<tr>${sp.cols.map((c) => `<td>${c[1](it)}</td>`).join('')}<td class="actcol">${actions(it)}</td></tr>`).join('') || `<tr><td colspan="${sp.cols.length + 1}" class="empty">لا توجد نتائج</td></tr>`}</tbody></table></div>
-      <div class="pager"><button class="pg" data-pg="${st.page - 1}" ${st.page <= 1 ? 'disabled' : ''}>${ico('chev', 'rotm90')}</button>
+      <div class="pager"><button class="pg" data-pg="${st.page - 1}" ${st.page <= 1 ? 'disabled' : ''}>${ico('chev', 'rot90')}</button>
         ${Array.from({ length: pages }, (_, i) => `<button class="pg ${i + 1 === st.page ? 'on' : ''}" data-pg="${i + 1}">${i + 1}</button>`).join('')}
-        <button class="pg" data-pg="${st.page + 1}" ${st.page >= pages ? 'disabled' : ''}>${ico('chev', 'rot90')}</button>
+        <button class="pg" data-pg="${st.page + 1}" ${st.page >= pages ? 'disabled' : ''}>${ico('chev', 'rotm90')}</button>
         <span class="muted small">${rows.length ? `عرض ${from + 1} إلى ${from + part.length} من ${rows.length} إدخالات` : 'لا توجد إدخالات'}</span></div>`;
     box.querySelectorAll('[data-pg]').forEach((b) => (b.onclick = () => { st.page = Number(b.dataset.pg); tdraw(); }));
     box.querySelectorAll('[data-a]').forEach((b) => (b.onclick = () => {
@@ -1150,7 +1316,7 @@ async function catalog(box, sp) {
   const draw = () => {
     const seg = (arr, key, attr, base) => `<div class="seg">${sp.chips && arr === sp.chips ? '<span class="seglbl">النوع</span>' : ''}${arr.map(([k, l, p]) => `<button data-${attr}="${k}" class="${k === st[key] ? 'on' : ''}">${l}${sp.counts ? `<i class="n">${(base || items).filter(p).length}</i>` : ''}</button>`).join('')}</div>`;
     const tp = (sp.tabs.find((x) => x[0] === st.tab) || sp.tabs[0])[2];
-    $('#sfil', box).innerHTML = `${seg(sp.tabs, 'tab', 'tb')}${sp.chips ? seg(sp.chips, 'chip', 'cp', items.filter(tp)) : ''}
+    $('#sfil', box).innerHTML = `${sp.tabs.length > 1 ? seg(sp.tabs, 'tab', 'tb') : ''}${sp.chips ? seg(sp.chips, 'chip', 'cp', items.filter(tp)) : ''}
       <label class="fs">${ico('search')}<input id="sq" placeholder="${sp.searchPh || 'بحث'}" value="${esc(st.q)}" autocomplete="off"></label>
       ${sp.sel ? `<select id="ssel" class="fsel"><option value="">${sp.sel.ph || 'الكل'}</option>${sp.sel.opts.map(([v, l]) => `<option value="${esc(v)}" ${v === st.sel ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
       <button class="link rs" id="srs">${ico('filter')} إعادة تعيين المرشحات</button><span class="grow"></span>

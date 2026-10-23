@@ -228,6 +228,8 @@ async function init() {
   // مواقع الحضور المسموحة لكل موظف (قائمة ids). لو فاضية، الموظف يقدر يسجل من أي موقع معرّف.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS location_ids TEXT NOT NULL DEFAULT '[]'");
   await pool.query('ALTER TABLE work_locations ADD COLUMN IF NOT EXISTS active INTEGER NOT NULL DEFAULT 1');
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality TEXT DEFAULT ''");
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS manager_id INTEGER');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS in_loc TEXT');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS out_loc TEXT');
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
@@ -311,6 +313,7 @@ function publicUser(u) {
     id: u.id, name: u.name, username: u.username, is_admin: !!u.is_admin, must_change: !!u.must_change,
     permissions: userPerms(u).filter((p) => p !== '*'), job_title: u.job_title, department: u.department,
     phone: u.phone, location_ids: parseIds(u.location_ids), shift_start: u.shift_start, shift_end: u.shift_end, hire_date: u.hire_date,
+    nationality: u.nationality || '', manager_id: u.manager_id || null,
     annual_leave_days: u.annual_leave_days, face_enrolled: !!u.face_descriptor, active: !!u.active, pending: !!u.pending, email: u.email || '',
   };
 }
@@ -710,7 +713,7 @@ app.get('/api/dashboard', auth, need('dashboard.view'), wrap(async (req, res) =>
 }));
 
 /* ----- الموظفون ----- */
-const EMP_FIELDS = ['name', 'job_title', 'department', 'phone', 'base_salary', 'allowances', 'shift_start', 'shift_end', 'hire_date', 'annual_leave_days'];
+const EMP_FIELDS = ['name', 'job_title', 'department', 'phone', 'base_salary', 'allowances', 'shift_start', 'shift_end', 'hire_date', 'annual_leave_days', 'nationality', 'manager_id'];
 function validateEmp(b, partial) {
   if (!partial && (!b.name || !b.username || !b.password)) return 'الاسم واسم المستخدم وكلمة المرور مطلوبين';
   if (b.password !== undefined && String(b.password).length < 6) return 'كلمة المرور 6 أحرف على الأقل';
@@ -764,6 +767,7 @@ app.post('/api/employees', auth, need('employees.manage'), wrap(async (req, res)
   const id = await db.insert(`INSERT INTO users(name,username,password_hash,job_title,department,phone,base_salary,allowances,shift_start,shift_end,hire_date,annual_leave_days,is_admin,location_ids)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, b.name, String(b.username).trim(), bcrypt.hashSync(String(b.password), 10), b.job_title || '', b.department || '', b.phone || '',
     Number(b.base_salary) || 0, Number(b.allowances) || 0, b.shift_start || '09:00', b.shift_end || '17:00', b.hire_date || tzParts().date, parseInt(b.annual_leave_days ?? 21, 10), b.role === 'admin' ? 1 : 0, JSON.stringify(locIds));
+  if (b.nationality || toId(b.manager_id)) await db.run('UPDATE users SET nationality=?, manager_id=? WHERE id=?', String(b.nationality || '').slice(0, 40), toId(b.manager_id), id);
   res.json({ id });
 }));
 app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, res) => {
@@ -778,7 +782,7 @@ app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, r
   for (const f of EMP_FIELDS) {
     if (b[f] === undefined) continue;
     sets.push(`${f}=?`);
-    vals.push(['base_salary', 'allowances'].includes(f) ? Number(b[f]) : f === 'annual_leave_days' ? parseInt(b[f], 10) : b[f]);
+    vals.push(['base_salary', 'allowances'].includes(f) ? Number(b[f]) : f === 'annual_leave_days' ? parseInt(b[f], 10) : f === 'manager_id' ? (toId(b[f]) === u.id ? null : toId(b[f])) : f === 'nationality' ? String(b[f]).slice(0, 40) : b[f]);
   }
   if (b.location_ids !== undefined) {
     const ids = parseIds(JSON.stringify(b.location_ids));
@@ -793,6 +797,16 @@ app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, r
     if (b.role === 'admin') { sets.push('active=1'); }
   }
   if (sets.length) await db.run(`UPDATE users SET ${sets.join(',')} WHERE id=?`, ...vals, u.id);
+  res.json({ ok: true });
+}));
+app.delete('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, res) => {
+  const id = toId(req.params.id);
+  const u = id && await db.get('SELECT * FROM users WHERE id=?', id);
+  if (!u) return res.status(404).json({ error: 'غير موجود' });
+  if (u.is_admin) return res.status(403).json({ error: 'لا يمكن إزالة حساب مدير' });
+  if (u.id === req.user.id) return res.status(403).json({ error: 'لا يمكنك إزالة حسابك' });
+  await db.run('UPDATE users SET manager_id=NULL WHERE manager_id=?', id);
+  await db.run('DELETE FROM users WHERE id=?', id); // باقي بياناته بتتمسح تلقائياً (ON DELETE CASCADE)
   res.json({ ok: true });
 }));
 app.post('/api/employees/:id/reset-face', auth, need('employees.manage'), wrap(async (req, res) => {
@@ -1046,7 +1060,13 @@ app.get('/api/reports/monthly', auth, need('reports.view'), wrap(async (req, res
 /* ----- كتالوجات الإعدادات (جداول بسيطة: اسم + بيانات + نشط) ----- */
 const CONFIG_KINDS = new Set(['schedule', 'department', 'grade', 'position', 'access_level', 'custom_field', 'announcement',
   'leave_profile', 'leave_type', 'holiday', 'compensation_rule', 'holiday_limit', 'payroll_preset', 'allowance', 'deduction',
-  'expense_category', 'payroll_lieu', 'payslip_display', 'document', 'automation_rule', 'override_rule']);
+  'expense_category', 'payroll_lieu', 'payslip_display', 'document', 'automation_rule', 'override_rule',
+  'work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template']);
+const HR_KINDS = new Set(['work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template']);
+const cfgAuth = (req, res, next) => {
+  const ok = HR_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'employees.view' : 'employees.manage') : can(req.user, 'settings.manage');
+  return ok ? next() : res.status(403).json({ error: 'ليس لديك صلاحية لهذا الإجراء' });
+};
 const parseCfg = (r) => { let d = {}; try { d = JSON.parse(r.data || '{}'); } catch { /* تجاهل */ } return { id: r.id, kind: r.kind, name: r.name, active: !!r.active, created_at: r.created_at, ...d }; };
 const cfgKind = (req, res, next) => (CONFIG_KINDS.has(req.params.kind) ? next() : res.status(404).json({ error: 'نوع غير معروف' }));
 function cfgBody(b) {
@@ -1061,16 +1081,16 @@ function cfgBody(b) {
   if (JSON.stringify(data).length > 20000) return { error: 'البيانات كبيرة جداً' };
   return { name, data: JSON.stringify(data) };
 }
-app.get('/api/config/:kind', auth, need('settings.manage'), cfgKind, wrap(async (req, res) => {
+app.get('/api/config/:kind', auth, cfgKind, cfgAuth, wrap(async (req, res) => {
   res.json((await db.all('SELECT * FROM config_items WHERE kind=? ORDER BY id', req.params.kind)).map(parseCfg));
 }));
-app.post('/api/config/:kind', auth, need('settings.manage'), cfgKind, wrap(async (req, res) => {
+app.post('/api/config/:kind', auth, cfgKind, cfgAuth, wrap(async (req, res) => {
   const c = cfgBody(req.body || {});
   if (c.error) return res.status(400).json({ error: c.error });
   const active = req.body.active === 0 || req.body.active === false || req.body.active === '0' ? 0 : 1;
   res.json({ id: await db.insert('INSERT INTO config_items(kind,name,data,active) VALUES(?,?,?,?)', req.params.kind, c.name, c.data, active) });
 }));
-app.put('/api/config/:kind/:id', auth, need('settings.manage'), cfgKind, wrap(async (req, res) => {
+app.put('/api/config/:kind/:id', auth, cfgKind, cfgAuth, wrap(async (req, res) => {
   const id = toId(req.params.id), c = cfgBody(req.body || {});
   if (c.error) return res.status(400).json({ error: c.error });
   const act = req.body.active === undefined ? null : (req.body.active === 0 || req.body.active === false || req.body.active === '0' ? 0 : 1);
@@ -1078,7 +1098,7 @@ app.put('/api/config/:kind/:id', auth, need('settings.manage'), cfgKind, wrap(as
   if (!r || !r.rowCount) return res.status(404).json({ error: 'غير موجود' });
   res.json({ ok: true });
 }));
-app.delete('/api/config/:kind/:id', auth, need('settings.manage'), cfgKind, wrap(async (req, res) => {
+app.delete('/api/config/:kind/:id', auth, cfgKind, cfgAuth, wrap(async (req, res) => {
   const id = toId(req.params.id);
   if (id) await db.run('DELETE FROM config_items WHERE id=? AND kind=?', id, req.params.kind);
   res.json({ ok: true });
