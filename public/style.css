@@ -438,8 +438,70 @@ th { font-size: 12px; } td { font-size: 12.5px; }
 .nexthint { color: var(--muted); font-size: 12px; } .prevb { border: 0; background: none; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; }
 .r90 { transform: rotate(-90deg); width: 16px; height: 16px; }
 @media (max-width: 900px) {
-  .overlay.wiz { padding: 0; } .wiz .modal { height: 100vh; max-height: 100vh; border-radius: 0; }
-  .wz-main { flex-direction: column; } .wz-side { width: auto; flex-direction: row; overflow-x: auto; border-inline-end: 0; border-bottom: 1px solid var(--line); padding: 8px; flex: none; } .wz-side > small { display: none; }
-  .ws { flex: none; padding: 6px 10px; } .ws > div span { display: none; }
-  .g2w, .ibody { grid-template-columns: 1fr; } .wz-card { padding: 16px; } .nexthint { display: none; } .addf { width: 100%; }
+  .stabs, .ssubs { padding-inline: 8px; } .fs { max-width: none; min-width: 100%; }
+  .sfil .grow { display: none; } .sfil .btn { width: 100%; justify-content: center; }
 }
+
+/* ===== الموظفون (زي الشاشة المرجعية) ===== */
+.etabs { display: flex; align-items: stretch; }
+.etabs .stabs { flex: 1; scrollbar-width: none; } .etabs .stabs::-webkit-scrollbar { display: none; }
+.tarrow { border: 0; background: none; padding: 0 16px; cursor: pointer; color: var(--muted); display: grid; place-items: center; }
+.tarrow:hover { color: var(--brand-d); }
+.stabs .cnt { font-size: 11px; min-width: 18px; height: 18px; }
+.efil { display: grid; gap: 10px; margin-bottom: 14px; }
+.frow2 { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.frow2 .grow { flex: 1; }
+.sel2 { position: relative; flex: 1; min-width: 150px; display: flex; align-items: center; }
+.sel2 > .ico { position: absolute; inset-inline-start: 11px; width: 15px; height: 15px; color: var(--muted); pointer-events: none; }
+.sel2 select { appearance: none; -webkit-appearance: none; padding: 9px 34px 9px 28px; border-radius: 10px; cursor: pointer; background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2362716f' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") no-repeat left 11px center; }
+.sel2.ph select { color: #9aa7a5; }
+.frow2 .fs.wide { flex: 1.2; max-width: none; min-width: 180px; }
+.hk { color: var(--brand-d); border-color: var(--brand); font-weight: 700; }
+.stbox { justify-content: space-between; gap: 8px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; background: #fff; flex: 1; }
+.stbox .n, .fchip2 .n { font-style: normal; background: var(--brand-l); color: var(--brand-d); border-radius: 999px; padding: 0 8px; font-size: 11px; font-weight: 700; }
+.stbox button { border: 0; background: none; cursor: pointer; color: var(--muted); font-size: 15px; line-height: 1; }
+.chiprow { gap: 8px; }
+.addf { display: inline-flex; align-items: center; gap: 8px; border: 1px solid #bfe3f7; background: #fff; color: var(--brand-d); border-radius: 10px; padding: 8px 14px; font-weight: 700; cursor: pointer; }
+.addf .ico { width: 14px; height: 14px; }
+.chips2 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; border: 1px solid var(--line); border-radius: 10px; padding: 5px 12px; background: #fff; min-height: 38px; }
+.chips2 > .ico { width: 15px; height: 15px; color: var(--brand); }
+.chips2 > b { font-weight: 600; }
+.fchip2 { border: 0; border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.fchip2 i { font-style: normal; opacity: .7; }
+.fchip2.on { background: var(--brand-l); color: var(--brand-d); }
+.fchip2.off { background: #fff; color: var(--muted); border: 1px dashed var(--line); }
+.fchip2.more { background: #fff; color: var(--brand-d); border: 1px solid #bfe3f7; }
+.xl { font-weight: 600; font-size: 12.5px; }
+.vtog { width: 38px; padding: 0; display: grid; place-items: center; height: 36px; }
+.ecard { border-radius: 14px; }
+.ehead { padding: 14px 16px 6px; gap: 12px; }
+.avatar.lg { width: 52px; height: 52px; font-size: 16px; }
+.einfo b { font-size: 14px; } .einfo span { font-size: 12px; line-height: 1.5; }
+.estat { padding: 8px 16px 14px; min-height: 48px; }
+.sline { font-size: 12.5px; }
+.eact { padding: 10px 16px; gap: 8px; }
+.sqbtn { width: 36px; height: 36px; border-radius: 9px; }
+.sqbtn .ico { width: 16px; height: 16px; }
+.pmenu { position: fixed; z-index: 60; background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(15,23,42,.16); padding: 6px; min-width: 210px; }
+.pmenu button { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: none; padding: 9px 12px; border-radius: 8px; cursor: pointer; text-align: start; font-size: 12.5px; font-weight: 600; }
+.pmenu button:hover { background: var(--bg); }
+.pmenu button .ico { width: 16px; height: 16px; color: var(--muted); }
+.pmenu button.bad, .pmenu button.bad .ico { color: var(--bad); }
+.orgh { display: flex; justify-content: space-between; align-items: center; padding-bottom: 8px; margin-bottom: 6px; border-bottom: 1px solid var(--line); }
+.orgm { padding: 7px 0; }
+.mchk { max-height: 180px; overflow-y: auto; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; gap: 4px 16px; }
+
+/* ===== توحيد الخط والحجم في الموقع كله (زي الإعدادات) ===== */
+html { font-size: 13px; }
+body, button, input, select, textarea, table { font-family: 'Poppins', 'Cairo', system-ui, 'Segoe UI', Tahoma, sans-serif; font-size: 13px; }
+h2, .page-head h2 { font-size: 17px; font-weight: 700; } h3 { font-size: 14.5px; font-weight: 700; }
+.pinfo h2 { font-size: 17px; } .prof .info b, .mtop .info b { font-size: 14px; } .mtop .info span { font-size: 12px; }
+.shift { font-size: 16px; } .prow b, .day b { font-size: 14px; } .pbtn { font-size: 14px; padding: 11px; } .btn.big { font-size: 14px; padding: 12px 18px; }
+.slnet { font-size: 14px; } .slnet b, .slamt b, .sumc b, .stat b, .stat2 .sval b, .sct b { font-size: 17px; font-weight: 700; }
+.sl, .slcard .sltxt b, .strip-month, .calttl { font-size: 13.5px; } .stat span, .sct .un, .muted.small, .small { font-size: 12px; }
+.clock .t { font-size: 34px; } .punchrow .cell b { font-size: 16px; }
+.dropdown button, .note, .toast { font-size: 12.5px; }
+.cd2 > b, .ch2, .cpill, .arow, .aio b, .durchip { font-size: 12.5px; }
+.ptable th, .ptable td { font-size: 12px; } .ptable th.tn, .ptable td.tn { font-size: 13px; }
+.bottom button[data-b] { font-size: 11px; }
+@media (max-width: 900px) { .mtop .info b { font-size: 14px; } .sct b { font-size: 15px; } .sumc b { font-size: 15px; } .frow2 .sel2, .stbox { min-width: 45%; } .chips2 { min-width: 100%; } }
