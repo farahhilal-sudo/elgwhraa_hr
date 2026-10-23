@@ -376,11 +376,18 @@ async function computeMonth(user, month, st, tiers = []) {
   const overtimePay = round2(overtimeHours * hourlyRate * parseFloat(st.overtime_factor || 1.5));
   const sumKind = (k) => round2(adj.filter((a) => a.kind === k).reduce((s, a) => s + a.amount, 0));
   const bonuses = sumKind('bonus'), manualDeductions = sumKind('deduction'), penalties = sumKind('penalty');
-  const gross = round2(user.base_salary + user.allowances + bonuses + overtimePay);
+  // المرتب بيتحسب يوم بيوم: كل يوم بيعدّي (من أول الشهر أو من تاريخ التعيين) بيستحق فيه الموظف أجر يوم = (الأساسي + البدلات) ÷ 30
+  // الشهر المنتهي = 30 يوم كاملين، والشهر الجاري = الأيام اللي عدّت لحد النهارده (بما فيها اليوم)
+  const startAcc = user.hire_date > first ? user.hire_date : first;
+  const elapsed = startAcc <= upto ? [...eachDay(startAcc, upto)].length : 0;
+  const accruedDays = last < today && user.hire_date <= first ? 30 : Math.min(30, elapsed);
+  const accruedBasic = round2((user.base_salary / 30) * accruedDays), accruedAllowances = round2((user.allowances / 30) * accruedDays);
+  const gross = round2(accruedBasic + accruedAllowances + bonuses + overtimePay);
   const totalDeductions = round2(lateDeduction + absenceDeduction + manualDeductions + penalties);
   return {
-    user_id: user.id, name: user.name, job_title: user.job_title, month,
-    base_salary: user.base_salary, allowances: user.allowances,
+    user_id: user.id, name: user.name, job_title: user.job_title, department: user.department, month,
+    base_salary: user.base_salary, allowances: user.allowances, accrued_days: accruedDays, accrued_basic: accruedBasic, accrued_allowances: accruedAllowances,
+    daily_rate: round2(dailyRate),
     work_days: workDays, present_days: presentDays, absent_days: absentDays, leave_days: leaveDays,
     late_days: lateDays, late_minutes: lateMinutes, early_minutes: earlyMinutes, overtime_hours: overtimeHours, permission_hours: permissionHours,
     overtime_pay: overtimePay, bonuses, late_deduction: lateDeduction, absence_deduction: absenceDeduction,
@@ -686,10 +693,32 @@ function validateEmp(b, partial) {
   for (const f of ['base_salary', 'allowances', 'annual_leave_days']) if (b[f] !== undefined && !(Number(b[f]) >= 0)) return 'قيمة رقمية غير صحيحة';
   return null;
 }
+// حالة كل موظف النهارده (حاضر / متأخر / غائب / إجازة / عطلة / لسه ما سجّلش)
+async function todayStatusMap(users) {
+  const now = tzParts(), st = await settings();
+  const [attRows, leaveRows] = await Promise.all([
+    db.all('SELECT * FROM attendance WHERE date=?', now.date),
+    db.all("SELECT user_id FROM requests WHERE status='approved' AND from_date<=? AND to_date>=? AND type IN ('annual_leave','sick_leave','emergency_leave','work_mission')", now.date, now.date),
+  ]);
+  const att = Object.fromEntries(attRows.map((a) => [a.user_id, a])), leaves = new Set(leaveRows.map((r) => r.user_id));
+  const weekendToday = String(st.weekend_days).split(',').map(Number).includes(new Date(now.date + 'T00:00:00Z').getUTCDay());
+  const out = {};
+  for (const u of users) {
+    const a = att[u.id];
+    let status = 'absent';
+    if (a && a.check_in) status = a.late_minutes > 0 ? 'late' : 'present';
+    else if (leaves.has(u.id)) status = 'leave';
+    else if (weekendToday) status = 'off';
+    else if (now.minutes < toMin(u.shift_start) + parseInt(st.grace_minutes || 0, 10)) status = 'not_yet';
+    out[u.id] = { status, check_in: a?.check_in || null, check_out: a?.check_out || null, late_minutes: a?.late_minutes || 0 };
+  }
+  return out;
+}
 app.get('/api/employees', auth, need('employees.view'), wrap(async (req, res) => {
   const rows = await db.all('SELECT * FROM users ORDER BY is_admin DESC, id');
+  const tmap = await todayStatusMap(rows.filter((u) => u.active && !u.pending));
   res.json(rows.map((u) => ({
-    ...publicUser(u),
+    ...publicUser(u), today: tmap[u.id] || null,
     ...(can(req.user, 'payroll.view') ? { base_salary: u.base_salary, allowances: u.allowances } : {}),
   })));
 }));

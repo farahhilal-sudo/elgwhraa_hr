@@ -1,5 +1,5 @@
 // خدمة بسيطة تخلّي الموقع يتثبت كتطبيق. البيانات دايماً من الإنترنت.
-const CACHE = 'hr-shell-v4';
+const CACHE = 'hr-shell-v5';
 const SHELL = ['/', '/style.css', '/app.js', '/icon.svg', '/manifest.json'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
