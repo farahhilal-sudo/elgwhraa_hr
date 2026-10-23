@@ -148,6 +148,14 @@ CREATE TABLE IF NOT EXISTS work_locations (
   lng DOUBLE PRECISION NOT NULL,
   radius_m INTEGER NOT NULL DEFAULT 150
 );
+CREATE TABLE IF NOT EXISTS config_items (
+  id SERIAL PRIMARY KEY,
+  kind TEXT NOT NULL,
+  name TEXT NOT NULL,
+  data TEXT NOT NULL DEFAULT '{}',
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
 CREATE TABLE IF NOT EXISTS payslips (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -188,6 +196,12 @@ const DEFAULT_SETTINGS = {
   late_factor: '1',
   absence_factor: '1',
   overtime_factor: '1.5',
+  country: 'Egypt',
+  currency: 'EGP',
+  language: 'arabic',
+  month_start: '1',
+  first_month: 'January',
+  week_start: '6', // السبت (0=الأحد)
 };
 
 // الإعدادات بتتخزن في الذاكرة 30 ثانية عشان نقلل الرحلات لقاعدة البيانات
@@ -213,6 +227,7 @@ async function init() {
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT');
   // مواقع الحضور المسموحة لكل موظف (قائمة ids). لو فاضية، الموظف يقدر يسجل من أي موقع معرّف.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS location_ids TEXT NOT NULL DEFAULT '[]'");
+  await pool.query('ALTER TABLE work_locations ADD COLUMN IF NOT EXISTS active INTEGER NOT NULL DEFAULT 1');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS in_loc TEXT');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS out_loc TEXT');
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
@@ -286,7 +301,7 @@ const can = (u, p) => u.is_admin || userPerms(u).includes(p);
 const parseIds = (t) => { try { const a = JSON.parse(t || '[]'); return Array.isArray(a) ? a.map(Number).filter(Number.isInteger) : []; } catch { return []; } };
 // المواقع اللي يقدر الموظف يسجّل منها: المحددة له، ولو مفيش فكل المواقع المعرّفة
 async function allowedLocations(u) {
-  const all = await db.all('SELECT * FROM work_locations ORDER BY id');
+  const all = await db.all('SELECT * FROM work_locations WHERE active=1 ORDER BY id');
   const ids = parseIds(u.location_ids);
   const mine = all.filter((l) => ids.includes(l.id));
   return mine.length ? mine : all;
@@ -966,12 +981,13 @@ app.get('/api/locations', auth, needLocAccess, wrap(async (req, res) => {
 app.post('/api/locations', auth, need('settings.manage'), wrap(async (req, res) => {
   const l = parseLoc(req.body || {});
   if (l.error) return res.status(400).json({ error: l.error });
-  res.json({ id: await db.insert('INSERT INTO work_locations(name,lat,lng,radius_m) VALUES(?,?,?,?)', l.name, l.lat, l.lng, l.radius) });
+  res.json({ id: await db.insert('INSERT INTO work_locations(name,lat,lng,radius_m,active) VALUES(?,?,?,?,?)', l.name, l.lat, l.lng, l.radius, req.body.active === 0 || req.body.active === '0' ? 0 : 1) });
 }));
 app.put('/api/locations/:id', auth, need('settings.manage'), wrap(async (req, res) => {
   const id = toId(req.params.id), l = parseLoc(req.body || {});
   if (l.error) return res.status(400).json({ error: l.error });
-  const r = id && await db.run('UPDATE work_locations SET name=?,lat=?,lng=?,radius_m=? WHERE id=?', l.name, l.lat, l.lng, l.radius, id);
+  const act = req.body.active === undefined ? null : (req.body.active === 0 || req.body.active === '0' || req.body.active === false ? 0 : 1);
+  const r = id && await db.run('UPDATE work_locations SET name=?,lat=?,lng=?,radius_m=?,active=COALESCE(?,active) WHERE id=?', l.name, l.lat, l.lng, l.radius, act, id);
   if (!r || !r.rowCount) return res.status(404).json({ error: 'غير موجود' });
   res.json({ ok: true });
 }));
@@ -1025,6 +1041,47 @@ app.get('/api/reports/monthly', auth, need('reports.view'), wrap(async (req, res
     };
   }));
   res.json({ month, rows });
+}));
+
+/* ----- كتالوجات الإعدادات (جداول بسيطة: اسم + بيانات + نشط) ----- */
+const CONFIG_KINDS = new Set(['schedule', 'department', 'grade', 'position', 'access_level', 'custom_field', 'announcement',
+  'leave_profile', 'leave_type', 'holiday', 'compensation_rule', 'holiday_limit', 'payroll_preset', 'allowance', 'deduction',
+  'expense_category', 'payroll_lieu', 'payslip_display', 'document', 'automation_rule', 'override_rule']);
+const parseCfg = (r) => { let d = {}; try { d = JSON.parse(r.data || '{}'); } catch { /* تجاهل */ } return { id: r.id, kind: r.kind, name: r.name, active: !!r.active, created_at: r.created_at, ...d }; };
+const cfgKind = (req, res, next) => (CONFIG_KINDS.has(req.params.kind) ? next() : res.status(404).json({ error: 'نوع غير معروف' }));
+function cfgBody(b) {
+  const name = String(b.name || '').trim().slice(0, 120);
+  if (!name) return { error: 'اكتبي الاسم' };
+  const data = {};
+  for (const [k, v] of Object.entries(b)) {
+    if (['id', 'kind', 'name', 'active', 'created_at'].includes(k)) continue;
+    if (k === 'versions') { data.versions = Array.isArray(v) ? v.slice(0, 30) : []; continue; }
+    data[k] = typeof v === 'string' ? v.slice(0, 500) : (typeof v === 'number' || typeof v === 'boolean' ? v : String(v ?? '').slice(0, 500));
+  }
+  if (JSON.stringify(data).length > 20000) return { error: 'البيانات كبيرة جداً' };
+  return { name, data: JSON.stringify(data) };
+}
+app.get('/api/config/:kind', auth, need('settings.manage'), cfgKind, wrap(async (req, res) => {
+  res.json((await db.all('SELECT * FROM config_items WHERE kind=? ORDER BY id', req.params.kind)).map(parseCfg));
+}));
+app.post('/api/config/:kind', auth, need('settings.manage'), cfgKind, wrap(async (req, res) => {
+  const c = cfgBody(req.body || {});
+  if (c.error) return res.status(400).json({ error: c.error });
+  const active = req.body.active === 0 || req.body.active === false || req.body.active === '0' ? 0 : 1;
+  res.json({ id: await db.insert('INSERT INTO config_items(kind,name,data,active) VALUES(?,?,?,?)', req.params.kind, c.name, c.data, active) });
+}));
+app.put('/api/config/:kind/:id', auth, need('settings.manage'), cfgKind, wrap(async (req, res) => {
+  const id = toId(req.params.id), c = cfgBody(req.body || {});
+  if (c.error) return res.status(400).json({ error: c.error });
+  const act = req.body.active === undefined ? null : (req.body.active === 0 || req.body.active === false || req.body.active === '0' ? 0 : 1);
+  const r = id && await db.run('UPDATE config_items SET name=?,data=?,active=COALESCE(?,active) WHERE id=? AND kind=?', c.name, c.data, act, id, req.params.kind);
+  if (!r || !r.rowCount) return res.status(404).json({ error: 'غير موجود' });
+  res.json({ ok: true });
+}));
+app.delete('/api/config/:kind/:id', auth, need('settings.manage'), cfgKind, wrap(async (req, res) => {
+  const id = toId(req.params.id);
+  if (id) await db.run('DELETE FROM config_items WHERE id=? AND kind=?', id, req.params.kind);
+  res.json({ ok: true });
 }));
 
 /* ----- الإعدادات ----- */

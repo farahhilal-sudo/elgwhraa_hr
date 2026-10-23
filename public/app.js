@@ -229,6 +229,10 @@ const ICONS = {
   pin: '<path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
   dollar: '<circle cx="12" cy="12" r="9"/><path d="M14.5 9a2.5 2 0 0 0-2.5-1.5c-1.5 0-2.5.8-2.5 1.8 0 2.6 5 1.4 5 4 0 1-1 1.8-2.5 1.8A2.7 2 0 0 1 9.5 14.5M12 6v1.5M12 16.5V18"/>',
   print: '<path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/>',
+  building: '<path d="M4 21V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v16M15 9h3a2 2 0 0 1 2 2v10M2 21h20M8 7h3M8 11h3M8 15h3"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/>',
+  archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4"/>',
 };
 const ico = (n, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg>`;
 // قائمة بمجموعات (زي الشاشة): عنصر مفرد أو مجموعة فيها عناصر فرعية
@@ -243,7 +247,11 @@ const MENU = [
   { g: 'fin', ic: 'wallet', t: 'المالية', items: [
     ['payroll', 'المرتبات والخصومات', () => has('payroll.view')], ['adjustments', 'المكافآت والجزاءات', () => has('payroll.view')], ['tiers', 'شرائح خصم التأخير', () => has('settings.manage')]] },
   { id: 'reports', ic: 'chart', t: 'التقارير', ok: () => has('reports.view') },
-  { id: 'settings', ic: 'sliders', t: 'الإعدادات', ok: () => has('settings.manage') },
+  { g: 'set', ic: 'sliders', t: 'الإعدادات', items: [
+    ['set_company', 'شركة', () => has('settings.manage'), 'building'], ['set_attendance', 'الحضور', () => has('settings.manage'), 'clock'],
+    ['set_finance', 'المالية', () => has('settings.manage'), 'wallet'], ['set_documents', 'المستندات', () => has('settings.manage'), 'file'],
+    ['set_automation', 'قواعد أتمتة النظام', () => has('settings.manage')], ['set_overrides', 'قواعد تجاوز الإشعارات', () => has('settings.manage')],
+    ['set_misc', 'إعدادات متنوعة', () => has('settings.manage'), 'sliders']] },
 ];
 const menuVisible = () => MENU.map((m) => (m.g ? { ...m, items: m.items.filter((i) => i[2]()) } : m)).filter((m) => (m.g ? m.items.length : m.ok()));
 const allPages = () => menuVisible().flatMap((m) => (m.g ? m.items.map((i) => i[0]) : [m.id]));
@@ -253,7 +261,7 @@ function menuHtml(sheet) {
     if (!m.g) return `<button class="navi ${m.id === S.page ? 'on' : ''}" data-p="${m.id}">${ico(m.ic)}<span>${m.t}</span></button>`;
     const has_on = m.items.some((i) => i[0] === S.page), open = sheet || has_on || S.open[m.g];
     return `<div class="navgrp ${open ? 'open' : ''} ${has_on ? 'cur' : ''}"><button class="navi navg" data-g="${m.g}">${ico(m.ic)}<span>${m.t}</span>${ico('chev', 'chev')}</button>
-      <div class="sub">${m.items.map((i) => `<button class="navi sm ${i[0] === S.page ? 'on' : ''}" data-p="${i[0]}"><span>${i[1]}</span></button>`).join('')}</div></div>`;
+      <div class="sub">${m.items.map((i) => `<button class="navi sm ${i[0] === S.page ? 'on' : ''}" data-p="${i[0]}">${i[3] ? ico(i[3]) : ''}<span>${i[1]}</span></button>`).join('')}</div></div>`;
   }).join('');
 }
 function menuSheet() {
@@ -856,6 +864,8 @@ PAGES.employees = async (view) => {
 async function empForm(u, done) {
   let locs = [];
   try { locs = await api('/locations'); } catch { /* مفيش صلاحية: نكمل من غير */ }
+  let scheds = [];
+  try { scheds = (await api('/config/schedule')).filter((x) => x.active); } catch { /* مفيش صلاحية إعدادات */ }
   const isNew = !u, canSal = isNew || u.base_salary !== undefined;
   const o = modal(`<h3>${isNew ? 'موظف جديد' : 'تعديل ' + esc(u.name)}</h3><form class="form" id="ef">
     <label class="f full">الاسم<input name="name" value="${esc(u?.name)}" required></label>
@@ -867,6 +877,7 @@ async function empForm(u, done) {
     <label class="f">تاريخ التعيين<input type="date" name="hire_date" value="${esc(u?.hire_date || todayStr())}"></label>
     ${canSal ? `<label class="f">المرتب الأساسي<input type="number" step="0.01" min="0" name="base_salary" value="${u?.base_salary ?? 0}"></label>
     <label class="f">البدلات<input type="number" step="0.01" min="0" name="allowances" value="${u?.allowances ?? 0}"></label>` : ''}
+    ${scheds.length ? `<label class="f full">موعد العمل (بيملأ بداية ونهاية الوردية)<select id="schsel"><option value="">— يدوي —</option>${scheds.map((x) => `<option value="${esc(x.start)}|${esc(x.end)}">${esc(x.name)} (${esc(x.start)} - ${esc(x.end)})</option>`).join('')}</select></label>` : ''}
     <label class="f">بداية الوردية<input type="time" name="shift_start" value="${esc(u?.shift_start || '09:00')}"></label>
     <label class="f">نهاية الوردية<input type="time" name="shift_end" value="${esc(u?.shift_end || '17:00')}"></label>
     ${locs.length ? `<div class="full"><div class="muted small" style="margin-bottom:4px;font-weight:600">مواقع الحضور المسموحة (لو ماحددتيش، يسجّل من أي موقع)</div><div class="row">${locs.map((l) => `<label class="perm"><input type="checkbox" data-loc="${l.id}" ${u?.location_ids?.includes(l.id) ? 'checked' : ''}>${esc(l.name)}</label>`).join('')}</div></div>` : ''}
@@ -875,6 +886,8 @@ async function empForm(u, done) {
     ${!isNew && !u.is_admin ? `<label class="f">الحالة<select name="active"><option value="1" ${u.active ? 'selected' : ''}>نشط</option><option value="0" ${u.active ? '' : 'selected'}>موقوف</option></select></label>` : ''}
     <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
   const f = $('#ef', o);
+  const ss = $('#schsel', o);
+  if (ss) ss.onchange = () => { const [a, b] = ss.value.split('|'); if (a) { f.shift_start.value = a; f.shift_end.value = b; } };
   f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
     const b = Object.fromEntries(new FormData(f));
     if (b.active !== undefined) b.active = b.active === '1';
@@ -1053,40 +1066,311 @@ PAGES.permissions = async (view) => {
   });
 };
 
-/* --- الإعدادات --- */
-PAGES.settings = async (view) => {
-  const s = await api('/settings');
-  const days = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
-  const wk = String(s.weekend_days).split(',').filter(Boolean).map(Number);
-  view.innerHTML = `<div class="page-head"><h2>الإعدادات</h2></div><form class="card form" id="sf">
-    <label class="f full">اسم الشركة<input name="company_name" value="${esc(s.company_name)}"></label>
-    <div class="full card" style="background:var(--bg)"><div class="row" style="justify-content:space-between"><h3>مواقع العمل</h3><button type="button" class="btn sm" id="locadd">+ موقع جديد</button></div>
-      <p class="muted small" style="margin:4px 0 10px">الموظف مش بيقدر يسجّل حضور أو انصراف إلا لو كان داخل نطاق أحد المواقع المسموحة له. تحددي المواقع المسموحة لكل موظف من «الموظفون ← تعديل». لو الموظف معندوش مواقع محددة، بيقدر يسجّل من أي موقع هنا. ولو مفيش مواقع خالص، مش بيتم التحقق من الموقع.</p>
-      <div id="loclist"></div></div>
-    <label class="perm full"><input type="checkbox" name="signup_enabled" value="1" ${s.signup_enabled !== '0' ? 'checked' : ''}>السماح بإنشاء حساب جديد من صفحة الدخول (بيحتاج موافقتك)</label>
-    <label class="f">سماح التأخير (دقيقة)<input type="number" name="grace_minutes" min="0" value="${esc(s.grace_minutes)}"></label>
-    <label class="f">حساسية مطابقة الوجه (0.3 أشد – 0.7 أخف)<input type="number" step="0.05" min="0.3" max="0.7" name="face_threshold" value="${esc(s.face_threshold)}"></label>
-    <label class="f">معامل خصم التأخير<input type="number" step="0.25" min="0" name="late_factor" value="${esc(s.late_factor)}"></label>
-    <label class="f">معامل خصم الغياب (يوم)<input type="number" step="0.25" min="0" name="absence_factor" value="${esc(s.absence_factor)}"></label>
-    <label class="f">معامل الوقت الإضافي<input type="number" step="0.25" min="0" name="overtime_factor" value="${esc(s.overtime_factor)}"></label>
-    <div class="full"><div class="muted small" style="margin-bottom:6px;font-weight:600">أيام الإجازة الأسبوعية</div><div class="row">${days.map((d, i) => `<label class="perm"><input type="checkbox" data-d="${i}" ${wk.includes(i) ? 'checked' : ''}>${d}</label>`).join('')}</div></div>
-    <div class="actions full" style="justify-content:flex-start"><button class="btn">حفظ الإعدادات</button></div></form>`;
-  const loadLocs = async () => {
-    const locs = await api('/locations');
-    $('#loclist').innerHTML = locs.map((l) => `<div class="row" style="justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)"><div class="info"><b>${esc(l.name)}</b> <span class="muted small">نطاق ${l.radius_m} م · ${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}</span></div>
-      <div class="row"><button type="button" class="btn alt sm" data-le="${l.id}">تعديل</button><button type="button" class="btn alt sm" data-ld="${l.id}">حذف</button></div></div>`).join('') || '<div class="muted small">مفيش مواقع مضافة.</div>';
-    $('#loclist').querySelectorAll('[data-le]').forEach((b) => (b.onclick = () => locForm(locs.find((x) => x.id == b.dataset.le), loadLocs)));
-    $('#loclist').querySelectorAll('[data-ld]').forEach((b) => (b.onclick = () => { if (confirm('حذف الموقع ده؟')) run(b, async () => { await api('/locations/' + b.dataset.ld, 'DELETE'); loadLocs(); }); }));
-  };
-  $('#locadd').onclick = () => locForm(null, loadLocs);
-  loadLocs();
-  $('#sf').onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', e.target), async () => {
-    const b = Object.fromEntries(new FormData(e.target));
-    b.signup_enabled = e.target.signup_enabled.checked ? '1' : '0';
-    b.weekend_days = [...document.querySelectorAll('[data-d]:checked')].map((x) => x.dataset.d).join(',');
-    await api('/settings', 'PUT', b); S.me = await api('/me'); toast('تم حفظ الإعدادات');
-  }); };
+/* ====== الإعدادات (على شكل الشاشات المرجعية) ====== */
+const DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const CUR = { EGP: 'جنيه مصري', SAR: 'ريال سعودي', USD: 'دولار أمريكي', AED: 'درهم إماراتي', EUR: 'يورو' };
+const PERIODS = { monthly: 'شهريا', weekly: 'أسبوعيا', biweekly: 'كل أسبوعين', daily: 'يوميا' };
+const SET_TOP = [
+  ['company', 'شركة', 'building'], ['attendance', 'الحضور', 'clock'], ['finance', 'المالية', 'wallet'], ['documents', 'المستندات', 'file'],
+  ['automation', 'قواعد أتمتة النظام', ''], ['overrides', 'قواعد تجاوز الإشعارات', ''], ['misc', 'إعدادات متنوعة', 'sliders'],
+];
+const SET_SUB = {
+  company: [['offices', 'مكاتب وأماكن العمل'], ['department', 'الأقسام'], ['grade', 'الدرجات'], ['position', 'المناصب'], ['access_level', 'مستويات الوصول'], ['custom_field', 'حقول مخصصة'], ['announcement', 'الإعلانات']],
+  attendance: [['schedule', 'مواعيد العمل'], ['penalty', 'سياسات الجزاءات'], ['overtime', 'سياسات الوقت الإضافي'], ['leave_profile', 'ملفات الإجازة والاستراتيجية'], ['leave_type', 'أنواع الإجازات'], ['holiday', 'العطلات الرسمية'], ['compensation_rule', 'قواعد التعويض'], ['holiday_limit', 'قواعد الحد من أيام العطلات']],
+  finance: [['payroll_preset', 'خيارات التكوين المسبق للراتب'], ['allowance', 'البدلات'], ['deduction', 'الخصومات'], ['expense_category', 'فئات المصاريف'], ['payroll_lieu', 'Payroll In Lieu Rules'], ['payslip_display', 'إعدادات ظهور كشف الراتب']],
 };
+const SET_SINGLE = { documents: 'document', automation: 'automation_rule', overrides: 'override_rule', misc: 'misc' };
+let SETV = {}; // الإعدادات الحالية (بتتحمّل كل مرة تفتحي صفحة الإعدادات)
+
+const tm12 = (t) => { const [h, m] = String(t || '0:0').split(':').map(Number); return `${h % 12 || 12}:${String(m || 0).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`; };
+const hoursOf = (s, e, brk) => {
+  const tm = (x) => { const [h, m] = String(x || '0:0').split(':').map(Number); return h * 60 + (m || 0); };
+  let d = tm(e) - tm(s); if (d <= 0) d += 1440;
+  return Number((Math.max(0, d - (Number(brk) || 0)) / 60).toFixed(2));
+};
+const STATUS_TABS = [['all', 'الكل', () => true], ['1', 'نشط', (it) => it.active], ['0', 'غير نشط', (it) => !it.active]];
+
+/* --- حقول النماذج --- */
+function fieldHtml(f, v) {
+  const val = v ?? f.d ?? '';
+  const cls = `f${f.full ? ' full' : ''}`;
+  if (f.t === 'select') return `<label class="${cls}">${f.l}<select name="${f.k}">${f.o.map(([a, b]) => `<option value="${esc(a)}" ${String(a) === String(val) ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select></label>`;
+  if (f.t === 'check') return `<label class="perm full"><input type="checkbox" name="${f.k}" ${[true, 1, '1', 'true'].includes(val) ? 'checked' : ''}>${f.l}</label>`;
+  return `<label class="${cls}">${f.l}<input name="${f.k}" type="${f.t || 'text'}" value="${esc(val)}" ${f.req ? 'required' : ''} ${f.attrs || ''}>${f.help ? `<span class="muted small" style="font-weight:400">${f.help}</span>` : ''}</label>`;
+}
+function readForm(f, fields) {
+  const b = {};
+  for (const x of fields) {
+    const el = f.elements[x.k];
+    if (!el) continue;
+    b[x.k] = x.t === 'check' ? el.checked : (x.t === 'number' && el.value !== '' ? Number(el.value) : el.value);
+  }
+  return b;
+}
+const showVal = (f, v) => {
+  if (v === undefined || v === null || v === '') return '—';
+  if (f.t === 'select') return (f.o.find((o) => String(o[0]) === String(v)) || [0, v])[1];
+  if (f.t === 'check') return v === true || v === 'true' ? '✓' : '—';
+  return v;
+};
+
+/* --- محرك القوائم (بحث + تابات + شرائح + ترقيم + نموذج) --- */
+async function catalog(box, sp) {
+  const PS = 10;
+  const st = { tab: sp.tabs[0][0], chip: sp.chips ? sp.chips[0][0] : '', q: '', sel: '', page: 1 };
+  let items = [];
+  const fields = [{ k: 'name', l: sp.nameLabel || 'الاسم', req: true, full: true }, ...sp.fields, ...(sp.noStatus ? [] : [{ k: 'active', l: 'الحالة', t: 'select', o: sp.statusOpts || [['1', 'نشط'], ['0', 'غير نشط']] }])];
+  const reload = async () => { items = await sp.load(); draw(); };
+  const filtered = () => {
+    const tp = (sp.tabs.find((x) => x[0] === st.tab) || sp.tabs[0])[2];
+    const cp = sp.chips ? (sp.chips.find((x) => x[0] === st.chip) || sp.chips[0])[2] : null;
+    const q = st.q.trim().toLowerCase();
+    return items.filter((it) => tp(it) && (!cp || cp(it)) && (!st.sel || sp.sel.pred(it, st.sel)) && (!q || sp.text(it).toLowerCase().includes(q)));
+  };
+  const actions = (it) => `<div class="racts">${sp.extra ? sp.extra(it) : ''}<button class="sqb" data-a="edit" data-id="${it.id}" title="تعديل">${ico('edit')}</button><button class="sqb" data-a="del" data-id="${it.id}" title="حذف">${ico('trash')}</button></div>`;
+  const tdraw = () => {
+    const rows = filtered(), pages = Math.max(1, Math.ceil(rows.length / PS));
+    st.page = Math.min(st.page, pages);
+    const from = (st.page - 1) * PS, part = rows.slice(from, from + PS);
+    $('#stab', box).innerHTML = `<div class="tablewrap st"><table><thead><tr>${sp.cols.map((c) => `<th>${c[0]}</th>`).join('')}<th class="actcol">${sp.actHead || ''}</th></tr></thead>
+      <tbody>${part.map((it) => `<tr>${sp.cols.map((c) => `<td>${c[1](it)}</td>`).join('')}<td class="actcol">${actions(it)}</td></tr>`).join('') || `<tr><td colspan="${sp.cols.length + 1}" class="empty">لا توجد نتائج</td></tr>`}</tbody></table></div>
+      <div class="pager"><button class="pg" data-pg="${st.page - 1}" ${st.page <= 1 ? 'disabled' : ''}>${ico('chev', 'rotm90')}</button>
+        ${Array.from({ length: pages }, (_, i) => `<button class="pg ${i + 1 === st.page ? 'on' : ''}" data-pg="${i + 1}">${i + 1}</button>`).join('')}
+        <button class="pg" data-pg="${st.page + 1}" ${st.page >= pages ? 'disabled' : ''}>${ico('chev', 'rot90')}</button>
+        <span class="muted small">${rows.length ? `عرض ${from + 1} إلى ${from + part.length} من ${rows.length} إدخالات` : 'لا توجد إدخالات'}</span></div>`;
+    box.querySelectorAll('[data-pg]').forEach((b) => (b.onclick = () => { st.page = Number(b.dataset.pg); tdraw(); }));
+    box.querySelectorAll('[data-a]').forEach((b) => (b.onclick = () => {
+      const it = items.find((x) => x.id == b.dataset.id), a = b.dataset.a;
+      if (a === 'edit') openForm(it);
+      else if (a === 'del') { if (confirm(sp.delMsg || 'حذف العنصر ده؟')) run(b, async () => { await sp.remove(it); toast('تم الحذف'); reload(); }); }
+      else if (sp.act) run(b, async () => { await sp.act(a, it, reload); });
+    }));
+  };
+  const draw = () => {
+    const seg = (arr, key, attr, base) => `<div class="seg">${sp.chips && arr === sp.chips ? '<span class="seglbl">النوع</span>' : ''}${arr.map(([k, l, p]) => `<button data-${attr}="${k}" class="${k === st[key] ? 'on' : ''}">${l}${sp.counts ? `<i class="n">${(base || items).filter(p).length}</i>` : ''}</button>`).join('')}</div>`;
+    const tp = (sp.tabs.find((x) => x[0] === st.tab) || sp.tabs[0])[2];
+    $('#sfil', box).innerHTML = `${seg(sp.tabs, 'tab', 'tb')}${sp.chips ? seg(sp.chips, 'chip', 'cp', items.filter(tp)) : ''}
+      <label class="fs">${ico('search')}<input id="sq" placeholder="${sp.searchPh || 'بحث'}" value="${esc(st.q)}" autocomplete="off"></label>
+      ${sp.sel ? `<select id="ssel" class="fsel"><option value="">${sp.sel.ph || 'الكل'}</option>${sp.sel.opts.map(([v, l]) => `<option value="${esc(v)}" ${v === st.sel ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
+      <button class="link rs" id="srs">${ico('filter')} إعادة تعيين المرشحات</button><span class="grow"></span>
+      <button class="btn sm" id="snew">${ico('plus')} ${sp.newLabel}</button>`;
+    box.querySelectorAll('[data-tb]').forEach((b) => (b.onclick = () => { st.tab = b.dataset.tb; st.page = 1; draw(); }));
+    box.querySelectorAll('[data-cp]').forEach((b) => (b.onclick = () => { st.chip = b.dataset.cp; st.page = 1; draw(); }));
+    $('#sq', box).oninput = (e) => { st.q = e.target.value; st.page = 1; tdraw(); };
+    if ($('#ssel', box)) $('#ssel', box).onchange = (e) => { st.sel = e.target.value; st.page = 1; tdraw(); };
+    $('#srs', box).onclick = () => { Object.assign(st, { tab: sp.tabs[0][0], chip: sp.chips ? sp.chips[0][0] : '', q: '', sel: '', page: 1 }); draw(); };
+    $('#snew', box).onclick = () => openForm(null);
+    tdraw();
+  };
+  function openForm(it) {
+    if (sp.form) return sp.form(it, reload);
+    const vals = it ? { ...it, active: it.active ? '1' : '0' } : { active: '1' };
+    const o = modal(`<h3>${it ? 'تعديل' : sp.newLabel}</h3><form class="form" id="cf">${fields.map((f) => fieldHtml(f, vals[f.k])).join('')}
+      <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
+    const f = $('#cf', o);
+    f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
+      const b = readForm(f, fields);
+      if (sp.pre) sp.pre(it, b);
+      await sp.save(it, b);
+      o.close(); toast('تم الحفظ'); reload();
+    }); };
+  }
+  box.innerHTML = '<div class="sfil" id="sfil"></div><div id="stab"></div>';
+  items = await sp.load();
+  draw();
+}
+
+/* قوائم الإعدادات البسيطة المخزنة في قاعدة البيانات (config_items) */
+const cfgApi = (kind) => ({
+  load: async () => api('/config/' + kind),
+  save: (it, b) => api(it ? `/config/${kind}/${it.id}` : '/config/' + kind, it ? 'PUT' : 'POST', b),
+  remove: (it) => api(`/config/${kind}/${it.id}`, 'DELETE'),
+});
+const statusBadge = (it) => `<span class="badge ${it.active ? 'b-ok' : ''}">${it.active ? 'نشط' : 'غير نشط'}</span>`;
+function simpleSpec(kind, newLabel, fields) {
+  return {
+    kind, newLabel, ...cfgApi(kind), tabs: STATUS_TABS, fields,
+    cols: [['الاسم', (it) => `<b>${esc(it.name)}</b>`], ...fields.map((f) => [f.l, (it) => esc(showVal(f, it[f.k]))]), ['الحالة', statusBadge]],
+    text: (it) => [it.name, ...fields.map((f) => it[f.k])].join(' '),
+  };
+}
+const DESC = { k: 'description', l: 'الوصف', full: true };
+const KIND_OPTS = [['fixed', 'مبلغ ثابت'], ['percent', 'نسبة من الأساسي']];
+const SIMPLE = {
+  department: ['قسم جديد', [DESC]],
+  grade: ['درجة جديدة', [{ k: 'level', l: 'المستوى', t: 'number', attrs: 'min="1"' }, DESC]],
+  position: ['منصب جديد', [DESC]],
+  access_level: ['مستوى وصول جديد', [DESC]],
+  custom_field: ['حقل مخصص جديد', [{ k: 'type', l: 'نوع الحقل', t: 'select', o: [['text', 'نص'], ['number', 'رقم'], ['date', 'تاريخ'], ['list', 'قائمة']] }, { k: 'applies', l: 'يظهر في', t: 'select', o: [['employee', 'بيانات الموظف'], ['office', 'المكاتب'], ['department', 'الأقسام']] }, { k: 'required', l: 'حقل إلزامي', t: 'check' }]],
+  announcement: ['إعلان جديد', [{ k: 'text', l: 'نص الإعلان', full: true }, { k: 'from', l: 'من', t: 'date' }, { k: 'to', l: 'إلى', t: 'date' }]],
+  leave_profile: ['ملف إجازة جديد', [{ k: 'annual', l: 'الرصيد السنوي (يوم)', t: 'number', d: 21, attrs: 'min="0"' }, { k: 'carry', l: 'ترحيل الرصيد للسنة التالية', t: 'check' }]],
+  leave_type: ['نوع إجازة جديد', [{ k: 'days', l: 'الحد الأقصى سنوياً (يوم)', t: 'number', attrs: 'min="0"' }, { k: 'paid', l: 'إجازة مدفوعة', t: 'check', d: true }]],
+  holiday: ['عطلة رسمية جديدة', [{ k: 'date', l: 'من تاريخ', t: 'date', req: true }, { k: 'to', l: 'إلى تاريخ', t: 'date' }]],
+  compensation_rule: ['قاعدة تعويض جديدة', [DESC]],
+  holiday_limit: ['قاعدة جديدة', [{ k: 'max', l: 'أقصى عدد أيام متتالية', t: 'number', attrs: 'min="1"' }, DESC]],
+  allowance: ['بدل جديد', [{ k: 'kind', l: 'النوع', t: 'select', o: KIND_OPTS }, { k: 'amount', l: 'القيمة', t: 'number', attrs: 'min="0" step="0.01"' }]],
+  deduction: ['خصم جديد', [{ k: 'kind', l: 'النوع', t: 'select', o: KIND_OPTS }, { k: 'amount', l: 'القيمة', t: 'number', attrs: 'min="0" step="0.01"' }]],
+  expense_category: ['فئة مصروف جديدة', [DESC]],
+  payroll_lieu: ['قاعدة جديدة', [DESC]],
+  payslip_display: ['إعداد جديد', [DESC]],
+  document: ['مستند جديد', [{ k: 'required', l: 'مطلوب من كل موظف', t: 'check' }, DESC]],
+  automation_rule: ['قاعدة أتمتة جديدة', [{ k: 'trigger', l: 'الحدث', full: true }, { k: 'action', l: 'الإجراء', full: true }]],
+  override_rule: ['قاعدة جديدة', [DESC]],
+};
+
+/* --- مكاتب وأماكن العمل (مواقع الحضور بالـ GPS) --- */
+const officesSpec = () => ({
+  newLabel: 'مكتب جديد', searchPh: 'بحث', tabs: STATUS_TABS, fields: [],
+  sel: { ph: 'الكل', opts: [['office', 'المكتب']], pred: () => true },
+  load: async () => {
+    const [locs, emps] = await Promise.all([api('/locations'), api('/employees').catch(() => [])]);
+    return locs.map((l) => ({ ...l, active: !!l.active, n: emps.filter((u) => u.active && !u.pending && (u.location_ids || []).includes(l.id)).length }));
+  },
+  remove: (it) => api('/locations/' + it.id, 'DELETE'),
+  form: (it, reload) => locForm(it, reload),
+  delMsg: 'حذف المكتب ده؟',
+  text: (it) => `${it.name} ${it.lat} ${it.lng}`,
+  cols: [
+    ['الاسم', (it) => `<b>${esc(it.name)}</b>`], ['النوع', () => 'المكتب'], ['عدد الموظفين', (it) => `${it.n} / غير محدد`],
+    ['اللغة', () => esc(SETV.language)], ['دولة', () => esc(SETV.country)], ['العملة', () => esc(SETV.currency)],
+    ['بداية الشهر', () => esc(SETV.month_start)], ['أول شهر في السنة', () => esc(SETV.first_month)], ['بداية الأسبوع', () => DAYS[Number(SETV.week_start)] || '—'],
+    ['العنوان', (it) => `<span dir="ltr">${it.lat.toFixed(5)}, ${it.lng.toFixed(5)}</span><div class="muted small">نطاق ${it.radius_m} م</div>`],
+    ['المنطقة الزمنية', () => esc(SETV.timezone)],
+  ],
+});
+
+/* --- مواعيد العمل --- */
+const SCHED_FIELDS = [
+  { k: 'type', l: 'النوع', t: 'select', o: [['full', 'يوم كامل'], ['half', 'نصف يوم']] },
+  { k: 'brk', l: 'استراحة (دقيقة)', t: 'number', d: 0, attrs: 'min="0" step="5"' },
+  { k: 'start', l: 'بداية الدوام', t: 'time', d: '09:00', req: true },
+  { k: 'end', l: 'نهاية الدوام', t: 'time', d: '17:00', req: true },
+];
+const SCHED_KEYS = ['name', 'type', 'brk', 'start', 'end'];
+const schedSpec = () => {
+  const api_ = cfgApi('schedule');
+  const snap = (it) => ({ at: new Date().toISOString().slice(0, 16).replace('T', ' '), ...Object.fromEntries(SCHED_KEYS.map((k) => [k, it[k]])) });
+  const save = (it, b) => api_.save(it, b);
+  return {
+    ...api_, newLabel: 'موعد عمل جديد', searchPh: 'ابحث في أوقات العمل', counts: true, nameLabel: 'اسم موعد العمل', fields: SCHED_FIELDS,
+    statusOpts: [['1', 'نشط'], ['0', 'محفوظ (أرشيف)']], actHead: 'الإصدارات والإجراءات',
+    tabs: [['1', 'نشط', (it) => it.active], ['0', 'محفوظ', (it) => !it.active]],
+    chips: [['all', 'الكل', () => true], ['full', 'يوم كامل', (it) => it.type !== 'half'], ['half', 'نصف يوم', (it) => it.type === 'half']],
+    text: (it) => `${it.name} ${it.start} ${it.end}`,
+    cols: [
+      ['مواعيد العمل', (it) => `<b>${esc(it.name)}</b>`],
+      ['الجدول', (it) => `<b dir="ltr">${tm12(it.start)} - ${tm12(it.end)}</b><div class="muted small">${hoursOf(it.start, it.end, it.brk)} س · استراحة ${Number(it.brk) || 0} د</div>`],
+      ['النوع', (it) => `<span class="badge ${it.type === 'half' ? 'b-warn' : 'b-info'}">${it.type === 'half' ? 'نصف يوم' : 'يوم كامل'}</span>`],
+      ['السياسات', () => `<div class="small"><span class="muted">الجزاءات</span> شرائح خصم التأخير</div><div class="small"><span class="muted">وقت إضافي</span> × ${esc(SETV.overtime_factor)}</div>`],
+      ['حالة', (it) => `<span class="badge ${it.active ? 'b-ok' : ''}">${it.active ? 'نشط' : 'محفوظ'}</span>`],
+    ],
+    pre: (it, b) => {
+      if (!it) { b.versions = []; return; }
+      const changed = SCHED_KEYS.some((k) => String(it[k] ?? '') !== String(b[k] ?? ''));
+      b.versions = changed ? [snap(it), ...(it.versions || [])].slice(0, 30) : (it.versions || []);
+    },
+    save,
+    extra: (it) => `<button class="vchip" data-a="ver" data-id="${it.id}" ${(it.versions || []).length ? '' : 'disabled'}>${(it.versions || []).length ? `إصدارات ${it.versions.length}` : 'لا يوجد إصدارات سابقة'}</button>
+      <button class="sqb" data-a="dup" data-id="${it.id}" title="نسخ">${ico('copy')}</button>
+      <button class="sqb" data-a="arch" data-id="${it.id}" title="${it.active ? 'أرشفة' : 'استرجاع'}">${ico('archive')}</button>`,
+    act: async (a, it, reload) => {
+      const base = Object.fromEntries(SCHED_KEYS.map((k) => [k, it[k]]));
+      if (a === 'dup') { await save(null, { ...base, name: it.name + ' (نسخة)', active: '1', versions: [] }); toast('تم النسخ'); reload(); }
+      else if (a === 'arch') { await save(it, { ...base, active: it.active ? '0' : '1', versions: it.versions || [] }); toast(it.active ? 'تمت الأرشفة' : 'تم الاسترجاع'); reload(); }
+      else if (a === 'ver') {
+        const o = modal(`<h3>إصدارات ${esc(it.name)}</h3><div class="vlist">${(it.versions || []).map((v, i) => `<div class="vrow"><div><b dir="ltr">${tm12(v.start)} - ${tm12(v.end)}</b> <span class="muted small">${esc(v.name)} · ${v.type === 'half' ? 'نصف يوم' : 'يوم كامل'} · ${esc(v.at)}</span></div><button class="btn alt sm" data-rv="${i}">استرجاع</button></div>`).join('')}</div>
+          <div class="actions"><button class="btn alt" data-close>إغلاق</button></div>`);
+        o.querySelectorAll('[data-rv]').forEach((b) => (b.onclick = () => run(b, async () => {
+          const v = it.versions[Number(b.dataset.rv)], nb = { ...Object.fromEntries(SCHED_KEYS.map((k) => [k, v[k]])), active: it.active ? '1' : '0' };
+          nb.versions = [snap(it), ...it.versions.filter((_, i) => i !== Number(b.dataset.rv))].slice(0, 30);
+          await save(it, nb); o.close(); toast('تم استرجاع الإصدار'); reload();
+        })));
+      }
+    },
+  };
+};
+
+/* --- خيارات التكوين المسبق للراتب --- */
+const presetSpec = () => ({
+  ...cfgApi('payroll_preset'), newLabel: 'إعداد مسبق جديد', searchPh: 'البحث بالاسم', noStatus: true,
+  tabs: [['all', 'الكل', () => true], ['pin', 'مُثَبَّت', (it) => it.pinned === true || it.pinned === 'true']],
+  sel: { ph: 'تحديد العملة', opts: Object.entries(CUR).map(([k, v]) => [k, v]), pred: (it, v) => it.currency === v },
+  fields: [
+    { k: 'currency', l: 'العملة', t: 'select', o: Object.entries(CUR), d: SETV.currency || 'EGP' },
+    { k: 'period', l: 'الدفع', t: 'select', o: Object.entries(PERIODS), d: 'monthly' },
+    { k: 'hours', l: 'ساعات العمل في اليوم', t: 'number', d: 8, attrs: 'min="1" max="24" step="0.5"' },
+    { k: 'pinned', l: 'تثبيت الإعداد في أعلى القائمة', t: 'check' },
+  ],
+  text: (it) => it.name,
+  cols: [['الاسم', (it) => `<b>${esc(it.name)}</b>`], ['العملة', (it) => esc(CUR[it.currency] || it.currency || '—')], ['الدفع', (it) => esc(PERIODS[it.period] || '—')]],
+});
+
+/* --- نموذج إعدادات عامة (بيحفظ في /settings) --- */
+async function settingsForm(box, cfg) {
+  const fields = cfg.fields;
+  box.innerHTML = `<div class="card sform"><h3>${cfg.title}</h3>${cfg.intro ? `<p class="muted small" style="margin:4px 0 12px">${cfg.intro}</p>` : ''}
+    <form class="form" id="setf">${fields.map((f) => (f.sec ? `<h4 class="full sec">${f.sec}</h4>` : f.k === '_days'
+      ? `<div class="full"><div class="muted small" style="margin-bottom:6px;font-weight:600">أيام الإجازة الأسبوعية</div><div class="row">${DAYS.map((d, i) => `<label class="perm"><input type="checkbox" data-d="${i}" ${String(SETV.weekend_days).split(',').filter(Boolean).map(Number).includes(i) ? 'checked' : ''}>${d}</label>`).join('')}</div></div>`
+      : fieldHtml(f, SETV[f.k]))).join('')}
+    <div class="actions full" style="justify-content:flex-start"><button class="btn">حفظ الإعدادات</button></div></form></div>`;
+  const f = $('#setf', box);
+  f.onsubmit = (e) => { e.preventDefault(); run($('.btn', f), async () => {
+    const real = fields.filter((x) => x.k && x.k !== '_days');
+    const b = readForm(f, real);
+    for (const x of real) if (x.t === 'check') b[x.k] = b[x.k] ? '1' : '0';
+    if (fields.some((x) => x.k === '_days')) b.weekend_days = [...f.querySelectorAll('[data-d]:checked')].map((x) => x.dataset.d).join(',');
+    await api('/settings', 'PUT', b);
+    Object.assign(SETV, b);
+    S.me = await api('/me');
+    toast('تم حفظ الإعدادات');
+    if (cfg.refresh) renderShell();
+  }); };
+}
+
+/* --- الإطار العام لصفحات الإعدادات --- */
+async function renderSettings(view, top) {
+  S.sub = S.sub || {};
+  const subs = SET_SUB[top] || [];
+  const cur = subs.length ? (subs.find((x) => x[0] === S.sub[top]) || subs[0])[0] : SET_SINGLE[top];
+  view.innerHTML = `<div class="card setnav"><div class="stabs">${SET_TOP.map(([k, l, ic]) => `<button data-st="${k}" class="${k === top ? 'on' : ''}">${ic ? ico(ic) : ''}<span>${l}</span></button>`).join('')}</div>
+    ${subs.length ? `<div class="ssubs">${subs.map(([k, l]) => `<button data-ss="${k}" class="${k === cur ? 'on' : ''}">${l}</button>`).join('')}</div>` : ''}</div><div id="sbody"><div class="empty"><span class="spin"></span></div></div>`;
+  view.querySelectorAll('[data-st]').forEach((b) => (b.onclick = () => go('set_' + b.dataset.st)));
+  view.querySelectorAll('[data-ss]').forEach((b) => (b.onclick = () => { S.sub[top] = b.dataset.ss; renderSettings(view, top); }));
+  const body = $('#sbody', view);
+  try {
+    SETV = await api('/settings');
+    if (cur === 'offices') await catalog(body, officesSpec());
+    else if (cur === 'schedule') await catalog(body, schedSpec());
+    else if (cur === 'payroll_preset') await catalog(body, presetSpec());
+    else if (cur === 'penalty') {
+      body.innerHTML = '<div id="pset"></div><div id="ptier" style="margin-top:12px"></div>';
+      await settingsForm($('#pset', body), { title: 'فترة السماح ومعاملات الخصم', intro: 'فترة السماح بتتحسب من بداية وردية الموظف، وبعدها بيبدأ احتساب التأخير حسب الشرائح تحت.', fields: [
+        { k: 'grace_minutes', l: 'سماح التأخير (دقيقة)', t: 'number', attrs: 'min="0"' }, { k: 'late_factor', l: 'معامل خصم التأخير', t: 'number', attrs: 'step="0.25" min="0"' }, { k: 'absence_factor', l: 'معامل خصم الغياب (يوم)', t: 'number', attrs: 'step="0.25" min="0"' }] });
+      await tiersUI($('#ptier', body), true);
+    } else if (cur === 'overtime') {
+      await settingsForm(body, { title: 'سياسة الوقت الإضافي', intro: 'الوقت الإضافي المعتمد بيتحسب بأجر الساعة × المعامل ده.', fields: [{ k: 'overtime_factor', l: 'معامل الوقت الإضافي', t: 'number', attrs: 'step="0.25" min="0"' }] });
+    } else if (cur === 'misc') {
+      await settingsForm(body, { title: 'إعدادات متنوعة', refresh: true, fields: [
+        { sec: 'بيانات الشركة' },
+        { k: 'company_name', l: 'اسم الشركة', full: true }, { k: 'country', l: 'الدولة' }, { k: 'currency', l: 'العملة', t: 'select', o: Object.keys(CUR).map((c) => [c, `${c} - ${CUR[c]}`]) },
+        { k: 'language', l: 'اللغة', t: 'select', o: [['arabic', 'arabic'], ['english', 'english']] }, { k: 'timezone', l: 'المنطقة الزمنية', attrs: 'dir="ltr"' },
+        { k: 'month_start', l: 'بداية الشهر (يوم)', t: 'number', attrs: 'min="1" max="28"' }, { k: 'first_month', l: 'أول شهر في السنة', t: 'select', o: MONTHS.map((m) => [m, m]) },
+        { k: 'week_start', l: 'بداية الأسبوع', t: 'select', o: DAYS.map((d, i) => [String(i), d]) },
+        { sec: 'الحضور والأمان' }, { k: '_days' },
+        { k: 'face_threshold', l: 'حساسية مطابقة الوجه (0.3 أشد – 0.7 أخف)', t: 'number', attrs: 'step="0.05" min="0.3" max="0.7"' },
+        { k: 'signup_enabled', l: 'السماح بإنشاء حساب جديد من صفحة الدخول (بيحتاج موافقتك)', t: 'check' }] });
+    } else if (SIMPLE[cur]) await catalog(body, simpleSpec(cur, ...SIMPLE[cur]));
+  } catch (e) { body.innerHTML = `<div class="card empty neg">${esc(e.message)}</div>`; }
+}
+PAGES.set_company = (v) => renderSettings(v, 'company');
+PAGES.set_attendance = (v) => renderSettings(v, 'attendance');
+PAGES.set_finance = (v) => renderSettings(v, 'finance');
+PAGES.set_documents = (v) => renderSettings(v, 'documents');
+PAGES.set_automation = (v) => renderSettings(v, 'automation');
+PAGES.set_overrides = (v) => renderSettings(v, 'overrides');
+PAGES.set_misc = (v) => renderSettings(v, 'misc');
+PAGES.settings = PAGES.set_company;
 
 function locForm(l, done) {
   const o = modal(`<h3>${l ? 'تعديل موقع' : 'موقع عمل جديد'}</h3><form class="form" id="lcf">
@@ -1095,12 +1379,13 @@ function locForm(l, done) {
     <label class="f">خط الطول<input name="lng" value="${esc(l?.lng ?? '')}" inputmode="decimal" required></label>
     <label class="f">النطاق المسموح (متر)<input type="number" name="radius_m" min="20" max="5000" value="${l?.radius_m ?? 150}" required></label>
     <div style="align-self:end"><button type="button" class="btn alt" id="here" style="width:100%">استخدام موقعي الحالي</button></div>
+    <label class="f">الحالة<select name="active"><option value="1" ${l && !l.active ? '' : 'selected'}>نشط</option><option value="0" ${l && !l.active ? 'selected' : ''}>غير نشط</option></select></label>
     <p class="muted small full" style="margin:0">الأفضل تفتحي الصفحة وانتِ في مكان العمل وتضغطي «استخدام موقعي الحالي».</p>
     <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
   const f = $('#lcf', o);
   $('#here', o).onclick = (e) => run(e.target, async () => { const p = await getPos(); f.lat.value = p.lat.toFixed(6); f.lng.value = p.lng.toFixed(6); toast(`تم التقاط الموقع (دقة ~${Math.round(p.acc)} م)`); });
   f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
-    const b = { name: f.name.value, lat: f.lat.value, lng: f.lng.value, radius_m: f.radius_m.value };
+    const b = { name: f.name.value, lat: f.lat.value, lng: f.lng.value, radius_m: f.radius_m.value, active: f.active.value };
     await api(l ? '/locations/' + l.id : '/locations', l ? 'PUT' : 'POST', b);
     o.close(); toast('تم الحفظ'); done();
   }); };
@@ -1147,7 +1432,7 @@ PAGES.adjustments = async (view) => {
 };
 
 /* --- شرائح خصم التأخير --- */
-PAGES.tiers = async (view) => {
+async function tiersUI(view, embedded) {
   const [{ tiers }, st] = await Promise.all([api('/late-tiers'), api('/settings')]);
   let rows = tiers.map((t) => ({ ...t }));
   const grace = parseInt(st.grace_minutes, 10) || 0;
@@ -1169,7 +1454,7 @@ PAGES.tiers = async (view) => {
   };
   const draw = () => {
     const lastT = rows[rows.length - 1];
-    view.innerHTML = `${financeTabs('tiers')}<div class="page-head"><h2>شرائح خصم التأخير</h2></div>
+    view.innerHTML = `${embedded ? '' : financeTabs('tiers') + '<div class="page-head"><h2>شرائح خصم التأخير</h2></div>'}
       <div class="card" style="margin-bottom:12px"><p>التأخير بيتحسب بالدقايق من <b>بداية وردية الموظف</b>، وبيبدأ بعد فترة السماح (حالياً <b>${grace} دقايق</b>؛ يعني لو الوردية 9:00 الخصم بيبدأ بعد ${startAt}). فترة السماح تتغير من صفحة الإعدادات.</p>
       <p class="muted small" style="margin-top:6px">حددي لكل شريحة تأخير (من – إلى بالدقيقة) الخصم اللي يتطبق على اليوم ده: إما <b>جزء من أجر اليوم</b> (مثلاً 0.25 = ربع يوم، وأجر اليوم = الأساسي ÷ 30) أو <b>مبلغ ثابت</b> بالجنيه. سيبي خانة «إلى» فاضية للشريحة الأخيرة (وما فوق). لو مفيش شرائح محفوظة، النظام بيخصم بالدقيقة (دقائق التأخير ÷ 60 × أجر الساعة).</p></div>
       <div class="tablewrap"><table style="min-width:620px"><tr><th>من (دقيقة)</th><th>إلى (دقيقة)</th><th>نوع الخصم</th><th>القيمة</th><th></th></tr>
@@ -1182,7 +1467,7 @@ PAGES.tiers = async (view) => {
       ${lastT && !isOpen(lastT.to_minutes) ? `<p class="neg small" style="margin-top:8px">تنبيه: أي تأخير أكبر من ${esc(lastT.to_minutes)} دقيقة مش هيتخصم، لأن آخر شريحة ليها حد أعلى. سيبي خانة «إلى» فاضية في آخر شريحة لو عايزاها تشمل أي تأخير أكبر.</p>` : ''}
       <div class="row" style="margin-top:12px"><button class="btn alt" id="tadd">+ إضافة شريحة</button><button class="btn" id="tsave">حفظ الشرائح</button></div>
       <div class="card" style="margin-top:14px"><h3 style="margin-bottom:8px">جرّبي حساب خصم</h3><div class="row"><input type="number" id="tsal" placeholder="المرتب الأساسي" style="width:170px"><input type="number" id="tmin" placeholder="دقايق التأخير" style="width:150px"><b id="tres"></b></div></div>`;
-    bindTabs(view, (t) => go(t));
+    if (!embedded) bindTabs(view, (t) => go(t));
     view.querySelectorAll('[data-rm]').forEach((b) => (b.onclick = () => { sync(); rows.splice(Number(b.dataset.rm), 1); draw(); }));
     $('#tadd').onclick = () => {
       sync();
@@ -1201,7 +1486,8 @@ PAGES.tiers = async (view) => {
     view.querySelectorAll('[data-f]').forEach((el) => (el.oninput = calc));
   };
   draw();
-};
+}
+PAGES.tiers = (view) => tiersUI(view, false);
 
 /* ====== تشغيل ====== */
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
