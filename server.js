@@ -71,6 +71,7 @@ const REQUEST_TYPES = {
   emergency_leave: 'إجازة طارئة',
   work_mission: 'مهمة عمل',
   shift_change: 'تغيير وردية',
+  attendance_edit: 'طلب تعديل حضور',
 };
 const LEAVE_TYPES = ['annual_leave', 'sick_leave', 'emergency_leave', 'work_mission'];
 
@@ -146,6 +147,16 @@ CREATE TABLE IF NOT EXISTS work_locations (
   lat DOUBLE PRECISION NOT NULL,
   lng DOUBLE PRECISION NOT NULL,
   radius_m INTEGER NOT NULL DEFAULT 150
+);
+CREATE TABLE IF NOT EXISTS payslips (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  month TEXT NOT NULL,
+  data TEXT NOT NULL,
+  net DOUBLE PRECISION NOT NULL,
+  paid_by INTEGER,
+  paid_at TEXT NOT NULL DEFAULT (${NOW}),
+  UNIQUE(user_id, month)
 );
 CREATE TABLE IF NOT EXISTS password_resets (
   id SERIAL PRIMARY KEY,
@@ -608,7 +619,7 @@ app.post('/api/requests', auth, wrap(async (req, res) => {
   if (!isDate(from_date) || !isDate(to_date) || to_date < from_date) return res.status(400).json({ error: 'التواريخ غير صحيحة' });
   if (['overtime', 'permission'].includes(type) && !(Number(hours) > 0 && Number(hours) <= 24)) return res.status(400).json({ error: 'حددي عدد الساعات' });
   const id = await db.insert('INSERT INTO requests(user_id,type,from_date,to_date,hours,reason) VALUES(?,?,?,?,?,?)',
-    req.user.id, type, from_date, ['overtime', 'permission'].includes(type) ? from_date : to_date, Number(hours) || 0, String(reason).slice(0, 500));
+    req.user.id, type, from_date, ['overtime', 'permission', 'attendance_edit'].includes(type) ? from_date : to_date, Number(hours) || 0, String(reason).slice(0, 500));
   await notifyManagers(`طلب جديد (${REQUEST_TYPES[type]}) من ${req.user.name}`, req.user.id);
   res.json({ id });
 }));
@@ -862,14 +873,56 @@ app.delete('/api/attendance/:id', auth, need('attendance.edit'), wrap(async (req
 }));
 
 /* ----- المرتبات والخصومات ----- */
+// كشف الشهر: لو اتصرف (اتقفل) بنرجّع النسخة المحفوظة وقت الصرف، غير كده بنحسبه لحظياً يوم بيوم
+async function monthRow(user, month, st, tiers) {
+  const p = await db.get('SELECT * FROM payslips WHERE user_id=? AND month=?', user.id, month);
+  if (p) return { ...JSON.parse(p.data), paid: true, paid_at: p.paid_at };
+  return { ...(await computeMonth(user, month, st, tiers)), paid: false, paid_at: null };
+}
+const monthEnded = (m) => monthRange(m)[1] < tzParts().date;
 app.get('/api/payroll', auth, need('payroll.view'), wrap(async (req, res) => {
   const month = isMonth(req.query.month) ? req.query.month : tzParts().date.slice(0, 7);
   const [st, users, tiers] = await Promise.all([settings(), db.all('SELECT * FROM users WHERE active=1 AND is_admin=0 ORDER BY id'), getTiers()]);
-  res.json({ month, rows: await Promise.all(users.map((u) => computeMonth(u, month, st, tiers))) });
+  res.json({ month, ended: monthEnded(month), rows: await Promise.all(users.map((u) => monthRow(u, month, st, tiers))) });
 }));
 app.get('/api/payroll/mine', auth, wrap(async (req, res) => {
   const month = isMonth(req.query.month) ? req.query.month : tzParts().date.slice(0, 7);
-  res.json(await computeMonth(req.user, month, await settings(), await getTiers()));
+  res.json(await monthRow(req.user, month, await settings(), await getTiers()));
+}));
+// سجل مرتبات الموظف لسنة معيّنة (من شهر التعيين لحد الشهر الحالي)، الأحدث أولاً
+app.get('/api/payroll/mine/history', auth, wrap(async (req, res) => {
+  const nowM = tzParts().date.slice(0, 7);
+  const year = /^\d{4}$/.test(req.query.year || '') ? req.query.year : nowM.slice(0, 4);
+  const from = req.user.hire_date.slice(0, 7);
+  const [st, tiers] = await Promise.all([settings(), getTiers()]);
+  const months = [];
+  for (let m = 1; m <= 12; m++) { const k = `${year}-${String(m).padStart(2, '0')}`; if (k >= from && k <= nowM) months.push(k); }
+  const rows = await Promise.all(months.reverse().map((m) => monthRow(req.user, m, st, tiers)));
+  res.json({ year, rows });
+}));
+// تسجيل صرف المرتب: بيقفل كشف الشهر للموظفين المحددين (لازم الشهر يكون انتهى)
+app.post('/api/payroll/pay', auth, need('payroll.manage'), wrap(async (req, res) => {
+  const { month } = req.body || {};
+  const ids = (Array.isArray(req.body.user_ids) ? req.body.user_ids : [req.body.user_id]).map(toId).filter(Boolean);
+  if (!isMonth(month) || !ids.length) return res.status(400).json({ error: 'بيانات غير صحيحة' });
+  if (!monthEnded(month)) return res.status(400).json({ error: 'لا يمكن صرف مرتب شهر لم ينتهِ بعد' });
+  const [st, tiers] = await Promise.all([settings(), getTiers()]);
+  let n = 0;
+  for (const id of ids) {
+    const u = await db.get('SELECT * FROM users WHERE id=? AND is_admin=0', id);
+    if (!u || (await db.get('SELECT 1 FROM payslips WHERE user_id=? AND month=?', id, month))) continue;
+    const row = await computeMonth(u, month, st, tiers);
+    const r = await db.run('INSERT INTO payslips(user_id,month,data,net,paid_by) VALUES(?,?,?,?,?) ON CONFLICT(user_id,month) DO NOTHING', id, month, JSON.stringify(row), row.net, req.user.id);
+    if (r.rowCount) { n++; await notify(id, `تم صرف مرتب شهر ${month} (الصافي ${row.net})`); }
+  }
+  res.json({ ok: true, paid: n });
+}));
+// إلغاء الصرف (المدير فقط) لو حصل خطأ، فبيتحسب الشهر لحظياً تاني
+app.post('/api/payroll/unpay', auth, adminOnly, wrap(async (req, res) => {
+  const { month } = req.body || {}, uid = toId(req.body.user_id);
+  if (!isMonth(month) || !uid) return res.status(400).json({ error: 'بيانات غير صحيحة' });
+  await db.run('DELETE FROM payslips WHERE user_id=? AND month=?', uid, month);
+  res.json({ ok: true });
 }));
 app.get('/api/adjustments', auth, need('payroll.view'), wrap(async (req, res) => {
   const month = isMonth(req.query.month) ? req.query.month : tzParts().date.slice(0, 7);
@@ -885,12 +938,15 @@ app.post('/api/adjustments', auth, need('payroll.manage'), wrap(async (req, res)
   const uid = toId(user_id);
   if (!uid || !(await db.get('SELECT 1 FROM users WHERE id=?', uid)) || !isMonth(month) || !['deduction', 'bonus', 'penalty'].includes(kind) || !(Number(amount) > 0))
     return res.status(400).json({ error: 'بيانات غير صحيحة' });
+  if (await db.get('SELECT 1 FROM payslips WHERE user_id=? AND month=?', uid, month)) return res.status(400).json({ error: 'تم صرف مرتب هذا الشهر، لا يمكن إضافة بنود عليه' });
   await db.run('INSERT INTO adjustments(user_id,month,kind,amount,reason,created_by) VALUES(?,?,?,?,?,?)', uid, month, kind, Number(amount), String(reason).slice(0, 200), req.user.id);
   await notify(uid, `تمت إضافة ${{ bonus: 'مكافأة', penalty: 'جزاء', deduction: 'خصم' }[kind]} بقيمة ${Number(amount)} عن شهر ${month}`);
   res.json({ ok: true });
 }));
 app.delete('/api/adjustments/:id', auth, need('payroll.manage'), wrap(async (req, res) => {
   const id = toId(req.params.id);
+  const a = id && await db.get('SELECT * FROM adjustments WHERE id=?', id);
+  if (a && (await db.get('SELECT 1 FROM payslips WHERE user_id=? AND month=?', a.user_id, a.month))) return res.status(400).json({ error: 'تم صرف مرتب هذا الشهر، لا يمكن حذف بنوده' });
   if (id) await db.run('DELETE FROM adjustments WHERE id=?', id);
   res.json({ ok: true });
 }));

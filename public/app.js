@@ -50,6 +50,7 @@ function csv(filename, rows) {
   a.href = URL.createObjectURL(new Blob(['﻿' + body], { type: 'text/csv;charset=utf-8' }));
   a.download = filename; a.click();
 }
+const monthRange = (m) => { const [y, mo] = m.split('-').map(Number); return [`${m}-01`, `${m}-${String(new Date(Date.UTC(y, mo, 0)).getUTCDate()).padStart(2, '0')}`]; };
 const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('');
 
 /* ====== الوجه والموقع ====== */
@@ -225,6 +226,7 @@ const ICONS = {
   phone: '<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>',
   download: '<path d="M12 4v11M7 11l5 5 5-5M5 20h14"/>',
   filter: '<path d="M3 5h18l-7 8v6l-4 2v-8z"/>',
+  pin: '<path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/>',
   dollar: '<circle cx="12" cy="12" r="9"/><path d="M14.5 9a2.5 2 0 0 0-2.5-1.5c-1.5 0-2.5.8-2.5 1.8 0 2.6 5 1.4 5 4 0 1-1 1.8-2.5 1.8A2.7 2 0 0 1 9.5 14.5M12 6v1.5M12 16.5V18"/>',
   print: '<path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/>',
 };
@@ -443,6 +445,50 @@ PAGES.home = async (view) => {
 };
 
 /* --- حسابي --- */
+const gbp = (n) => `${money(n)} £`;
+const dmy = (d) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : '—');
+const dmyDash = (d) => `${new Date(d + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'short', timeZone: 'UTC' })} ${d.slice(8, 10)}-${d.slice(5, 7)}-${d.slice(0, 4)}`;
+const clock12 = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: TZ }) : '');
+const shiftLabel = (a, b) => {
+  const f = (hhmm, sep) => { const [h, m] = hhmm.split(':').map(Number); return `${h % 12 || 12}${m ? ':' + String(m).padStart(2, '0') : ''}${sep}${h >= 12 ? 'pm' : 'am'}`; };
+  return `(${f(a, ' ')}-${f(b, '.')})`;
+};
+const monthName = (m) => `${MONTHS_AR[Number(m.slice(5)) - 1]} ${m.slice(0, 4)}`;
+const daysBetween = (a, b) => { let n = 0; for (let d = a; d <= b; d = addDays(d, 1)) n++; return n; };
+
+/* كشف المرتب (مفردات المرتب): نفس الـ HTML للعرض والطباعة */
+function slipHtml(m) {
+  const mo = m.month, last = monthRange(mo)[1];
+  const L = (k, v, cls = '') => `<div class="sl ${cls}"><span>${k}</span><b>${v}</b></div>`;
+  const earned = m.accrued_basic + m.accrued_allowances;
+  return `<div class="slipcard"><div class="slhead"><div><div class="muted small">${esc(S.me.settings.company_name)}</div><h3>${esc(m.name)}</h3><div class="muted small">${esc([m.job_title, m.department].filter(Boolean).join(' · '))}</div></div>
+      <div class="slper"><div class="muted small">فترة الصرف</div><b dir="ltr">${dmy(mo + '-01')} - ${dmy(last)}</b><div class="muted small">${m.paid ? 'مدفوع ' + dmy(String(m.paid_at).slice(0, 10)) : 'قيد الحساب (لم يُصرف بعد)'}</div></div></div>
+    <div class="slsec">المستحقات</div>
+    ${L(`المرتب الأساسي المستحق <small class="muted">(${m.accrued_days} يوم من 30 · أجر اليوم ${money(m.daily_rate)})</small>`, gbp(m.accrued_basic))}${L('البدلات المستحقة', gbp(m.accrued_allowances))}${L('إجمالي المرتب', gbp(earned), 'tot')}
+    ${L('المكافآت', gbp(m.bonuses))}${L(`وقت إضافي <small class="muted">(${m.overtime_hours} س)</small>`, gbp(m.overtime_pay))}
+    <div class="slsec">الاستقطاعات</div>
+    ${L(`خصم التأخير <small class="muted">(${m.late_days} يوم${m.early_minutes ? ' + انصراف مبكر ' + m.early_minutes + ' د' : ''})</small>`, `(${gbp(m.late_deduction)})`, 'neg')}${L(`خصم الغياب <small class="muted">(${m.absent_days} يوم)</small>`, `(${gbp(m.absence_deduction)})`, 'neg')}
+    ${L('الجزاءات', `(${gbp(m.penalties)})`, 'neg')}${L('خصومات أخرى', `(${gbp(m.manual_deductions)})`, 'neg')}${L('إجمالي الخصومات', gbp(m.total_deductions), 'tot')}
+    <div class="slnet"><span>صافي المرتب</span><b>${gbp(m.net)}</b></div>
+    <div class="muted small" style="margin-top:10px">أيام العمل ${m.work_days} · حضور ${m.present_days} · غياب ${m.absent_days} · إجازات ${m.leave_days} · تأخير ${m.late_days} يوم (${m.late_minutes} د)</div>
+    ${m.adjustments && m.adjustments.length ? `<div class="slsec">البنود الإضافية</div>${m.adjustments.map((a) => { const t = ADJ[a.kind] || ADJ.deduction; return L(`${t[0]}: ${esc(a.reason || '—')}`, gbp(a.amount), t[1]); }).join('')}` : ''}</div>`;
+}
+function printSlip(m) {
+  const w = window.open('', '_blank');
+  if (!w) return toast('اسمحي بالنوافذ المنبثقة عشان تتحمل النسخة PDF', true);
+  const css = [...document.styleSheets].map((ss) => { try { return [...ss.cssRules].map((r) => r.cssText).join('\n'); } catch { return ''; } }).join('\n');
+  w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>مفردات المرتب - ${esc(m.name)} - ${m.month}</title><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet"><style>${css} body{background:#fff;padding:24px} .slipcard{border:0!important;max-width:760px;margin:auto}</style></head><body>${slipHtml(m)}</body></html>`);
+  w.document.close();
+  setTimeout(() => { w.focus(); w.print(); }, 700);
+}
+function viewSlip(m, extra = '') {
+  const o = modal(`<div class="slbar"><div><h3>مفردات المرتب – ${esc(m.name)}</h3><div class="muted small">${esc([m.job_title, m.department].filter(Boolean).join(' · '))} · ${monthName(m.month)} · £</div></div>
+    <div class="row"><button class="btn" id="slpdf">${ico('download')} تحميل PDF</button><button class="iconbtn" data-close aria-label="إغلاق">✕</button></div></div>${slipHtml(m)}${extra}`);
+  o.classList.add('wide');
+  $('#slpdf', o).onclick = () => printSlip(m);
+  return o;
+}
+
 PAGES.me = async (view) => {
   const u = S.me.user;
   let tab = S.metab || 'general'; S.metab = null;
@@ -452,67 +498,173 @@ PAGES.me = async (view) => {
   const chip = t && t.check_in ? (t.late_minutes > 0 ? ['b-warn', `متأخر ${t.late_minutes} د`] : ['b-ok', 'في الموعد']) : weekend.includes(dow) ? ['', 'عطلة'] : ['b-warn', 'لم يسجّل بعد'];
   view.innerHTML = `<div class="card profile"><div class="avatar xl">${esc(initials(u.name))}</div>
       <div class="pinfo"><h2>${esc(u.name)}</h2><div class="muted">${ico('case')} ${esc(u.job_title || (u.is_admin ? 'مدير النظام' : 'موظف'))}</div><div class="muted">${ico('users')} ${esc(u.department || '—')}</div></div>
-      <div class="pmid"><span class="badge ${chip[0]}">${chip[1]}</span> <b>${esc(fmt12(u.shift_start))} - ${esc(fmt12(u.shift_end))}</b>
-        <span class="badge ${u.face_enrolled ? 'b-ok' : 'b-warn'}">${u.face_enrolled ? 'بصمة الوجه مسجلة' : 'بصمة الوجه غير مسجلة'}</span></div>
-      <div class="pact"><button class="btn" id="newreq">${ico('plus')} طلب جديد</button></div></div>
+      <div class="pmid"><div class="row" style="justify-content:center"><span class="badge ${chip[0]}">${chip[1]}</span>${t && t.check_in ? `<b dir="ltr" class="small">${clock12(t.check_in).replace(/:\d\d /, ' ')}${t.check_out ? ' - ' + clock12(t.check_out).replace(/:\d\d /, ' ') : ''}</b>` : ''}</div>
+        <span class="muted small" dir="ltr">${shiftLabel(u.shift_start, u.shift_end)}</span></div>
+      <div class="pact"><button class="btn" id="newreq">${ico('plus')} طلب جديد</button><button class="sqbtn" id="myinfo" title="بياناتي">${ico('info')}</button></div></div>
     <div class="grid g4 statrow" id="bal"></div>
-    <div class="tabs" id="tabs">${[['general', 'عام'], ['calendar', 'تقويم العمل'], ['attendance', 'سجل الحضور'], ['payroll', 'مفردات المرتب']].map(([k, l]) => `<button data-t="${k}" class="${k === tab ? 'on' : ''}">${l}</button>`).join('')}</div>
+    <div class="tabs" id="tabs">${[['general', 'عام'], ['calendar', 'تقويم العمل'], ['attendance', 'سجل الحضور'], ['payroll', 'المرتبات'], ['slips', 'مفردات الرواتب']].map(([k, l]) => `<button data-t="${k}" class="${k === tab ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div id="tabbody"></div>`;
   $('#newreq').onclick = () => requestForm(() => PAGES.me(view));
+  $('#myinfo').onclick = () => {
+    const kv = [['اسم المستخدم', u.username], ['الهاتف', u.phone || '—'], ['تاريخ التعيين', dmy(u.hire_date)], ['الوردية', `${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}`], ['رصيد الإجازة السنوية', u.annual_leave_days + ' يوم'], ['بصمة الوجه', u.face_enrolled ? 'مسجلة' : 'غير مسجلة']];
+    modal(`<h3>بياناتي</h3><div class="kv">${kv.map(([k, v]) => `<div><span class="muted">${k}</span><b>${esc(v)}</b></div>`).join('')}</div><div class="actions"><button class="btn" data-close>إغلاق</button></div>`);
+  };
   const r = await api('/requests/mine');
   const bl = r.balances;
   $('#bal').innerHTML = [
-    ['إجازة سنوية', `${bl.annual_total - bl.annual_used} / ${bl.annual_total}`, 'يوم'], ['إجازة طارئة', bl.emergency_used, 'يوم'],
-    ['إجازة مرضية', bl.sick_used, 'يوم'], ['أذونات الشهر', bl.permission_hours_month, 'ساعة'],
-  ].map(([k, v, un]) => `<div class="card stat2"><span class="sicon">${ico('calendar')}</span><div><div class="sval"><b>${v}</b> <span class="muted small">${un}</span></div><div class="muted">${k}</div></div></div>`).join('');
+    ['إجازة سنوية', bl.annual_total - bl.annual_used, 'الأيام', `المتبقي من رصيدك السنوي (${bl.annual_total} يوم)`],
+    ['إجازة طارئة', bl.emergency_used, 'الأيام', 'المستخدم هذا العام'],
+    ['إجازة مرضية', bl.sick_used, 'الأيام', 'المستخدم هذا العام'],
+    ['أذونات', Number(bl.permission_hours_month).toFixed(2), 'ساعات', 'ساعات الأذونات المقبولة هذا الشهر'],
+  ].map(([k, v, un, tip]) => `<div class="card sc"><div class="sct"><b>${v}</b><span class="un">${un}</span><span class="tip" title="${esc(tip)}">${ico('info')}</span><span class="grow"></span><span class="sicon">${ico('calendar')}</span></div><div class="scl">${k}</div></div>`).join('');
   const body = $('#tabbody');
+  const MONTH_NOW = thisMonth();
+
   const draw = {
+    /* ---- عام: الطلبات ---- */
     general() {
-      body.innerHTML = `<div class="page-head" style="margin-top:6px"><h2>الطلبات</h2><div class="row noprint">
-        <select id="rtype" style="width:auto"><option value="">كل الأنواع</option>${Object.entries(TYPES()).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
-        <select id="rst" style="width:auto"><option value="">كل الحالات</option><option value="pending">قيد الانتظار</option><option value="approved">مقبول</option><option value="rejected">مرفوض</option></select></div></div><div id="myreq"></div>`;
+      const first = MONTH_NOW + '-01';
+      body.innerHTML = `<h2 class="sect">الطلبات</h2><div class="row filt2">
+        <button class="sqbtn blue" id="rreset" title="إعادة تعيين">${ico('filter')}</button>
+        <select id="rtype"><option value="">أنواع الطلبات</option>${Object.entries(TYPES()).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select>
+        <input type="date" id="rfrom" value="${first}"><input type="date" id="rto" value="${monthRange(MONTH_NOW)[1]}"></div><div id="myreq"></div>`;
       const show = () => {
-        const rows = r.requests.filter((x) => (!$('#rtype').value || x.type === $('#rtype').value) && (!$('#rst').value || x.status === $('#rst').value));
-        $('#myreq').innerHTML = reqTable(rows, false);
+        const from = $('#rfrom').value, to = $('#rto').value, ty = $('#rtype').value;
+        const rows = r.requests.filter((x) => (!ty || x.type === ty) && (!from || x.to_date >= from) && (!to || x.from_date <= to));
+        $('#myreq').innerHTML = rows.length ? `<div class="tablewrap"><table class="rq"><tr><th>النوع</th><th>المدة المطلوبة</th><th>أُوجد بواسطة</th><th>الحالة</th><th>تعليقات</th><th>ملحوظات</th><th></th></tr>
+          ${rows.map((x) => {
+            const one = ['overtime', 'permission', 'attendance_edit'].includes(x.type);
+            const dur = one ? `<div>اليوم ${dmy(x.from_date)}</div>${x.hours ? `<div class="muted">عدد الساعات: ${x.hours}</div>` : ''}` : `<div>من ${dmy(x.from_date)}</div><div>إلى ${dmy(x.to_date)}</div><div class="muted">عدد الأيام: ${daysBetween(x.from_date, x.to_date)}</div>`;
+            return `<tr><td><b>${esc(TYPES()[x.type] || x.type)}</b></td><td class="dur">${dur}</td><td>${esc(u.name)}</td><td><span class="badge ${STATUS_AR[x.status][1]}">${STATUS_AR[x.status][0]}</span></td>
+              <td class="cmt">${x.decision_note ? `<span title="${esc(x.decision_note)}">${ico('info')}</span> <span class="small">${esc(x.decision_note)}</span>` : ''}</td><td class="small" style="white-space:normal;min-width:160px">${esc(x.reason || '')}</td>
+              <td>${x.status === 'pending' ? `<button class="btn alt sm" data-del="${x.id}">حذف</button>` : ''}</td></tr>`;
+          }).join('')}</table></div>` : '<div class="card empty">لا توجد طلبات في هذه الفترة</div>';
         body.querySelectorAll('[data-del]').forEach((bt) => (bt.onclick = () => run(bt, async () => { await api('/requests/' + bt.dataset.del, 'DELETE'); PAGES.me(view); })));
       };
-      $('#rtype').onchange = show; $('#rst').onchange = show; show();
+      ['rtype', 'rfrom', 'rto'].forEach((i) => ($('#' + i).onchange = show));
+      $('#rreset').onclick = () => { $('#rtype').value = ''; $('#rfrom').value = ''; $('#rto').value = ''; show(); };
+      show();
     },
+    /* ---- تقويم العمل ---- */
     async calendar() {
-      body.innerHTML = `<div class="page-head" style="margin-top:6px"><h2>تقويم العمل</h2><input type="month" id="cmon" value="${thisMonth()}" style="width:auto"></div><div id="cal"></div>
-        <div class="legend" style="margin-top:10px"><span style="--c:#15803d">حضور</span><span style="--c:#d97706">متأخر</span><span style="--c:#dc2626">غياب</span><span style="--c:#2563eb">إجازة</span><span style="--c:#cbd5e1">عطلة</span></div>`;
+      let cm = S.calm || MONTH_NOW;
+      body.innerHTML = `<div class="calbar"><div class="row"><button class="sqbtn" id="cnext">${ico('chev', 'rot90')}</button><b class="calttl" id="cttl"></b><button class="sqbtn" id="cprev">${ico('chev', 'rotm90')}</button></div>
+        <div class="row"><button class="btn alt" id="cexp">${ico('download')} تصدير</button><button class="btn" id="cot">${ico('plus')} ورديات إضافية</button><button class="btn" id="cshift">${ico('plus')} تغيير الوردية</button></div></div><div id="cal"></div>`;
+      $('#cot').onclick = () => requestForm(() => PAGES.me(view), { type: 'overtime' });
+      $('#cshift').onclick = () => requestForm(() => PAGES.me(view), { type: 'shift_change' });
+      const nav = (n) => { const [y, mo] = cm.split('-').map(Number); const d = new Date(Date.UTC(y, mo - 1 + n, 1)); cm = d.toISOString().slice(0, 7); S.calm = cm; load(); };
+      $('#cprev').onclick = () => nav(-1); $('#cnext').onclick = () => nav(1);
+      let exportRows = [];
       const load = async () => {
-        const m = $('#cmon').value, rows = await api('/attendance/mine?month=' + m), by = Object.fromEntries(rows.map((x) => [x.date, x]));
+        $('#cttl').textContent = monthName(cm);
+        const rows = await api('/attendance/mine?month=' + cm), by = Object.fromEntries(rows.map((x) => [x.date, x]));
         const leave = new Set();
         r.requests.filter((x) => x.status === 'approved' && ['annual_leave', 'sick_leave', 'emergency_leave', 'work_mission'].includes(x.type)).forEach((x) => { for (let d = x.from_date; d <= x.to_date; d = addDays(d, 1)) leave.add(d); });
-        const [y, mo] = m.split('-').map(Number), n = new Date(Date.UTC(y, mo, 0)).getUTCDate(), first = new Date(Date.UTC(y, mo - 1, 1)).getUTCDay();
-        const cells = Array.from({ length: (first + 1) % 7 }, () => '<div class="cd empty"></div>');
+        const [y, mo] = cm.split('-').map(Number), n = new Date(Date.UTC(y, mo, 0)).getUTCDate(), first = new Date(Date.UTC(y, mo - 1, 1)).getUTCDay();
+        const cells = []; exportRows = [['التاريخ', 'الحالة', 'حضور', 'انصراف', 'المكان']];
+        for (let i = first; i > 0; i--) cells.push(`<div class="cd2 faded"><b>${new Date(Date.UTC(y, mo - 1, 1 - i)).getUTCDate()}</b></div>`);
         for (let d = 1; d <= n; d++) {
-          const ds = `${m}-${String(d).padStart(2, '0')}`, w = new Date(ds + 'T00:00:00Z').getUTCDay(), a = by[ds];
-          let c = '', lb = '';
-          if (a && a.check_in) { c = a.late_minutes > 0 ? '#d97706' : '#15803d'; lb = fmtTime(a.check_in); }
-          else if (leave.has(ds)) { c = '#2563eb'; lb = 'إجازة'; }
-          else if (weekend.includes(w)) { c = '#cbd5e1'; lb = 'عطلة'; }
-          else if (ds < today && ds >= u.hire_date) { c = '#dc2626'; lb = 'غياب'; }
-          cells.push(`<div class="cd ${ds === today ? 'today' : ''}"><b>${d}</b>${c ? `<i style="background:${c}"></i><small>${lb}</small>` : ''}</div>`);
+          const ds = `${cm}-${String(d).padStart(2, '0')}`, w = new Date(ds + 'T00:00:00Z').getUTCDay(), a = by[ds];
+          let pill = '', cls = '', st = '';
+          if (a && a.check_in) { cls = a.late_minutes > 0 ? 'late' : 'ok'; st = a.late_minutes > 0 ? 'متأخر' : 'في الموعد'; }
+          else if (leave.has(ds)) { cls = 'leave'; st = 'إجازة'; }
+          else if (weekend.includes(w)) { cls = 'off'; st = 'يوم عطلة'; }
+          else if (ds < today && ds >= u.hire_date) { cls = 'abs'; st = 'غائب'; }
+          if (st) pill = `<div class="cpill ${cls}"><div class="cst"><span>${st}</span><i></i></div><div class="cs" dir="ltr">${cls === 'off' ? '' : shiftLabel(u.shift_start, u.shift_end)}</div>${a && a.in_loc ? `<div class="cl">${ico('pin', 'pin')}${esc(a.in_loc)}</div>` : ''}</div>`;
+          cells.push(`<div class="cd2 ${ds === today ? 'today' : ''}"><b>${d}</b>${pill}</div>`);
+          if (st) exportRows.push([ds, st, a?.check_in ? clock12(a.check_in) : '', a?.check_out ? clock12(a.check_out) : '', a?.in_loc || '']);
         }
-        $('#cal').innerHTML = `<div class="card"><div class="calgrid">${['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'].map((x) => `<div class="ch">${x}</div>`).join('')}${cells.join('')}</div></div>`;
+        const pad = (7 - (cells.length % 7)) % 7;
+        for (let i = 1; i <= pad; i++) cells.push(`<div class="cd2 faded"><b>${i}</b></div>`);
+        $('#cal').innerHTML = `<div class="card calcard"><div class="calgrid2">${['أحد', 'اثنين', 'ثلاثاء', 'أربعاء', 'خميس', 'جمعة', 'سبت'].map((x) => `<div class="ch2">${x}</div>`).join('')}${cells.join('')}</div></div>`;
       };
-      $('#cmon').onchange = load; load();
+      $('#cexp').onclick = () => csv(`calendar-${cm}.csv`, exportRows);
+      load();
     },
+    /* ---- سجل الحضور ---- */
     async attendance() {
-      body.innerHTML = `<div class="page-head" style="margin-top:6px"><h2>سجل الحضور</h2><input type="month" id="amon" value="${thisMonth()}" style="width:auto"></div><div id="myatt"></div>`;
+      body.innerHTML = `<div class="row filt2" style="margin-top:6px"><button class="btn alt" id="aexp">${ico('download')} تصدير</button><input type="date" id="afrom" value="${MONTH_NOW}-01"><input type="date" id="ato" value="${today}">
+        <select id="ast" style="flex:1"><option value="">تحديد خيار</option><option value="ok">في الموعد</option><option value="late">متأخر</option><option value="abs">غائب</option><option value="off">يوم إجازة</option></select></div><div id="myatt"></div>`;
+      let list = [];
       const load = async () => {
-        const rows = await api('/attendance/mine?month=' + $('#amon').value);
-        $('#myatt').innerHTML = rows.length ? `<div class="tablewrap"><table><tr><th>اليوم</th><th>حضور</th><th>مكان الحضور</th><th>انصراف</th><th>تأخير</th><th>انصراف مبكر</th></tr>
-          ${rows.map((a) => `<tr><td>${fmtDate(a.date)}</td><td>${fmtTime(a.check_in)}</td><td>${esc(a.in_loc || '—')}</td><td>${fmtTime(a.check_out)}</td><td class="${a.late_minutes ? 'neg' : ''}">${a.late_minutes} د</td><td class="${a.early_minutes ? 'neg' : ''}">${a.early_minutes} د</td></tr>`).join('')}</table></div>` : '<div class="card empty">لا توجد سجلات</div>';
+        let from = $('#afrom').value, to = $('#ato').value;
+        if (!from || !to || to < from) return;
+        if (to > today) to = today;
+        if (daysBetween(from, to) > 93) from = addDays(to, -92);
+        const months = []; for (let d = from.slice(0, 7); d <= to.slice(0, 7); d = new Date(Date.UTC(+d.slice(0, 4), +d.slice(5) , 1)).toISOString().slice(0, 7)) months.push(d);
+        const by = {}; (await Promise.all(months.map((m) => api('/attendance/mine?month=' + m)))).flat().forEach((x) => { by[x.date] = x; });
+        const leave = new Set();
+        r.requests.filter((x) => x.status === 'approved' && ['annual_leave', 'sick_leave', 'emergency_leave', 'work_mission'].includes(x.type)).forEach((x) => { for (let d = x.from_date; d <= x.to_date; d = addDays(d, 1)) leave.add(d); });
+        list = [];
+        for (let d = to; d >= from; d = addDays(d, -1)) {
+          const w = new Date(d + 'T00:00:00Z').getUTCDay(), a = by[d];
+          let kind = null;
+          if (a && a.check_in) kind = a.late_minutes > 0 ? 'late' : 'ok';
+          else if (leave.has(d)) kind = 'leave';
+          else if (weekend.includes(w)) kind = 'off';
+          else if (d < today && d >= u.hire_date) kind = 'abs';
+          else if (d === today) kind = 'wait';
+          if (kind) list.push({ d, a, kind });
+        }
+        show();
       };
-      $('#amon').onchange = load; load();
+      const show = () => {
+        const f = $('#ast').value, rows = list.filter((x) => !f || (f === 'ok' ? x.kind === 'ok' : f === 'late' ? x.kind === 'late' : f === 'abs' ? x.kind === 'abs' : ['off', 'leave'].includes(x.kind)));
+        const dur = (a) => { if (!a.check_in || !a.check_out) return ''; const mins = Math.round((new Date(a.check_out) - new Date(a.check_in)) / 60000); return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`; };
+        $('#myatt').innerHTML = rows.map(({ d, a, kind }) => {
+          const dt = `<div class="adate" dir="ltr">${dmyDash(d)}</div>`;
+          if (kind === 'off') return `<div class="arow off">${dt}<div class="amid">يوم إجازة مجدول</div></div>`;
+          if (kind === 'leave') return `<div class="arow off">${dt}<div class="amid">إجازة معتمدة</div></div>`;
+          if (kind === 'wait') return `<div class="arow off">${dt}<div class="amid">لم يتم تسجيل الحضور بعد</div></div>`;
+          const stb = { ok: ['b-ok', 'في الموعد'], late: ['b-warn', `متأخر ${a ? a.late_minutes : ''} د`], abs: ['b-bad', 'غائب'] }[kind];
+          const io = (arrow, iso, loc) => `<div class="aio"><span class="pi ${arrow}">${arrow === 'in' ? '⇥' : '⇤'}</span><div><b dir="ltr">${clock12(iso)}</b><div class="muted small">${esc(loc || '—')}</div></div></div>`;
+          return `<div class="arow">${dt}${a && a.check_in ? io('in', a.check_in, a.in_loc) : '<div class="aio muted">—</div>'}${a && a.check_out ? io('out', a.check_out, a.out_loc) : '<div class="aio muted">—</div>'}
+            <div class="adur">${a ? `<span class="durchip">${dur(a) ? `<i class="gdot"></i>${dur(a)}` : '—'}</span>` : ''}</div><span class="badge ${stb[0]}">${stb[1]}</span>
+            <button class="btn alt sm editreq" data-ed="${d}">${ico('edit')} طلب تعديل</button></div>`;
+        }).join('') || '<div class="card empty">لا توجد سجلات</div>';
+        body.querySelectorAll('[data-ed]').forEach((b) => (b.onclick = () => requestForm(() => PAGES.me(view), { type: 'attendance_edit', date: b.dataset.ed })));
+      };
+      ['afrom', 'ato'].forEach((i) => ($('#' + i).onchange = load)); $('#ast').onchange = show;
+      $('#aexp').onclick = () => csv('attendance.csv', [['التاريخ', 'الحالة', 'حضور', 'انصراف', 'مكان الحضور', 'مكان الانصراف'], ...list.map((x) => [x.d, x.kind, clock12(x.a?.check_in), clock12(x.a?.check_out), x.a?.in_loc || '', x.a?.out_loc || ''])]);
+      load();
     },
+    /* ---- المرتبات (جدول شهري) ---- */
     async payroll() {
-      body.innerHTML = `<div class="page-head" style="margin-top:6px"><h2>مفردات المرتب</h2><input type="month" id="pmon" value="${thisMonth()}" style="width:auto"></div><div id="mypay"></div>`;
-      const load = async () => { $('#mypay').innerHTML = payslip(await api('/payroll/mine?month=' + $('#pmon').value)); };
-      $('#pmon').onchange = load; load();
+      const year = S.payy || MONTH_NOW.slice(0, 4);
+      body.innerHTML = '<div class="empty"><span class="spin"></span></div>';
+      const h = await api('/payroll/mine/history?year=' + year);
+      const rows = h.rows;
+      const cols = [
+        ['الأساسي', 'tb', (m) => money(m.accrued_basic)], ['البدلات', 'tb', (m) => money(m.accrued_allowances)], ['الإجمالي', 'tb', (m) => money(m.accrued_basic + m.accrued_allowances)],
+        ['المكافآت', 'tg', (m) => money(m.bonuses)], ['الوقت الإضافي', 'tg', (m) => money(m.overtime_pay)],
+        ['خصم التأخير', 'tp', (m) => money(m.late_deduction)], ['خصم الغياب', 'tp', (m) => money(m.absence_deduction)], ['الجزاءات', 'tp', (m) => money(m.penalties)], ['خصومات أخرى', 'tp', (m) => money(m.manual_deductions)],
+        ['مستحق الدفع', 'tn', (m) => money(m.net)], ['قيد الانتظار', 'tn', (m) => money(m.paid ? 0 : m.net)], ['مدفوع', 'tn', (m) => money(m.paid ? m.net : 0)],
+      ];
+      body.innerHTML = rows.length ? `<div class="tablewrap ptwrap"><table class="ptable"><tr><th class="who">الفترة</th>${cols.map(([hh, c]) => `<th class="${c}">${hh}</th>`).join('')}<th></th></tr>
+        ${rows.map((m, i) => `<tr><td class="who"><b>${monthName(m.month)}</b><div class="muted small">${m.paid ? 'مدفوع' : monthRange(m.month)[1] < today ? 'بانتظار الصرف' : 'جارٍ الحساب'}</div></td>${cols.map(([, c, fn]) => `<td class="${c}">${fn(m)}</td>`).join('')}<td><button class="link" data-v="${i}">عرض</button></td></tr>`).join('')}</table></div>
+        <p class="muted small">المرتب الجاري بيتحسب يوم بيوم لحد النهارده، وبيتقفل ويتحول لـ «مدفوع» لما المدير يسجّل صرفه بعد نهاية الشهر.</p>` : '<div class="card empty">لا توجد مرتبات في هذه السنة</div>';
+      body.querySelectorAll('[data-v]').forEach((b) => (b.onclick = () => viewSlip(rows[b.dataset.v])));
+    },
+    /* ---- مفردات الرواتب (كروت الشهور) ---- */
+    async slips() {
+      const year = S.payy || MONTH_NOW.slice(0, 4);
+      body.innerHTML = '<div class="empty"><span class="spin"></span></div>';
+      const h = await api('/payroll/mine/history?year=' + year);
+      const rows = h.rows, paid = rows.filter((m) => m.paid);
+      const sum = (arr, k) => arr.reduce((x, m) => x + m[k], 0);
+      const nowY = Number(MONTH_NOW.slice(0, 4));
+      body.innerHTML = `<div class="row" style="justify-content:space-between;margin:6px 0 12px"><div class="chipbtn"><select id="syr">${[nowY - 1, nowY].map((y) => `<option ${String(y) === year ? 'selected' : ''}>${y}</option>`).join('')}</select><span>${year === String(nowY) ? 'الحالي · ' : ''}${year}</span></div><span class="muted small">${monthName(`${year}-01`).split(' ')[0]} - ${monthName(`${year}-12`).split(' ')[0]} ${year}</span></div>
+        <div class="grid g4">${[
+          [`صافي المدفوع ${year}`, gbp(sum(paid, 'net')).replace(' £', ' £'), `${paid.length} دورة مقفلة`, ''],
+          [`الإجمالي ${year}`, gbp(sum(rows, 'gross')), 'قبل الخصومات', ''],
+          ['الاستقطاعات', `-${gbp(sum(rows, 'total_deductions'))}`, 'تأخير، غياب، جزاءات، خصومات', ''],
+          ['متوسط الصافي', gbp(paid.length ? sum(paid, 'net') / paid.length : 0), 'لكل دورة مقفلة', 'blue'],
+        ].map(([k, v, sub, c]) => `<div class="card sumc"><div class="muted small">${k}</div><b class="${c}">${v}</b><div class="muted small">${sub}</div></div>`).join('')}</div>
+        <div class="grid g2 slipgrid" style="margin-top:12px">${rows.map((m, i) => `<div class="card slcard"><div class="sltxt"><b>${monthName(m.month)}</b><div class="muted small">${dmy(m.month + '-01').slice(0, 5)} - ${dmy(monthRange(m.month)[1]).slice(0, 5)} · ${m.paid ? 'مدفوع' : monthRange(m.month)[1] < today ? 'بانتظار الصرف' : 'قيد الحساب'}</div></div>
+          <i class="sdot ${m.paid ? 'paid' : ''}"></i><div class="slamt"><b>${money(m.net)}</b> <small>£</small></div><div class="row"><button class="sqbtn" data-v="${i}" title="عرض">${ico('search')}</button><button class="sqbtn" data-p="${i}" title="تحميل PDF">${ico('download')}</button></div></div>`).join('') || '<div class="card empty" style="grid-column:1/-1">لا توجد مفردات مرتب في هذه السنة</div>'}</div>`;
+      $('#syr').onchange = () => { S.payy = $('#syr').value; draw.slips(); };
+      body.querySelectorAll('[data-v]').forEach((b) => (b.onclick = () => viewSlip(rows[b.dataset.v])));
+      body.querySelectorAll('[data-p]').forEach((b) => (b.onclick = () => printSlip(rows[b.dataset.p])));
     },
   };
   const open = (k) => { tab = k; document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.t === k)); draw[k](); };
@@ -539,8 +691,8 @@ function reqTable(rows, manage) {
     <td>${manage ? (r.status === 'pending' && has('requests.approve') ? `<button class="btn sm ok" data-dec="approved" data-id="${r.id}">قبول</button> <button class="btn sm bad" data-dec="rejected" data-id="${r.id}">رفض</button>` : '')
       : (r.status === 'pending' ? `<button class="btn sm alt" data-del="${r.id}">حذف</button>` : '')}</td></tr>`).join('')}</table></div>`;
 }
-function requestForm(done) {
-  const t = todayStr();
+function requestForm(done, preset = {}) {
+  const t = preset.date || todayStr();
   const o = modal(`<h3>طلب جديد</h3><form class="form" id="rf">
     <label class="f full">نوع الطلب<select name="type">${Object.entries(TYPES()).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
     <label class="f">من تاريخ<input type="date" name="from_date" value="${t}" required></label>
@@ -549,7 +701,8 @@ function requestForm(done) {
     <label class="f full">السبب / ملاحظات<textarea name="reason" rows="3" maxlength="500"></textarea></label>
     <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">إرسال الطلب</button></div></form>`);
   const f = $('#rf', o);
-  const sync = () => { const h = ['overtime', 'permission'].includes(f.type.value); $('#hrs', o).hidden = !h; $('#tod', o).hidden = h; };
+  if (preset.type) f.type.value = preset.type;
+  const sync = () => { const h = ['overtime', 'permission'].includes(f.type.value); $('#hrs', o).hidden = !h; $('#tod', o).hidden = h || f.type.value === 'attendance_edit'; };
   f.type.onchange = sync; sync();
   f.from_date.onchange = () => { if (f.to_date.value < f.from_date.value) f.to_date.value = f.from_date.value; };
   f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
@@ -791,14 +944,15 @@ PAGES.payroll = async (view) => {
   const cur = S.paym || thisMonth();
   const [yy, mm] = cur.split('-');
   const nowY = Number(thisMonth().slice(0, 4));
-  const f = S.payf = S.payf || { emp: '', dept: '', q: '' };
+  const f = S.payf = S.payf || { emp: '', dept: '', q: '', paid: '' };
   view.innerHTML = `${financeTabs('payroll')}
     <div class="card filters"><div class="frow">
       <select id="pmo">${MONTHS_AR.map((m, i) => `<option value="${String(i + 1).padStart(2, '0')}" ${Number(mm) === i + 1 ? 'selected' : ''}>${m}</option>`).join('')}</select>
       <select id="pyr">${[nowY - 2, nowY - 1, nowY, nowY + 1].map((y) => `<option ${Number(yy) === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
       <select id="pemp"></select><select id="pdep"></select>
+      <select id="ppaid"><option value="">كل الحالات</option><option value="paid" ${f.paid === 'paid' ? 'selected' : ''}>مدفوع</option><option value="unpaid" ${f.paid === 'unpaid' ? 'selected' : ''}>غير مدفوع</option></select>
       <label class="fsearch">${ico('search')}<input id="pq" placeholder="اسم الموظف" value="${esc(f.q)}"></label></div></div>
-    <div class="row actionbar"><button class="btn alt" id="exp">${ico('download')} تصدير تقرير المرتبات</button><button class="btn alt" id="prt">${ico('print')} طباعة</button>
+    <div class="row actionbar"><button class="btn alt" id="exp">${ico('download')} تصدير تقرير المرتبات</button><button class="btn alt" id="prt">${ico('print')} طباعة</button>${has('payroll.manage') ? `<button class="btn" id="payall">${ico('check')} إتمام عملية الدفع</button>` : ''}
       <span class="muted small" id="pnote" style="margin-inline-start:auto"></span></div><div id="pt"></div>`;
   bindTabs(view, (t) => go(t));
   let data;
@@ -810,13 +964,14 @@ PAGES.payroll = async (view) => {
     const depts = [...new Set(data.rows.map((r) => r.department).filter(Boolean))];
     $('#pemp').innerHTML = `<option value="">كل الموظفين</option>${data.rows.map((r) => `<option value="${r.user_id}" ${String(f.emp) === String(r.user_id) ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}`;
     $('#pdep').innerHTML = `<option value="">كل الأقسام</option>${depts.map((d) => `<option ${f.dept === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}`;
+    $('#ppaid').onchange = () => { f.paid = $('#ppaid').value; draw(); };
     $('#pemp').onchange = () => { f.emp = $('#pemp').value; draw(); }; $('#pdep').onchange = () => { f.dept = $('#pdep').value; draw(); };
     $('#pq').oninput = () => { f.q = $('#pq').value; draw(); };
     draw();
   };
   const draw = () => {
     const q = f.q.trim().toLowerCase();
-    const rows = data.rows.filter((r) => (!f.emp || String(r.user_id) === String(f.emp)) && (!f.dept || r.department === f.dept) && (!q || r.name.toLowerCase().includes(q)));
+    const rows = data.rows.filter((r) => (!f.emp || String(r.user_id) === String(f.emp)) && (!f.dept || r.department === f.dept) && (!q || r.name.toLowerCase().includes(q)) && (!f.paid || (f.paid === 'paid') === !!r.paid));
     const tot = (k) => rows.reduce((x, r) => x + (r[k] || 0), 0);
     const earned = (r) => round2c(r.accrued_basic + r.accrued_allowances);
     const cols = [
@@ -834,17 +989,20 @@ PAGES.payroll = async (view) => {
     ];
     $('#pnote').textContent = `${MONTHS_AR[Number(mm) - 1]} ${yy} · محسوب لحد ${data.month === thisMonth() ? 'اليوم' : 'نهاية الشهر'}`;
     $('#pt').innerHTML = `<div class="tablewrap ptwrap"><table class="ptable"><tr><th class="who">الموظف</th>${cols.map(([h, c]) => `<th class="${c}">${h}</th>`).join('')}</tr>
-      ${rows.map((r) => `<tr><td class="who"><b>${esc(r.name)}</b><div class="muted small">حضور ${r.present_days} · غياب ${r.absent_days} · تأخير ${r.late_days} يوم</div>
-        <div class="noprint pact2">${has('payroll.manage') ? `<button class="link" data-adj="${r.user_id}">+ بند</button>` : ''}<button class="link" data-sl="${r.user_id}">تفاصيل</button></div></td>${cols.map(([, c, fn]) => `<td class="${c}">${fn(r)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length + 1}" class="empty">لا توجد بيانات</td></tr>`}
+      ${rows.map((r) => `<tr><td class="who"><b>${esc(r.name)}</b> ${r.paid ? '<span class="badge b-ok">مدفوع</span>' : data.ended ? '<span class="badge b-warn">بانتظار الصرف</span>' : ''}<div class="muted small">حضور ${r.present_days} · غياب ${r.absent_days} · تأخير ${r.late_days} يوم</div>
+        <div class="noprint pact2">${has('payroll.manage') && !r.paid ? `<button class="link" data-adj="${r.user_id}">+ بند</button>` : ''}<button class="link" data-sl="${r.user_id}">تفاصيل</button>${has('payroll.manage') && !r.paid && data.ended ? `<button class="link" data-pay="${r.user_id}">تسجيل الدفع</button>` : ''}${S.me.user.is_admin && r.paid ? `<button class="link" data-unpay="${r.user_id}">إلغاء الصرف</button>` : ''}</div></td>${cols.map(([, c, fn]) => `<td class="${c}">${fn(r)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length + 1}" class="empty">لا توجد بيانات</td></tr>`}
       <tr class="totrow"><th class="who">الإجمالي (${rows.length})</th>${cols.map(([, c, , t]) => `<th class="${c}">${t()}</th>`).join('')}</tr></table></div>
       <p class="muted small">المرتب بيتحسب يوم بيوم: كل يوم بيعدّي بيستحق فيه الموظف أجر يوم = (الأساسي + البدلات) ÷ 30 (والشهر المنتهي = 30 يوم كاملين). بعدين بيتزود عليه المكافآت والوقت الإضافي، وبيتخصم منه التأخير (من شرائح خصم التأخير) والغياب (أيام الغياب × أجر اليوم) والجزاءات والخصومات. الناتج = مستحق الدفع.</p>`;
     view.querySelectorAll('[data-adj]').forEach((b) => (b.onclick = () => adjForm(data.rows.find((r) => r.user_id == b.dataset.adj), data.month, load)));
     view.querySelectorAll('[data-sl]').forEach((b) => (b.onclick = () => {
       const r = data.rows.find((x) => x.user_id == b.dataset.sl);
-      const o = modal(`<h3>${esc(r.name)} — ${data.month}</h3>${payslip(r)}${has('payroll.manage') && r.adjustments.length ? `<h3 style="margin:14px 0 6px">حذف بند</h3>${r.adjustments.map((a) => `<div class="row small" style="justify-content:space-between"><span>${(ADJ[a.kind] || ADJ.deduction)[0]} ${money(a.amount)} — ${esc(a.reason)}</span><button class="btn alt sm" data-rm="${a.id}">حذف</button></div>`).join('')}` : ''}<div class="actions"><button class="btn" data-close>إغلاق</button></div>`);
+      const o = viewSlip(r, has('payroll.manage') && !r.paid && r.adjustments.length ? `<h3 style="margin:14px 0 6px">حذف بند</h3>${r.adjustments.map((a) => `<div class="row small" style="justify-content:space-between"><span>${(ADJ[a.kind] || ADJ.deduction)[0]} ${money(a.amount)} — ${esc(a.reason)}</span><button class="btn alt sm" data-rm="${a.id}">حذف</button></div>`).join('')}` : '');
       o.querySelectorAll('[data-rm]').forEach((x) => (x.onclick = () => run(x, async () => { await api('/adjustments/' + x.dataset.rm, 'DELETE'); o.close(); load(); })));
     }));
-    $('#exp').onclick = () => csv(`payroll-${data.month}.csv`, [['الموظف', ...cols.map((c) => c[0])], ...rows.map((r) => [r.name, ...cols.map((c) => c[2](r))]), ['الإجمالي', ...cols.map((c) => c[3]())]]);
+    view.querySelectorAll('[data-pay]').forEach((b) => (b.onclick = () => { if (confirm('تسجيل صرف مرتب الموظف لشهر ' + data.month + '؟ هيتقفل الكشف ومش هينفع تضيفي عليه بنود.')) run(b, async () => { await api('/payroll/pay', 'POST', { user_id: b.dataset.pay, month: data.month }); toast('تم تسجيل الصرف'); load(); }); }));
+    view.querySelectorAll('[data-unpay]').forEach((b) => (b.onclick = () => { if (confirm('إلغاء صرف المرتب؟ هيتحسب الشهر من جديد.')) run(b, async () => { await api('/payroll/unpay', 'POST', { user_id: b.dataset.unpay, month: data.month }); toast('تم إلغاء الصرف'); load(); }); }));
+    if ($('#payall')) $('#payall').onclick = () => { const ids = rows.filter((r) => !r.paid).map((r) => r.user_id); if (!ids.length) return toast('كل المرتبات المعروضة مدفوعة'); if (confirm(`تسجيل صرف مرتبات ${ids.length} موظف لشهر ${data.month}؟`)) run($('#payall'), async () => { const x = await api('/payroll/pay', 'POST', { user_ids: ids, month: data.month }); toast(`تم صرف ${x.paid} مرتب`); load(); }); };
+    $('#exp').onclick = () => csv(`payroll-${data.month}.csv`, [['الموظف', ...cols.map((c) => c[0]), 'الحالة'], ...rows.map((r) => [r.name, ...cols.map((c) => c[2](r)), r.paid ? 'مدفوع' : 'غير مدفوع']), ['الإجمالي', ...cols.map((c) => c[3]())]]);
   };
   load();
 };
