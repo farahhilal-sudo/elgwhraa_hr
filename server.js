@@ -148,6 +148,14 @@ CREATE TABLE IF NOT EXISTS work_locations (
   lng DOUBLE PRECISION NOT NULL,
   radius_m INTEGER NOT NULL DEFAULT 150
 );
+CREATE TABLE IF NOT EXISTS config_items (
+  id SERIAL PRIMARY KEY,
+  kind TEXT NOT NULL,
+  name TEXT NOT NULL,
+  data TEXT NOT NULL DEFAULT '{}',
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
 CREATE TABLE IF NOT EXISTS payslips (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -188,6 +196,12 @@ const DEFAULT_SETTINGS = {
   late_factor: '1',
   absence_factor: '1',
   overtime_factor: '1.5',
+  country: 'Egypt',
+  currency: 'EGP',
+  language: 'arabic',
+  month_start: '1',
+  first_month: 'January',
+  week_start: '6', // السبت (0=الأحد)
 };
 
 // الإعدادات بتتخزن في الذاكرة 30 ثانية عشان نقلل الرحلات لقاعدة البيانات
@@ -213,22 +227,9 @@ async function init() {
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT');
   // مواقع الحضور المسموحة لكل موظف (قائمة ids). لو فاضية، الموظف يقدر يسجل من أي موقع معرّف.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS location_ids TEXT NOT NULL DEFAULT '[]'");
-  // بيانات الموظف الموسّعة (ويزارد التعديل)
-  const extraCols = ["employee_code TEXT", "work_start_date TEXT", "probation INTEGER NOT NULL DEFAULT 0", "gender TEXT DEFAULT ''",
-    "birth_date TEXT DEFAULT ''", "marital_status TEXT DEFAULT ''", "branch TEXT DEFAULT ''", "manager_id INTEGER",
-    "extra_managers TEXT NOT NULL DEFAULT '[]'", "group_id INTEGER", "team_id INTEGER", "nationality TEXT DEFAULT ''",
-    "national_id TEXT DEFAULT ''", "insurance_no TEXT DEFAULT ''", "pay_method TEXT DEFAULT ''", "pay_account TEXT DEFAULT ''",
-    "special_needs INTEGER NOT NULL DEFAULT 0", "allow_login INTEGER NOT NULL DEFAULT 1", "face_exempt INTEGER NOT NULL DEFAULT 0"];
-  for (const c of extraCols) await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${c}`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS work_groups (
-    id SERIAL PRIMARY KEY, kind TEXT NOT NULL DEFAULT 'group', name TEXT NOT NULL, manager_id INTEGER, created_at TEXT NOT NULL DEFAULT (${NOW}))`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS employee_events (
-    id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, kind TEXT NOT NULL,
-    field TEXT DEFAULT '', old_value TEXT DEFAULT '', new_value TEXT DEFAULT '', by_id INTEGER, created_at TEXT NOT NULL DEFAULT (${NOW}))`);
-  await pool.query(`CREATE TABLE IF NOT EXISTS suspensions (
-    id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, from_date TEXT NOT NULL, to_date TEXT,
-    reason TEXT DEFAULT '', sub_reason TEXT DEFAULT '', note TEXT DEFAULT '', status TEXT NOT NULL DEFAULT 'active',
-    created_by INTEGER, created_at TEXT NOT NULL DEFAULT (${NOW}), ended_at TEXT)`);
+  await pool.query('ALTER TABLE work_locations ADD COLUMN IF NOT EXISTS active INTEGER NOT NULL DEFAULT 1');
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality TEXT DEFAULT ''");
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS manager_id INTEGER');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS in_loc TEXT');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS out_loc TEXT');
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
@@ -302,7 +303,7 @@ const can = (u, p) => u.is_admin || userPerms(u).includes(p);
 const parseIds = (t) => { try { const a = JSON.parse(t || '[]'); return Array.isArray(a) ? a.map(Number).filter(Number.isInteger) : []; } catch { return []; } };
 // المواقع اللي يقدر الموظف يسجّل منها: المحددة له، ولو مفيش فكل المواقع المعرّفة
 async function allowedLocations(u) {
-  const all = await db.all('SELECT * FROM work_locations ORDER BY id');
+  const all = await db.all('SELECT * FROM work_locations WHERE active=1 ORDER BY id');
   const ids = parseIds(u.location_ids);
   const mine = all.filter((l) => ids.includes(l.id));
   return mine.length ? mine : all;
@@ -312,11 +313,8 @@ function publicUser(u) {
     id: u.id, name: u.name, username: u.username, is_admin: !!u.is_admin, must_change: !!u.must_change,
     permissions: userPerms(u).filter((p) => p !== '*'), job_title: u.job_title, department: u.department,
     phone: u.phone, location_ids: parseIds(u.location_ids), shift_start: u.shift_start, shift_end: u.shift_end, hire_date: u.hire_date,
-    annual_leave_days: u.annual_leave_days, face_enrolled: !!u.face_descriptor, active: !!u.active, pending: !!u.pending, email: u.email || '',
-    employee_code: u.employee_code || '', work_start_date: u.work_start_date || u.hire_date, probation: !!u.probation, gender: u.gender || '',
-    birth_date: u.birth_date || '', marital_status: u.marital_status || '', branch: u.branch || '', manager_id: u.manager_id || null,
-    extra_managers: parseIds(u.extra_managers), group_id: u.group_id || null, team_id: u.team_id || null, nationality: u.nationality || '',
-    pay_method: u.pay_method || '', special_needs: !!u.special_needs, allow_login: u.allow_login !== 0, face_exempt: !!u.face_exempt,
+    nationality: u.nationality || '', manager_id: u.manager_id || null,
+    annual_leave_days: u.annual_leave_days, face_enrolled: !!u.face_descriptor, face_exempt: !!u.is_admin, active: !!u.active, pending: !!u.pending, email: u.email || '',
   };
 }
 function notify(userId, text) {
@@ -479,7 +477,7 @@ app.post('/api/login', wrap(async (req, res) => {
   const u = await db.get('SELECT * FROM users WHERE lower(username)=?', key);
   if (u && u.pending && bcrypt.compareSync(String(password), u.password_hash))
     return res.status(403).json({ error: 'حسابك بانتظار موافقة المدير. هيوصلك الدخول بعد المراجعة.' });
-  if (!u || !u.active || u.pending || u.allow_login === 0 || !bcrypt.compareSync(String(password), u.password_hash)) {
+  if (!u || !u.active || u.pending || !bcrypt.compareSync(String(password), u.password_hash)) {
     f.n++; if (f.n >= 5) { f.until = Date.now() + 5 * 60 * 1000; f.n = 0; }
     fails.set(key, f);
     return res.status(401).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
@@ -570,14 +568,14 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
   const { type, lat, lng, descriptor } = req.body || {};
   if (!['in', 'out'].includes(type)) return res.status(400).json({ error: 'نوع غير صالح' });
   const u = req.user, st = await settings();
-  // الحسابات المعفاة من البصمة (يحددها المدير) بتسجّل من غير وجه؛ والباقي لازم وجه مطابق
+  // حسابات المديرين مش بتحتاج بصمة وجه خالص
   let score = null;
-  if (!u.face_exempt) {
+  if (!u.is_admin) {
     if (!u.face_descriptor) return res.status(403).json({ error: 'سجّلي بصمة الوجه أولاً' });
     if (!validDescriptor(descriptor)) return res.status(400).json({ error: 'لم يتم التقاط الوجه' });
     score = faceDistance(descriptor, JSON.parse(u.face_descriptor));
   }
-  if (!u.face_exempt && score > parseFloat(st.face_threshold)) return res.status(403).json({ error: 'الوجه غير مطابق، حاولي مرة أخرى في إضاءة أفضل' });
+  if (!u.is_admin && score > parseFloat(st.face_threshold)) return res.status(403).json({ error: 'الوجه غير مطابق، حاولي مرة أخرى في إضاءة أفضل' });
   // الموقع إجباري لو فيه مواقع معرّفة: لازم يكون الموظف داخل نطاق واحد من مواقعه المسموحة
   let where = null;
   const locs = await allowedLocations(u);
@@ -714,31 +712,18 @@ app.get('/api/dashboard', auth, need('dashboard.view'), wrap(async (req, res) =>
     date: now.date, total: list.length, present: count('present'), late: count('late'), absent: count('absent'),
     leave: count('leave'), not_yet: count('not_yet'), off: count('off'),
     pending_requests: pending.c,
-    missing_face: users.filter((u) => !u.face_descriptor && !u.face_exempt).length, list,
+    missing_face: users.filter((u) => !u.face_descriptor && !u.is_admin).length, list,
   });
 }));
 
 /* ----- الموظفون ----- */
-const EMP_TEXT = ['name', 'job_title', 'department', 'phone', 'shift_start', 'shift_end', 'hire_date', 'employee_code', 'work_start_date', 'gender', 'birth_date',
-  'marital_status', 'branch', 'nationality', 'national_id', 'insurance_no', 'pay_method', 'pay_account'];
-const EMP_NUM = ['base_salary', 'allowances', 'annual_leave_days'];
-const EMP_FLAG = ['probation', 'special_needs', 'allow_login'];
-const PAY_METHODS = ['نقداً', 'التحويل المصرفي', 'بطاقة مسبقة الدفع', 'محفظة الهاتف', 'فوري', 'إنستاباي'];
+const EMP_FIELDS = ['name', 'job_title', 'department', 'phone', 'base_salary', 'allowances', 'shift_start', 'shift_end', 'hire_date', 'annual_leave_days', 'nationality', 'manager_id'];
 function validateEmp(b, partial) {
   if (!partial && (!b.name || !b.username || !b.password)) return 'الاسم واسم المستخدم وكلمة المرور مطلوبين';
-  if (b.name !== undefined && !String(b.name).trim()) return 'الاسم مطلوب';
   if (b.password !== undefined && String(b.password).length < 6) return 'كلمة المرور 6 أحرف على الأقل';
   for (const f of ['shift_start', 'shift_end']) if (b[f] !== undefined && !/^\d{1,2}:\d{2}$/.test(b[f])) return 'صيغة الوقت غير صحيحة';
-  for (const f of ['hire_date', 'work_start_date', 'birth_date']) if (b[f] !== undefined && b[f] !== '' && !isDate(b[f])) return 'صيغة التاريخ غير صحيحة';
-  if (b.hire_date === '') return 'تاريخ التعيين مطلوب';
-  for (const f of EMP_NUM) if (b[f] !== undefined && !(Number(b[f]) >= 0)) return 'قيمة رقمية غير صحيحة';
-  if (b.gender !== undefined && !['', 'male', 'female'].includes(b.gender)) return 'قيمة النوع غير صحيحة';
-  if (b.marital_status !== undefined && !['', 'single', 'married', 'divorced', 'widowed'].includes(b.marital_status)) return 'الحالة الاجتماعية غير صحيحة';
-  if (b.pay_method !== undefined && b.pay_method !== '' && !PAY_METHODS.includes(b.pay_method)) return 'طريقة الدفع غير صحيحة';
-  if (b.national_id && !/^\d{14}$/.test(String(b.national_id)) && b.nationality === 'مصري') return 'الرقم القومي 14 رقم';
-  if (b.national_id && !/^\d{5,20}$/.test(String(b.national_id))) return 'الرقم القومي أرقام فقط';
-  if (b.insurance_no && !/^\d{8}$/.test(String(b.insurance_no))) return 'الرقم التأميني 8 أرقام';
-  for (const f of ['name', 'job_title', 'department', 'branch', 'pay_account', 'nationality', 'employee_code']) if (b[f] !== undefined && String(b[f]).length > 120) return 'نص طويل جدًا';
+  if (b.hire_date !== undefined && !isDate(b.hire_date)) return 'تاريخ التعيين غير صحيح';
+  for (const f of ['base_salary', 'allowances', 'annual_leave_days']) if (b[f] !== undefined && !(Number(b[f]) >= 0)) return 'قيمة رقمية غير صحيحة';
   return null;
 }
 // حالة كل موظف النهارده (حاضر / متأخر / غائب / إجازة / عطلة / لسه ما سجّلش)
@@ -762,23 +747,12 @@ async function todayStatusMap(users) {
   }
   return out;
 }
-// الإيقافات المجدولة تبدأ وتنتهي تلقائيًا حسب التاريخ
-async function syncSuspensions() {
-  const today = tzParts().date;
-  await db.run("UPDATE suspensions SET status='ended', ended_at=" + NOW + " WHERE status IN ('active','pending') AND to_date IS NOT NULL AND to_date < ?", today);
-  await db.run("UPDATE suspensions SET status='active' WHERE status='pending' AND from_date <= ?", today);
-  await db.run("UPDATE users SET active=0 WHERE is_admin=0 AND pending=0 AND active=1 AND id IN (SELECT user_id FROM suspensions WHERE status='active')");
-  await db.run("UPDATE users SET active=1 WHERE is_admin=0 AND pending=0 AND active=0 AND id IN (SELECT user_id FROM suspensions WHERE status='ended' AND ended_at IS NOT NULL) AND id NOT IN (SELECT user_id FROM suspensions WHERE status IN ('active'))");
-}
 app.get('/api/employees', auth, need('employees.view'), wrap(async (req, res) => {
-  await syncSuspensions();
   const rows = await db.all('SELECT * FROM users ORDER BY is_admin DESC, id');
   const tmap = await todayStatusMap(rows.filter((u) => u.active && !u.pending));
-  const mgr = can(req.user, 'employees.manage'), pay = can(req.user, 'payroll.view');
   res.json(rows.map((u) => ({
     ...publicUser(u), today: tmap[u.id] || null,
-    ...(mgr ? { national_id: u.national_id || '', insurance_no: u.insurance_no || '', pay_account: u.pay_account || '' } : {}),
-    ...(pay ? { base_salary: u.base_salary, allowances: u.allowances } : {}),
+    ...(can(req.user, 'payroll.view') ? { base_salary: u.base_salary, allowances: u.allowances } : {}),
   })));
 }));
 // مدير الموارد (غير المدير العام) ما يقدرش يلمس حسابات المديرين
@@ -786,65 +760,19 @@ const guardAdminTarget = (req, res, u) => {
   if (u.is_admin && !req.user.is_admin) { res.status(403).json({ error: 'حسابات المديرين يعدّلها المدير فقط' }); return false; }
   return true;
 };
-// فحص العلاقات (المدير/المجموعة/الفريق) وكود الموظف. يرجّع رسالة خطأ أو null
-async function checkLinks(b, selfId) {
-  if (b.employee_code) {
-    const d = await db.get('SELECT id FROM users WHERE employee_code=? AND id<>?', String(b.employee_code), selfId || 0);
-    if (d) return 'كود الموظف مستخدم من قبل';
-  }
-  if (b.manager_id) {
-    const mid = toId(b.manager_id);
-    if (!mid || !(await db.get('SELECT 1 FROM users WHERE id=? AND pending=0', mid))) return 'المدير المباشر غير موجود';
-    if (selfId) {
-      if (mid === selfId) return 'الموظف ما ينفعش يكون مديره المباشر';
-      // منع الحلقات: نمشي لفوق في السلسلة
-      let cur = mid, n = 0;
-      while (cur && n++ < 50) { if (cur === selfId) return 'ده هيعمل حلقة في التسلسل الإداري'; cur = (await db.get('SELECT manager_id FROM users WHERE id=?', cur))?.manager_id; }
-    }
-  }
-  for (const [f, kind] of [['group_id', 'group'], ['team_id', 'team']]) {
-    if (b[f] && !(await db.get('SELECT 1 FROM work_groups WHERE id=? AND kind=?', toId(b[f]) || 0, kind))) return 'المجموعة/الفريق غير موجود';
-  }
-  return null;
-}
-const logEvent = (uid, kind, field, o, n, by) => db.run('INSERT INTO employee_events(user_id,kind,field,old_value,new_value,by_id) VALUES(?,?,?,?,?,?)', uid, kind, field, o ?? '', n ?? '', by);
-async function insertEmployee(b, role, byAdmin) {
-  const locIds = b.location_ids === undefined ? [] : parseIds(JSON.stringify(b.location_ids));
-  const hire = b.hire_date || tzParts().date;
-  const id = await db.insert(`INSERT INTO users(name,username,password_hash,job_title,department,phone,base_salary,allowances,shift_start,shift_end,hire_date,annual_leave_days,is_admin,location_ids,
-      employee_code,work_start_date,probation,gender,birth_date,marital_status,branch,manager_id,extra_managers,group_id,team_id,nationality,national_id,insurance_no,pay_method,pay_account,special_needs,allow_login,face_exempt)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-  String(b.name).trim(), String(b.username).trim(), bcrypt.hashSync(String(b.password), 10), b.job_title || '', b.department || '', b.phone || '',
-  Number(b.base_salary) || 0, Number(b.allowances) || 0, b.shift_start || '09:00', b.shift_end || '17:00', hire, parseInt(b.annual_leave_days ?? 21, 10), role === 'admin' && byAdmin ? 1 : 0, JSON.stringify(locIds),
-  b.employee_code || null, b.work_start_date || hire, b.probation ? 1 : 0, b.gender || '', b.birth_date || '', b.marital_status || '', b.branch || '', toId(b.manager_id), JSON.stringify(parseIds(JSON.stringify(b.extra_managers || []))),
-  toId(b.group_id), toId(b.team_id), b.nationality || '', b.national_id || '', b.insurance_no || '', b.pay_method || '', b.pay_account || '', b.special_needs ? 1 : 0, b.allow_login === false ? 0 : 1, byAdmin && b.face_exempt ? 1 : 0);
-  return id;
-}
 app.post('/api/employees', auth, need('employees.manage'), wrap(async (req, res) => {
   const b = req.body || {};
-  const err = validateEmp(b, false) || await checkLinks(b, null);
+  const err = validateEmp(b, false);
   if (err) return res.status(400).json({ error: err });
   if (!USERNAME_RE.test(String(b.username).trim())) return res.status(400).json({ error: 'اسم المستخدم من 3 إلى 30 حرف/رقم بدون مسافات' });
   if (b.role === 'admin' && !req.user.is_admin) return res.status(403).json({ error: 'إنشاء حساب مدير للمدير فقط' });
   if (await db.get('SELECT 1 FROM users WHERE lower(username)=?', String(b.username).toLowerCase())) return res.status(409).json({ error: 'اسم المستخدم مستخدم من قبل' });
-  res.json({ id: await insertEmployee(b, b.role, req.user.is_admin) });
-}));
-// استيراد جماعي (CSV بيتحول لمصفوفة في المتصفح). كل صف بيتفحص لوحده والباقي بيكمل.
-app.post('/api/employees/import', auth, need('employees.manage'), wrap(async (req, res) => {
-  const rows = Array.isArray(req.body?.rows) ? req.body.rows.slice(0, 500) : [];
-  if (!rows.length) return res.status(400).json({ error: 'الملف فاضي' });
-  let added = 0; const errors = [];
-  for (const [i, r] of rows.entries()) {
-    const b = { ...r, role: undefined };
-    try {
-      const err = validateEmp(b, false) || (!USERNAME_RE.test(String(b.username || '').trim()) ? 'اسم مستخدم غير صالح' : null) || await checkLinks({ employee_code: b.employee_code }, null);
-      if (err) throw new Error(err);
-      if (await db.get('SELECT 1 FROM users WHERE lower(username)=?', String(b.username).toLowerCase())) throw new Error('اسم المستخدم مستخدم من قبل');
-      for (const f of ['manager_id', 'group_id', 'team_id']) delete b[f];
-      await insertEmployee(b, 'employee', false); added++;
-    } catch (e) { errors.push(`صف ${i + 2}: ${e.message}`); }
-  }
-  res.json({ added, errors: errors.slice(0, 30), failed: errors.length });
+  const locIds = b.location_ids === undefined ? [] : parseIds(JSON.stringify(b.location_ids));
+  const id = await db.insert(`INSERT INTO users(name,username,password_hash,job_title,department,phone,base_salary,allowances,shift_start,shift_end,hire_date,annual_leave_days,is_admin,location_ids)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, b.name, String(b.username).trim(), bcrypt.hashSync(String(b.password), 10), b.job_title || '', b.department || '', b.phone || '',
+    Number(b.base_salary) || 0, Number(b.allowances) || 0, b.shift_start || '09:00', b.shift_end || '17:00', b.hire_date || tzParts().date, parseInt(b.annual_leave_days ?? 21, 10), b.role === 'admin' ? 1 : 0, JSON.stringify(locIds));
+  if (b.nationality || toId(b.manager_id)) await db.run('UPDATE users SET nationality=?, manager_id=? WHERE id=?', String(b.nationality || '').slice(0, 40), toId(b.manager_id), id);
+  res.json({ id });
 }));
 app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, res) => {
   const id = toId(req.params.id);
@@ -852,21 +780,13 @@ app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, r
   if (!u) return res.status(404).json({ error: 'غير موجود' });
   if (!guardAdminTarget(req, res, u)) return;
   const b = req.body || {};
-  const err = validateEmp(b, true) || await checkLinks(b, u.id);
+  const err = validateEmp(b, true);
   if (err) return res.status(400).json({ error: err });
   const sets = [], vals = [];
-  for (const f of EMP_TEXT) {
+  for (const f of EMP_FIELDS) {
     if (b[f] === undefined) continue;
-    sets.push(`${f}=?`); vals.push(f === 'employee_code' ? (b[f] || null) : f === 'name' ? String(b[f]).trim() : b[f]);
-  }
-  for (const f of EMP_NUM) if (b[f] !== undefined) { sets.push(`${f}=?`); vals.push(f === 'annual_leave_days' ? parseInt(b[f], 10) : Number(b[f])); }
-  for (const f of EMP_FLAG) if (b[f] !== undefined) { sets.push(`${f}=?`); vals.push(b[f] ? 1 : 0); }
-  if (b.face_exempt !== undefined && req.user.is_admin) { sets.push('face_exempt=?'); vals.push(b.face_exempt ? 1 : 0); }
-  for (const f of ['manager_id', 'group_id', 'team_id']) if (b[f] !== undefined) { sets.push(`${f}=?`); vals.push(toId(b[f])); }
-  if (b.extra_managers !== undefined) {
-    const ids = parseIds(JSON.stringify(b.extra_managers)).filter((x) => x !== u.id);
-    const ok = ids.length ? (await db.all('SELECT id FROM users WHERE id = ANY(?::int[]) AND pending=0', ids)).map((r) => r.id) : [];
-    sets.push('extra_managers=?'); vals.push(JSON.stringify(ok));
+    sets.push(`${f}=?`);
+    vals.push(['base_salary', 'allowances'].includes(f) ? Number(b[f]) : f === 'annual_leave_days' ? parseInt(b[f], 10) : f === 'manager_id' ? (toId(b[f]) === u.id ? null : toId(b[f])) : f === 'nationality' ? String(b[f]).slice(0, 40) : b[f]);
   }
   if (b.location_ids !== undefined) {
     const ids = parseIds(JSON.stringify(b.location_ids));
@@ -874,26 +794,23 @@ app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, r
     sets.push('location_ids=?'); vals.push(JSON.stringify(ok));
   }
   if (b.password) { sets.push('password_hash=?', 'must_change=1'); vals.push(bcrypt.hashSync(String(b.password), 10)); }
-  if (b.allow_login === false && u.is_admin) return res.status(400).json({ error: 'ما ينفعش تمنعي المدير من الدخول' });
-  // إيقاف/تفعيل يدوي: بيتسجل في سجل الإيقاف
-  if (b.active !== undefined && !u.is_admin && !u.pending) {
-    const want = b.active ? 1 : 0;
-    if (want !== u.active) {
-      if (want) await db.run(`UPDATE suspensions SET status='ended', ended_at=${NOW}, to_date=COALESCE(to_date, ?) WHERE user_id=? AND status IN ('active','pending')`, tzParts().date, u.id);
-      else await db.run("INSERT INTO suspensions(user_id,from_date,reason,sub_reason,created_by,status) VALUES(?,?,?,?,?,'active')", u.id, tzParts().date, 'إيقاف يدوي', '', req.user.id);
-      sets.push('active=?'); vals.push(want);
-    }
-  }
+  if (b.active !== undefined && !u.is_admin && !u.pending) { sets.push('active=?'); vals.push(b.active ? 1 : 0); }
   // تغيير نوع الحساب (مدير / موظف): للمدير فقط، ومش على حسابه الشخصي (عشان النظام ما يفضلش من غير مدير)
   if (b.role !== undefined && ['admin', 'employee'].includes(b.role) && req.user.is_admin && u.id !== req.user.id) {
     sets.push('is_admin=?'); vals.push(b.role === 'admin' ? 1 : 0);
     if (b.role === 'admin') { sets.push('active=1'); }
   }
   if (sets.length) await db.run(`UPDATE users SET ${sets.join(',')} WHERE id=?`, ...vals, u.id);
-  // سجلات النقل وتغيير المسمى والمدير
-  for (const f of ['branch', 'department']) if (b[f] !== undefined && (b[f] || '') !== (u[f] || '')) await logEvent(u.id, 'transfer', f, u[f], b[f], req.user.id);
-  if (b.job_title !== undefined && (b.job_title || '') !== (u.job_title || '')) await logEvent(u.id, 'title', 'job_title', u.job_title, b.job_title, req.user.id);
-  if (b.manager_id !== undefined && (toId(b.manager_id) || null) !== (u.manager_id || null)) await logEvent(u.id, 'manager', 'manager_id', String(u.manager_id || ''), String(toId(b.manager_id) || ''), req.user.id);
+  res.json({ ok: true });
+}));
+app.delete('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, res) => {
+  const id = toId(req.params.id);
+  const u = id && await db.get('SELECT * FROM users WHERE id=?', id);
+  if (!u) return res.status(404).json({ error: 'غير موجود' });
+  if (u.is_admin) return res.status(403).json({ error: 'لا يمكن إزالة حساب مدير' });
+  if (u.id === req.user.id) return res.status(403).json({ error: 'لا يمكنك إزالة حسابك' });
+  await db.run('UPDATE users SET manager_id=NULL WHERE manager_id=?', id);
+  await db.run('DELETE FROM users WHERE id=?', id); // باقي بياناته بتتمسح تلقائياً (ON DELETE CASCADE)
   res.json({ ok: true });
 }));
 app.post('/api/employees/:id/reset-face', auth, need('employees.manage'), wrap(async (req, res) => {
@@ -905,82 +822,6 @@ app.post('/api/employees/:id/reset-face', auth, need('employees.manage'), wrap(a
   await notify(id, 'تمت إعادة ضبط بصمة الوجه، سجّليها من جديد');
   res.json({ ok: true });
 }));
-
-/* ----- الإيقافات (سجل الإيقاف) ----- */
-app.get('/api/suspensions', auth, need('employees.view'), wrap(async (req, res) => {
-  await syncSuspensions();
-  const rows = await db.all(`SELECT s.*, u.name, u.employee_code, u.branch, u.department, c.name AS by_name
-    FROM suspensions s JOIN users u ON u.id=s.user_id LEFT JOIN users c ON c.id=s.created_by ORDER BY s.id DESC LIMIT 1000`);
-  res.json(rows);
-}));
-app.post('/api/suspensions', auth, need('employees.manage'), wrap(async (req, res) => {
-  const b = req.body || {};
-  const uid = toId(b.user_id), u = uid && await db.get('SELECT * FROM users WHERE id=? AND pending=0', uid);
-  if (!u) return res.status(404).json({ error: 'الموظف غير موجود' });
-  if (u.is_admin) return res.status(400).json({ error: 'ما ينفعش إيقاف حساب مدير' });
-  const today = tzParts().date, from = b.from_date || today, to = b.to_date || null;
-  if (!isDate(from) || (to && !isDate(to))) return res.status(400).json({ error: 'صيغة التاريخ غير صحيحة' });
-  if (to && to < from) return res.status(400).json({ error: 'تاريخ النهاية قبل البداية' });
-  if (!String(b.reason || '').trim()) return res.status(400).json({ error: 'سبب الإيقاف مطلوب' });
-  if (await db.get("SELECT 1 FROM suspensions WHERE user_id=? AND status IN ('active','pending')", u.id)) return res.status(409).json({ error: 'الموظف عليه إيقاف قائم بالفعل' });
-  const status = from <= today ? 'active' : 'pending';
-  const id = await db.insert('INSERT INTO suspensions(user_id,from_date,to_date,reason,sub_reason,note,status,created_by) VALUES(?,?,?,?,?,?,?,?)',
-    u.id, from, to, String(b.reason).slice(0, 120), String(b.sub_reason || '').slice(0, 120), String(b.note || '').slice(0, 500), status, req.user.id);
-  if (status === 'active') await db.run('UPDATE users SET active=0 WHERE id=?', u.id);
-  res.json({ id });
-}));
-app.post('/api/suspensions/:id/end', auth, need('employees.manage'), wrap(async (req, res) => {
-  const id = toId(req.params.id);
-  const s = id && await db.get("SELECT * FROM suspensions WHERE id=? AND status IN ('active','pending')", id);
-  if (!s) return res.status(404).json({ error: 'الإيقاف غير موجود أو منتهي' });
-  await db.run(`UPDATE suspensions SET status='ended', ended_at=${NOW}, to_date=CASE WHEN to_date IS NULL OR to_date>? THEN ? ELSE to_date END WHERE id=?`, tzParts().date, tzParts().date, s.id);
-  await db.run('UPDATE users SET active=1 WHERE id=? AND is_admin=0', s.user_id);
-  await notify(s.user_id, 'تم إنهاء إيقاف حسابك');
-  res.json({ ok: true });
-}));
-
-/* ----- سجلات النقل وتغيير المسمى والمدير ----- */
-app.get('/api/employee-events', auth, need('employees.view'), wrap(async (req, res) => {
-  const kind = ['transfer', 'title', 'manager'].includes(req.query.kind) ? req.query.kind : 'transfer';
-  const rows = await db.all(`SELECT e.*, u.name, u.employee_code, u.branch, u.department, c.name AS by_name FROM employee_events e
-    JOIN users u ON u.id=e.user_id LEFT JOIN users c ON c.id=e.by_id WHERE e.kind=? ORDER BY e.id DESC LIMIT 1000`, kind);
-  if (kind === 'manager') {
-    const names = Object.fromEntries((await db.all('SELECT id,name FROM users')).map((x) => [String(x.id), x.name]));
-    for (const r of rows) { r.old_value = names[r.old_value] || '—'; r.new_value = names[r.new_value] || '—'; }
-  }
-  res.json(rows);
-}));
-
-/* ----- مجموعات العمل وفرق العمل ----- */
-app.get('/api/work-groups', auth, need('employees.view'), wrap(async (req, res) => {
-  const kind = req.query.kind === 'team' ? 'team' : 'group', col = kind === 'team' ? 'team_id' : 'group_id';
-  res.json(await db.all(`SELECT g.id, g.name, g.kind, g.manager_id, m.name AS manager_name, (SELECT COUNT(*)::int FROM users x WHERE x.${col}=g.id) AS members
-    FROM work_groups g LEFT JOIN users m ON m.id=g.manager_id WHERE g.kind=? ORDER BY g.id`, kind));
-}));
-app.post('/api/work-groups', auth, need('employees.manage'), wrap(async (req, res) => {
-  const b = req.body || {}, kind = b.kind === 'team' ? 'team' : 'group';
-  if (!String(b.name || '').trim()) return res.status(400).json({ error: 'الاسم مطلوب' });
-  const mid = toId(b.manager_id);
-  if (mid && !(await db.get('SELECT 1 FROM users WHERE id=?', mid))) return res.status(400).json({ error: 'المدير غير موجود' });
-  res.json({ id: await db.insert('INSERT INTO work_groups(kind,name,manager_id) VALUES(?,?,?)', kind, String(b.name).trim().slice(0, 100), mid) });
-}));
-app.put('/api/work-groups/:id', auth, need('employees.manage'), wrap(async (req, res) => {
-  const id = toId(req.params.id), b = req.body || {};
-  if (!id || !String(b.name || '').trim()) return res.status(400).json({ error: 'الاسم مطلوب' });
-  const mid = toId(b.manager_id);
-  if (mid && !(await db.get('SELECT 1 FROM users WHERE id=?', mid))) return res.status(400).json({ error: 'المدير غير موجود' });
-  await db.run('UPDATE work_groups SET name=?, manager_id=? WHERE id=?', String(b.name).trim().slice(0, 100), mid, id);
-  res.json({ ok: true });
-}));
-app.delete('/api/work-groups/:id', auth, need('employees.manage'), wrap(async (req, res) => {
-  const id = toId(req.params.id);
-  if (!id) return res.status(400).json({ error: 'غير صالح' });
-  await db.run('UPDATE users SET group_id=NULL WHERE group_id=?', id);
-  await db.run('UPDATE users SET team_id=NULL WHERE team_id=?', id);
-  await db.run('DELETE FROM work_groups WHERE id=?', id);
-  res.json({ ok: true });
-}));
-
 
 /* ----- طلبات إنشاء الحسابات ----- */
 app.post('/api/employees/:id/approve', auth, need('employees.manage'), wrap(async (req, res) => {
@@ -1158,12 +999,13 @@ app.get('/api/locations', auth, needLocAccess, wrap(async (req, res) => {
 app.post('/api/locations', auth, need('settings.manage'), wrap(async (req, res) => {
   const l = parseLoc(req.body || {});
   if (l.error) return res.status(400).json({ error: l.error });
-  res.json({ id: await db.insert('INSERT INTO work_locations(name,lat,lng,radius_m) VALUES(?,?,?,?)', l.name, l.lat, l.lng, l.radius) });
+  res.json({ id: await db.insert('INSERT INTO work_locations(name,lat,lng,radius_m,active) VALUES(?,?,?,?,?)', l.name, l.lat, l.lng, l.radius, req.body.active === 0 || req.body.active === '0' ? 0 : 1) });
 }));
 app.put('/api/locations/:id', auth, need('settings.manage'), wrap(async (req, res) => {
   const id = toId(req.params.id), l = parseLoc(req.body || {});
   if (l.error) return res.status(400).json({ error: l.error });
-  const r = id && await db.run('UPDATE work_locations SET name=?,lat=?,lng=?,radius_m=? WHERE id=?', l.name, l.lat, l.lng, l.radius, id);
+  const act = req.body.active === undefined ? null : (req.body.active === 0 || req.body.active === '0' || req.body.active === false ? 0 : 1);
+  const r = id && await db.run('UPDATE work_locations SET name=?,lat=?,lng=?,radius_m=?,active=COALESCE(?,active) WHERE id=?', l.name, l.lat, l.lng, l.radius, act, id);
   if (!r || !r.rowCount) return res.status(404).json({ error: 'غير موجود' });
   res.json({ ok: true });
 }));
@@ -1217,6 +1059,53 @@ app.get('/api/reports/monthly', auth, need('reports.view'), wrap(async (req, res
     };
   }));
   res.json({ month, rows });
+}));
+
+/* ----- كتالوجات الإعدادات (جداول بسيطة: اسم + بيانات + نشط) ----- */
+const CONFIG_KINDS = new Set(['schedule', 'department', 'grade', 'position', 'access_level', 'custom_field', 'announcement',
+  'leave_profile', 'leave_type', 'holiday', 'compensation_rule', 'holiday_limit', 'payroll_preset', 'allowance', 'deduction',
+  'expense_category', 'payroll_lieu', 'payslip_display', 'document', 'automation_rule', 'override_rule',
+  'work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template']);
+const HR_KINDS = new Set(['work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template']);
+const cfgAuth = (req, res, next) => {
+  const ok = HR_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'employees.view' : 'employees.manage') : can(req.user, 'settings.manage');
+  return ok ? next() : res.status(403).json({ error: 'ليس لديك صلاحية لهذا الإجراء' });
+};
+const parseCfg = (r) => { let d = {}; try { d = JSON.parse(r.data || '{}'); } catch { /* تجاهل */ } return { id: r.id, kind: r.kind, name: r.name, active: !!r.active, created_at: r.created_at, ...d }; };
+const cfgKind = (req, res, next) => (CONFIG_KINDS.has(req.params.kind) ? next() : res.status(404).json({ error: 'نوع غير معروف' }));
+function cfgBody(b) {
+  const name = String(b.name || '').trim().slice(0, 120);
+  if (!name) return { error: 'اكتبي الاسم' };
+  const data = {};
+  for (const [k, v] of Object.entries(b)) {
+    if (['id', 'kind', 'name', 'active', 'created_at'].includes(k)) continue;
+    if (k === 'versions') { data.versions = Array.isArray(v) ? v.slice(0, 30) : []; continue; }
+    data[k] = typeof v === 'string' ? v.slice(0, 500) : (typeof v === 'number' || typeof v === 'boolean' ? v : String(v ?? '').slice(0, 500));
+  }
+  if (JSON.stringify(data).length > 20000) return { error: 'البيانات كبيرة جداً' };
+  return { name, data: JSON.stringify(data) };
+}
+app.get('/api/config/:kind', auth, cfgKind, cfgAuth, wrap(async (req, res) => {
+  res.json((await db.all('SELECT * FROM config_items WHERE kind=? ORDER BY id', req.params.kind)).map(parseCfg));
+}));
+app.post('/api/config/:kind', auth, cfgKind, cfgAuth, wrap(async (req, res) => {
+  const c = cfgBody(req.body || {});
+  if (c.error) return res.status(400).json({ error: c.error });
+  const active = req.body.active === 0 || req.body.active === false || req.body.active === '0' ? 0 : 1;
+  res.json({ id: await db.insert('INSERT INTO config_items(kind,name,data,active) VALUES(?,?,?,?)', req.params.kind, c.name, c.data, active) });
+}));
+app.put('/api/config/:kind/:id', auth, cfgKind, cfgAuth, wrap(async (req, res) => {
+  const id = toId(req.params.id), c = cfgBody(req.body || {});
+  if (c.error) return res.status(400).json({ error: c.error });
+  const act = req.body.active === undefined ? null : (req.body.active === 0 || req.body.active === false || req.body.active === '0' ? 0 : 1);
+  const r = id && await db.run('UPDATE config_items SET name=?,data=?,active=COALESCE(?,active) WHERE id=? AND kind=?', c.name, c.data, act, id, req.params.kind);
+  if (!r || !r.rowCount) return res.status(404).json({ error: 'غير موجود' });
+  res.json({ ok: true });
+}));
+app.delete('/api/config/:kind/:id', auth, cfgKind, cfgAuth, wrap(async (req, res) => {
+  const id = toId(req.params.id);
+  if (id) await db.run('DELETE FROM config_items WHERE id=? AND kind=?', id, req.params.kind);
+  res.json({ ok: true });
 }));
 
 /* ----- الإعدادات ----- */
