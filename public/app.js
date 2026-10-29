@@ -241,6 +241,16 @@ const ICONS = {
   archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4"/>',
 };
 const ico = (n, cls = '') => `<svg class="ico ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n]}</svg>`;
+// تثبيت التطبيق: في المتصفح بس (لو مثبّت فعلاً الزرار ما بيظهرش)
+const IS_APP = document.documentElement.classList.contains('is-app');
+let installEv = null;
+window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEv = e; });
+function installApp() {
+  if (installEv) { installEv.prompt(); installEv.userChoice.finally(() => { installEv = null; }); return; }
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  modal(`<h3>تثبيت التطبيق</h3><p>${ios ? 'من Safari: اضغطي زرار المشاركة <b>⬆</b> ثم <b>إضافة إلى الشاشة الرئيسية</b>.' : 'من قائمة المتصفح (⋮): اختاري <b>تثبيت التطبيق</b> أو <b>إضافة إلى الشاشة الرئيسية</b>.'}</p>
+    <p class="muted small">بعد التثبيت افتحيه من أيقونته على الشاشة، وهيظهر كتطبيق بشريط سفلي من غير شريط المتصفح.</p><div class="actions"><button class="btn" data-close>تمام</button></div>`);
+}
 // قائمة بمجموعات (زي الشاشة): عنصر مفرد أو مجموعة فيها عناصر فرعية
 const MENU = [
   { id: 'dashboard', ic: 'grid', t: 'لوحة المعلومات', ok: () => has('dashboard.view') },
@@ -277,10 +287,12 @@ function menuHtml(sheet) {
 }
 function menuSheet() {
   const o = modal(`<h3>القائمة</h3><nav class="nav sheetnav">${menuHtml(true)}</nav>
-    <div class="row" style="margin-top:14px"><button class="btn alt" id="spw" style="flex:1">${ico('lock')} كلمة المرور</button><button class="btn alt" id="slo" style="flex:1">${ico('logout')} خروج</button></div>`);
+    <div class="row" style="margin-top:14px"><button class="btn alt" id="spw" style="flex:1">${ico('lock')} كلمة المرور</button><button class="btn alt" id="slo" style="flex:1">${ico('logout')} خروج</button></div>
+    ${IS_APP ? '' : `<button class="btn alt" id="sin" style="width:100%;margin-top:8px">${ico('download')} تثبيت التطبيق</button>`}`);
   o.querySelectorAll('[data-p]').forEach((b) => (b.onclick = () => { o.close(); go(b.dataset.p); }));
   $('#spw', o).onclick = () => { o.close(); changePassword(); };
   $('#slo', o).onclick = () => { o.close(); logout(); };
+  if ($('#sin', o)) $('#sin', o).onclick = () => { o.close(); installApp(); };
 }
 function quickSheet() {
   const o = modal(`<h3>إضافة سريعة</h3><div class="grid">
@@ -310,13 +322,14 @@ function renderShell() {
   ];
   $('#app').innerHTML = `<div class="shell">
     <header class="topbar">
+      <button class="iconbtn hmb" id="hmb" aria-label="القائمة">${ico('menu')}</button>
       <div class="brand"><img src="/icon.svg" alt=""><span>${esc(S.me.settings.company_name)}</span></div>
       ${canSearch ? `<form class="search" id="srch">${ico('search')}<input id="sq" placeholder="ابحثي عن موظف بالاسم أو اسم المستخدم أو الهاتف..." autocomplete="off"></form>` : '<div class="grow"></div>'}
       <div class="chip" id="cdate">${ico('calendar')}<span dir="ltr"></span></div>
       <div class="chip" id="cclk">${ico('clock')}<span dir="ltr">--:--:--</span></div>
       <button class="iconbtn" id="bell">${ico('bell')}${S.me.unread ? `<span class="dot">${S.me.unread}</span>` : ''}</button>
       <div class="usermenu"><button class="chip userchip" id="um"><span class="avatar sm">${esc(initials(u.name))}</span><span class="uname">${esc(u.name)}</span>${ico('chev')}</button>
-        <div class="dropdown" id="umd" hidden><button id="pw">${ico('lock')} تغيير كلمة المرور</button><button id="lo">${ico('logout')} تسجيل الخروج</button></div></div>
+        <div class="dropdown" id="umd" hidden>${IS_APP ? '' : `<button id="inst">${ico('download')} تثبيت التطبيق</button>`}<button id="pw">${ico('lock')} تغيير كلمة المرور</button><button id="lo">${ico('logout')} تسجيل الخروج</button></div></div>
     </header>
     <aside class="side"><div class="side-head">${ico('menu')}<span>القائمة</span></div><nav class="nav" id="nav">${menuHtml(false)}</nav></aside>
     <header class="mtop"><div class="avatar big">${esc(initials(u.name))}</div>
@@ -336,6 +349,8 @@ function renderShell() {
     if (k === 'menu') menuSheet(); else if (k === 'me:attendance') go('me', { tab: 'attendance' }); else go(k);
   }));
   $('#fab').onclick = quickSheet;
+  if ($('#hmb')) $('#hmb').onclick = menuSheet;
+  if ($('#inst')) $('#inst').onclick = installApp;
   $('#bell').onclick = showNotes; $('#mbell').onclick = showNotes;
   $('#um').onclick = (e) => { e.stopPropagation(); $('#umd').hidden = !$('#umd').hidden; };
   document.onclick = () => { const d = $('#umd'); if (d) d.hidden = true; };

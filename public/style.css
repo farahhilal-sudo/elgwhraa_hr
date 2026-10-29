@@ -155,32 +155,37 @@ button.link:hover { text-decoration: underline; }
 .note { padding: 10px 0; border-bottom: 1px solid var(--line); }
 .note.new { font-weight: 700; }
 
+/* وضع التطبيق (PWA مثبّت): شكل موبايل بشريط سفلي */
+html.is-app .shell { display: block; padding: 0; }
+html.is-app .topbar, html.is-app .side { display: none; }
+html.is-app .mtop { display: flex; align-items: center; gap: 14px; background: var(--card); border-bottom: 1px solid var(--line); border-radius: 0 0 28px 28px; padding: 14px 18px 18px; position: sticky; top: 0; z-index: 5; }
+html.is-app .mtop .info { flex: 1; display: flex; flex-direction: column; line-height: 1.5; min-width: 0; }
+html.is-app .mtop .info b { font-size: 14px; }
+html.is-app .mtop .info span { color: var(--muted); font-size: 12px; }
+html.is-app .mtop .avatar.big { width: 60px; height: 60px; font-size: 20px; }
+html.is-app .content { padding: 14px 14px 120px; max-width: none; }
+html.is-app .bottom { display: flex; position: fixed; bottom: 0; inset-inline: 0; z-index: 10; background: var(--card); border-top: 1px solid var(--line); border-radius: 26px 26px 0 0; padding: 10px 6px calc(10px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 20px rgba(0,0,0,.05); }
+html.is-app .bottom button[data-b] { flex: 1; border: 0; background: none; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); cursor: pointer; padding: 4px 0; }
+html.is-app .bottom button.on { color: var(--brand); font-weight: 700; }
+html.is-app .bottom .bi { width: 40px; height: 32px; display: grid; place-items: center; border-radius: 10px; }
+html.is-app .bottom .gap { flex: 1; }
+html.is-app .fab { position: absolute; top: -28px; inset-inline-start: 50%; transform: translateX(50%); width: 60px; height: 60px; border-radius: 50%; background: var(--card); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.12); color: var(--muted); display: grid; place-items: center; cursor: pointer; }
+html.is-app .fab .ico { width: 30px; height: 30px; }
+html.is-app .fab { transform: translateX(50%); inset-inline-start: 50%; }
+html.is-app .content .prof { display: none; }
 @media (max-width: 900px) {
-  .shell { display: block; padding: 0; }
-  .topbar, .side { display: none; }
-  .mtop { display: flex; align-items: center; gap: 14px; background: var(--card); border-bottom: 1px solid var(--line); border-radius: 0 0 28px 28px; padding: 14px 18px 18px; position: sticky; top: 0; z-index: 5; }
-  .mtop .info { flex: 1; display: flex; flex-direction: column; line-height: 1.5; min-width: 0; }
-  .mtop .info b { font-size: 17px; }
-  .mtop .info span { color: var(--muted); font-size: 14px; }
-  .mtop .avatar.big { width: 60px; height: 60px; font-size: 20px; }
-  .content { padding: 14px 14px 120px; max-width: none; }
-  .bottom { display: flex; position: fixed; bottom: 0; inset-inline: 0; z-index: 10; background: var(--card); border-top: 1px solid var(--line); border-radius: 26px 26px 0 0; padding: 10px 6px calc(10px + env(safe-area-inset-bottom)); box-shadow: 0 -4px 20px rgba(0,0,0,.05); }
-  .bottom button[data-b] { flex: 1; border: 0; background: none; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); cursor: pointer; padding: 4px 0; }
-  .bottom button.on { color: var(--brand); font-weight: 700; }
-  .bottom .bi { width: 40px; height: 32px; display: grid; place-items: center; border-radius: 10px; }
-  .bottom .gap { flex: 1; }
-  .fab { position: absolute; top: -28px; inset-inline-start: 50%; transform: translateX(50%); width: 60px; height: 60px; border-radius: 50%; background: var(--card); border: 1px solid var(--line); box-shadow: 0 4px 14px rgba(0,0,0,.12); color: var(--muted); display: grid; place-items: center; cursor: pointer; }
-  .fab .ico { width: 30px; height: 30px; }
-  html[dir=rtl] .fab { transform: translateX(50%); inset-inline-start: 50%; }
-  .g4 { grid-template-columns: repeat(2, 1fr); } .g3 { grid-template-columns: repeat(2, 1fr); }
+  .g4 { grid-template-columns: repeat(2, 1fr); }
+  .g3 { grid-template-columns: repeat(2, 1fr); }
   .form { grid-template-columns: 1fr; }
   .profile { grid-template-columns: 1fr; padding: 16px; }
   .profile .avatar, .profile .pinfo { display: none; }
   .pmid { flex-direction: row; flex-wrap: wrap; justify-content: center; }
-  .content .prof { display: none; }
-  .stat2 { padding: 12px; gap: 10px; } .stat2 .sicon { width: 38px; height: 38px; }
-  .cd { min-height: 54px; padding: 4px 2px; } .cd small { display: none; }
-  .overlay { align-items: end; padding: 0; } .modal { border-radius: 22px 22px 0 0; max-width: none; }
+  .stat2 { padding: 12px; gap: 10px; }
+  .stat2 .sicon { width: 38px; height: 38px; }
+  .cd { min-height: 54px; padding: 4px 2px; }
+  .cd small { display: none; }
+  .overlay { align-items: end; padding: 0; }
+  .modal { border-radius: 22px 22px 0 0; max-width: none; }
 }
 @media (max-width: 480px) { .g2 { grid-template-columns: 1fr; } .clock .t { font-size: 38px; } }
 @media print { .side, .topbar, .mtop, .bottom, .btn, .noprint { display: none !important; } .shell { display: block; padding: 0; } }
@@ -494,3 +499,25 @@ h2, .page-head h2 { font-size: 17px; font-weight: 700; } h3 { font-size: 14.5px;
 .ptable th, .ptable td { font-size: 12px; } .ptable th.tn, .ptable td.tn { font-size: 13px; }
 .bottom button[data-b] { font-size: 11px; }
 @media (max-width: 900px) { .mtop .info b { font-size: 14px; } .sct b { font-size: 15px; } .sumc b { font-size: 15px; } .frow2 .sel2, .stbox { min-width: 45%; } .chips2 { min-width: 100%; } }
+/* ===== وضع التطبيق مقابل وضع الموقع ===== */
+html.is-app body { background: #e9eef4; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: contain; user-select: none; -webkit-user-select: none; }
+html.is-app input, html.is-app textarea, html.is-app select, html.is-app td { user-select: text; -webkit-user-select: text; }
+html.is-app .shell { max-width: 520px; margin: 0 auto; min-height: 100vh; background: var(--bg); box-shadow: 0 0 40px rgba(15,30,60,.08); }
+html.is-app .mtop { padding-top: calc(14px + env(safe-area-inset-top)); }
+html.is-app .bottom { max-width: 520px; margin-inline: auto; }
+html.is-app .content { padding: 14px 14px calc(110px + env(safe-area-inset-bottom)); max-width: none; }
+html.is-app .overlay { align-items: end; padding: 0; } html.is-app .modal { border-radius: 22px 22px 0 0; max-width: 520px; margin-inline: auto; }
+html.is-app .overlay.wiz .modal, html.is-app .overlay.wide .modal { max-width: 520px; }
+html.is-app .g4, html.is-app .g3 { grid-template-columns: repeat(2, 1fr); } html.is-app .form { grid-template-columns: 1fr; }
+html.is-app .ecards { grid-template-columns: 1fr; }
+html.is-app .wz-main { flex-direction: column; } html.is-app .wz-side { width: auto; flex-direction: row; overflow-x: auto; flex: none; } html.is-app .g2w { grid-template-columns: 1fr; }
+html:not(.is-app) .hmb { display: none; }
+@media (max-width: 900px) {
+  html:not(.is-app) .shell { display: block; padding: 8px; }
+  html:not(.is-app) .side, html:not(.is-app) .mtop, html:not(.is-app) .bottom { display: none; }
+  html:not(.is-app) .topbar { border-radius: 14px; padding: 8px 12px; flex-wrap: wrap; position: sticky; top: 6px; }
+  html:not(.is-app) .hmb { display: grid; }
+  html:not(.is-app) .search, html:not(.is-app) #cdate, html:not(.is-app) #cclk, html:not(.is-app) .uname { display: none; }
+  html:not(.is-app) .content { padding: 12px 0 30px; }
+}
+@media (display-mode: standalone) { body { background: #e9eef4; } }
