@@ -196,6 +196,8 @@ const DEFAULT_SETTINGS = {
   late_factor: '1',
   absence_factor: '1',
   overtime_factor: '1.5',
+  overtime_minute_rate: '2', // قيمة الدقيقة الإضافية بالجنيه (لو 0 بيرجع يحسب بأجر الساعة × المعامل)
+  overtime_auto_approve: '1', // اعتماد الإضافي التلقائي لحظة تسجيل الانصراف
   country: 'Egypt',
   currency: 'EGP',
   language: 'arabic',
@@ -225,6 +227,7 @@ async function init() {
   // حسابات التسجيل الذاتي: pending=1 يعني بانتظار موافقة المدير (ومش بيقدر يدخل)
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS pending INTEGER NOT NULL DEFAULT 0');
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT');
+  await pool.query('ALTER TABLE requests ADD COLUMN IF NOT EXISTS auto INTEGER NOT NULL DEFAULT 0');
   // مواقع الحضور المسموحة لكل موظف (قائمة ids). لو فاضية، الموظف يقدر يسجل من أي موقع معرّف.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS location_ids TEXT NOT NULL DEFAULT '[]'");
   await pool.query('ALTER TABLE work_locations ADD COLUMN IF NOT EXISTS active INTEGER NOT NULL DEFAULT 1');
@@ -359,6 +362,24 @@ function tierDeduction(tiers, lateMin, dailyRate) {
   return t.kind === 'fixed' ? t.value : t.value * dailyRate;
 }
 
+// قيمة الإضافي: كل دقيقة بعد نهاية الشفت = قيمة الدقيقة (الافتراضي 2 جنيه). لو القيمة صفر نرجع لأجر الساعة × المعامل.
+function overtimePayFor(minutes, hourlyRate, st) {
+  const rate = parseFloat(st.overtime_minute_rate);
+  return rate > 0 ? round2(minutes * rate) : round2((minutes / 60) * hourlyRate * parseFloat(st.overtime_factor || 1.5));
+}
+// الإضافي التلقائي: انصراف بعد معاد نهاية الشفت (مثلاً 5:05 والشفت بينتهي 5:00) = 5 دقايق إضافي في طلب وقت إضافي تلقائي
+async function syncAutoOvertime(u, date, outMin, st) {
+  const start = toMin(u.shift_start), end = toMin(u.shift_end);
+  const extra = outMin !== null && outMin !== undefined && end > start ? Math.max(0, outMin - end) : 0;
+  const ex = await db.get("SELECT * FROM requests WHERE user_id=? AND type='overtime' AND auto=1 AND from_date=?", u.id, date);
+  if (extra < 1) { if (ex && ex.status !== 'rejected') await db.run('DELETE FROM requests WHERE id=?', ex.id); return 0; }
+  if (ex) { if (ex.status !== 'rejected') await db.run('UPDATE requests SET hours=? WHERE id=?', extra / 60, ex.id); return extra; }
+  const auto = st.overtime_auto_approve !== '0';
+  await db.run('INSERT INTO requests(user_id,type,from_date,to_date,hours,reason,status,auto,decision_note,decided_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+    u.id, 'overtime', date, date, extra / 60, `وقت إضافي تلقائي: ${extra} دقيقة بعد نهاية الشفت`, auto ? 'approved' : 'pending', 1, auto ? 'اعتماد تلقائي' : '', auto ? new Date().toISOString() : null);
+  return extra;
+}
+
 /* ---------- حساب شهر لموظف (حضور + غياب + خصومات + مرتب) ---------- */
 async function computeMonth(user, month, st, tiers = []) {
   const [first, last] = monthRange(month);
@@ -372,10 +393,10 @@ async function computeMonth(user, month, st, tiers = []) {
   ]);
   const attByDate = Object.fromEntries(att.map((a) => [a.date, a]));
   const covered = new Set();
-  let overtimeHours = 0, permissionHours = 0;
+  let overtimeMinutes = 0, permissionHours = 0;
   for (const r of reqs) {
     if (LEAVE_TYPES.includes(r.type)) for (const d of eachDay(r.from_date, r.to_date)) covered.add(d);
-    if (r.type === 'overtime' && r.from_date >= first && r.from_date <= last) overtimeHours += r.hours || 0;
+    if (r.type === 'overtime' && r.from_date >= first && r.from_date <= last) overtimeMinutes += Math.round((r.hours || 0) * 60);
     if (r.type === 'permission' && r.from_date >= first && r.from_date <= last) permissionHours += r.hours || 0;
   }
   const shiftHours = Math.max(1, (toMin(user.shift_end) - toMin(user.shift_start)) / 60);
@@ -402,7 +423,8 @@ async function computeMonth(user, month, st, tiers = []) {
   const earlyDeduction = (earlyMinutes / 60) * hourlyRate * lateFactor;
   const lateDeduction = round2(lateOnly + earlyDeduction);
   const absenceDeduction = round2(absentDays * dailyRate * parseFloat(st.absence_factor || 1));
-  const overtimePay = round2(overtimeHours * hourlyRate * parseFloat(st.overtime_factor || 1.5));
+  const overtimeHours = overtimeMinutes / 60;
+  const overtimePay = overtimePayFor(overtimeMinutes, hourlyRate, st);
   const sumKind = (k) => round2(adj.filter((a) => a.kind === k).reduce((s, a) => s + a.amount, 0));
   const bonuses = sumKind('bonus'), manualDeductions = sumKind('deduction'), penalties = sumKind('penalty');
   // المرتب بيتحسب يوم بيوم: كل يوم بيعدّي (من أول الشهر أو من تاريخ التعيين) بيستحق فيه الموظف أجر يوم = (الأساسي + البدلات) ÷ 30
@@ -606,6 +628,7 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
     if (rec.check_out) return res.status(409).json({ error: 'تم تسجيل الانصراف اليوم بالفعل' });
     const early = Math.max(0, toMin(u.shift_end) - now.minutes);
     await db.run('UPDATE attendance SET check_out=?,out_lat=?,out_lng=?,out_face=?,early_minutes=?,out_loc=? WHERE id=?', iso, la, ln, score, early, where, rec.id);
+    await syncAutoOvertime(u, now.date, now.minutes, st);
   }
   res.json({ ok: true, record: await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date) });
 }));
@@ -685,11 +708,119 @@ app.post('/api/notifications/read', auth, wrap(async (req, res) => {
 }));
 
 /* ----- لوحة المعلومات ----- */
+/* ----- لوحة المعلومات ----- */
+const locIds = (u) => { try { return JSON.parse(u.location_ids || '[]'); } catch { return []; } };
+async function dashUsers(q) {
+  let users = await db.all('SELECT * FROM users WHERE active=1 AND is_admin=0 AND pending=0');
+  const office = toId(q.office);
+  if (office) users = users.filter((u) => { const l = locIds(u); return !l.length || l.includes(office); });
+  if (q.dept) users = users.filter((u) => u.department === String(q.dept));
+  if (q.job) users = users.filter((u) => u.job_title === String(q.job));
+  return users;
+}
+function dashRange(q) {
+  const today = tzParts().date;
+  let from = isDate(q.from) ? q.from : today.slice(0, 7) + '-01', to = isDate(q.to) ? q.to : today;
+  if (from > to) [from, to] = [to, from];
+  const lim = new Date(from + 'T00:00:00Z'); lim.setUTCDate(lim.getUTCDate() + 400);
+  if (to > lim.toISOString().slice(0, 10)) to = lim.toISOString().slice(0, 10);
+  return { from, to, today };
+}
+async function dashData(users, from, to) {
+  const ids = new Set(users.map((u) => u.id));
+  const [attAll, reqAll] = await Promise.all([
+    db.all('SELECT * FROM attendance WHERE date BETWEEN ? AND ?', from, to),
+    db.all("SELECT * FROM requests WHERE status='approved' AND to_date>=? AND from_date<=?", from, to),
+  ]);
+  const att = new Map(), covered = new Set(), ot = new Map();
+  for (const a of attAll) if (ids.has(a.user_id)) att.set(a.user_id + '|' + a.date, a);
+  for (const r of reqAll) {
+    if (!ids.has(r.user_id)) continue;
+    if (LEAVE_TYPES.includes(r.type)) for (const d of eachDay(r.from_date < from ? from : r.from_date, r.to_date > to ? to : r.to_date)) covered.add(r.user_id + '|' + d);
+    if (r.type === 'overtime' && r.from_date >= from && r.from_date <= to) ot.set(r.user_id, (ot.get(r.user_id) || 0) + Math.round((r.hours || 0) * 60));
+  }
+  return { att, covered, ot };
+}
+const isWeekend = (st, d) => String(st.weekend_days || '').split(',').filter(Boolean).map(Number).includes(new Date(d + 'T00:00:00Z').getUTCDay());
+// حضور/تأخير/غياب/إجازة لكل يوم في المدى
+app.get('/api/dash/daily', auth, need('dashboard.view'), wrap(async (req, res) => {
+  const { from, to, today } = dashRange(req.query);
+  const [st, users] = await Promise.all([settings(), dashUsers(req.query)]);
+  const { att, covered } = await dashData(users, from, to);
+  const days = [];
+  for (const d of eachDay(from, to)) {
+    const row = { date: d, present: 0, late: 0, absent: 0, leave: 0 };
+    if (!isWeekend(st, d)) for (const u of users) {
+      if (d < u.hire_date) continue;
+      const a = att.get(u.id + '|' + d);
+      if (a && a.check_in) a.late_minutes > 0 ? row.late++ : row.present++;
+      else if (covered.has(u.id + '|' + d)) row.leave++;
+      else if (d < today) row.absent++;
+    }
+    days.push(row);
+  }
+  res.json({ days });
+}));
+// الطلبات حسب النوع والحالة
+app.get('/api/dash/requests', auth, need('dashboard.view'), wrap(async (req, res) => {
+  const { from, to } = dashRange(req.query);
+  const users = await dashUsers(req.query), ids = new Set(users.map((u) => u.id));
+  const only = REQUEST_TYPES[req.query.type] ? req.query.type : null;
+  const rows = Object.entries(REQUEST_TYPES).filter(([k]) => !only || k === only).map(([k, label]) => ({ type: k, label, total: 0, pending: 0, approved: 0, rejected: 0 }));
+  const by = Object.fromEntries(rows.map((r) => [r.type, r]));
+  for (const r of await db.all('SELECT user_id,type,status FROM requests WHERE from_date BETWEEN ? AND ?', from, to)) {
+    if (!ids.has(r.user_id) || !by[r.type]) continue;
+    by[r.type].total++; if (r.status in by[r.type]) by[r.type][r.status]++;
+  }
+  const totals = rows.reduce((t, r) => ({ total: t.total + r.total, pending: t.pending + r.pending, approved: t.approved + r.approved, rejected: t.rejected + r.rejected }), { total: 0, pending: 0, approved: 0, rejected: 0 });
+  res.json({ rows, totals, types: Object.entries(REQUEST_TYPES) });
+}));
+// توزيع تسجيلات الحضور والانصراف على ساعات اليوم
+app.get('/api/dash/hourly', auth, need('dashboard.view'), wrap(async (req, res) => {
+  const { from, to } = dashRange(req.query);
+  const users = await dashUsers(req.query), ids = new Set(users.map((u) => u.id));
+  const inn = Array(24).fill(0), out = Array(24).fill(0);
+  for (const a of await db.all('SELECT user_id,check_in,check_out FROM attendance WHERE date BETWEEN ? AND ?', from, to)) {
+    if (!ids.has(a.user_id)) continue;
+    if (a.check_in) inn[Math.floor(tzParts(new Date(a.check_in)).minutes / 60)]++;
+    if (a.check_out) out[Math.floor(tzParts(new Date(a.check_out)).minutes / 60)]++;
+  }
+  res.json({ in: inn, out });
+}));
+// تجميع لكل موظف في المدى: غياب، تأخير، إضافي، ساعات عمل، وقيمها بالفلوس (بنفس معادلات كشف المرتب)
+app.get('/api/dash/agg', auth, need('dashboard.view'), wrap(async (req, res) => {
+  const { from, to, today } = dashRange(req.query);
+  const [st, tiers, users] = await Promise.all([settings(), getTiers(), dashUsers(req.query)]);
+  const { att, covered, ot } = await dashData(users, from, to);
+  const upto = to < today ? to : today, lateFactor = parseFloat(st.late_factor || 1);
+  const list = users.map((u) => {
+    const shiftHours = Math.max(1, (toMin(u.shift_end) - toMin(u.shift_start)) / 60), dailyRate = u.base_salary / 30, hourlyRate = dailyRate / shiftHours;
+    let absentDays = 0, lateMinutes = 0, earlyMinutes = 0, tierTotal = 0, worked = 0;
+    if (from <= upto) for (const d of eachDay(from, upto)) {
+      if (isWeekend(st, d) || d < u.hire_date) continue;
+      const a = att.get(u.id + '|' + d);
+      if (a && a.check_in) {
+        lateMinutes += a.late_minutes; earlyMinutes += a.early_minutes;
+        if (a.late_minutes > 0) tierTotal += tierDeduction(tiers, a.late_minutes, dailyRate);
+        if (a.check_out) worked += Math.max(0, (new Date(a.check_out) - new Date(a.check_in)) / 60000);
+      } else if (!covered.has(u.id + '|' + d) && d < today) absentDays++;
+    }
+    const lateOnly = tiers.length ? tierTotal : (lateMinutes / 60) * hourlyRate * lateFactor;
+    const otMin = ot.get(u.id) || 0;
+    return { id: u.id, name: u.name, department: u.department || '', job_title: u.job_title || '', absent_days: absentDays, late_minutes: lateMinutes,
+      absence_deduction: round2(absentDays * dailyRate * parseFloat(st.absence_factor || 1)), late_deduction: round2(lateOnly + (earlyMinutes / 60) * hourlyRate * lateFactor),
+      overtime_minutes: otMin, overtime_pay: overtimePayFor(otMin, hourlyRate, st), worked_minutes: Math.round(worked) };
+  });
+  const ids = new Set(users.map((u) => u.id));
+  const adj = (await db.all('SELECT user_id,month,kind,amount FROM adjustments WHERE month BETWEEN ? AND ?', from.slice(0, 7), to.slice(0, 7))).filter((a) => ids.has(a.user_id));
+  res.json({ users: list, adj, currency: st.currency, ot_rate: parseFloat(st.overtime_minute_rate) || 0 });
+}));
+
 app.get('/api/dashboard', auth, need('dashboard.view'), wrap(async (req, res) => {
   const now = tzParts();
   const [st, users, attRows, leaveRows, pending] = await Promise.all([
     settings(),
-    db.all('SELECT * FROM users WHERE active=1 AND is_admin=0'),
+    dashUsers(req.query),
     db.all('SELECT * FROM attendance WHERE date=?', now.date),
     db.all("SELECT user_id FROM requests WHERE status='approved' AND from_date<=? AND to_date>=? AND type IN ('annual_leave','sick_leave','emergency_leave','work_mission')", now.date, now.date),
     db.get("SELECT COUNT(*)::int AS c FROM requests WHERE status='pending'"),
@@ -712,6 +843,7 @@ app.get('/api/dashboard', auth, need('dashboard.view'), wrap(async (req, res) =>
     date: now.date, total: list.length, present: count('present'), late: count('late'), absent: count('absent'),
     leave: count('leave'), not_yet: count('not_yet'), off: count('off'),
     pending_requests: pending.c,
+    no_schedule: users.filter((u) => !u.shift_start || !u.shift_end).length,
     missing_face: users.filter((u) => !u.face_descriptor && !u.is_admin).length, list,
   });
 }));
@@ -897,11 +1029,14 @@ app.post('/api/attendance', auth, need('attendance.edit'), wrap(async (req, res)
   await db.run(`INSERT INTO attendance(user_id,date,check_in,check_out,late_minutes,early_minutes,note) VALUES(?,?,?,?,?,?,?)
     ON CONFLICT(user_id,date) DO UPDATE SET check_in=excluded.check_in, check_out=excluded.check_out, late_minutes=excluded.late_minutes, early_minutes=excluded.early_minutes, note=excluded.note`,
     u.id, date, ci, co, late, early, String(note).slice(0, 200));
+  await syncAutoOvertime(u, date, check_out ? toMin(check_out) : null, await settings());
   res.json({ ok: true });
 }));
 app.delete('/api/attendance/:id', auth, need('attendance.edit'), wrap(async (req, res) => {
   const id = toId(req.params.id);
+  const a = id && await db.get('SELECT * FROM attendance WHERE id=?', id);
   if (id) await db.run('DELETE FROM attendance WHERE id=?', id);
+  if (a) { const u = await db.get('SELECT * FROM users WHERE id=?', a.user_id); if (u) await syncAutoOvertime(u, a.date, null, await settings()); }
   res.json({ ok: true });
 }));
 
@@ -1118,8 +1253,8 @@ app.put('/api/settings', auth, need('settings.manage'), wrap(async (req, res) =>
     if (b[k] === undefined) continue;
     const v = String(b[k]).trim();
     if (['work_lat', 'work_lng'].includes(k) && v !== '' && !isFinite(Number(v))) return res.status(400).json({ error: 'إحداثيات غير صحيحة' });
-    if (['radius_m', 'grace_minutes', 'late_factor', 'absence_factor', 'overtime_factor'].includes(k) && !(Number(v) >= 0)) return res.status(400).json({ error: 'قيمة رقمية غير صحيحة' });
-    if (k === 'signup_enabled' && !['0', '1'].includes(v)) return res.status(400).json({ error: 'قيمة غير صحيحة' });
+    if (['radius_m', 'grace_minutes', 'late_factor', 'absence_factor', 'overtime_factor', 'overtime_minute_rate'].includes(k) && !(Number(v) >= 0)) return res.status(400).json({ error: 'قيمة رقمية غير صحيحة' });
+    if (['signup_enabled', 'overtime_auto_approve'].includes(k) && !['0', '1'].includes(v)) return res.status(400).json({ error: 'قيمة غير صحيحة' });
     if (k === 'face_threshold' && !(Number(v) >= 0.3 && Number(v) <= 0.7)) return res.status(400).json({ error: 'حساسية الوجه بين 0.3 و 0.7' });
     if (k === 'timezone') {
       try { new Intl.DateTimeFormat('en', { timeZone: v }); } catch { return res.status(400).json({ error: 'المنطقة الزمنية غير صحيحة' }); }
