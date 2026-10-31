@@ -784,3 +784,33 @@ table.rq th { font-size: 12px; } table.rq th .ico { width: 13px; height: 13px; v
 .gstack { display: grid; gap: 12px; margin-bottom: 12px; } .gpen { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 @media (max-width: 1100px) { .g2, .rqwrap { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .dash3, .dash3x { grid-template-columns: 1fr; } .dgf { margin-inline-start: 0; width: 100%; } .dgf .sel2 { flex: 1 1 45%; } .gpen { grid-template-columns: 1fr; } }
+
+/* ===== تابات الحضور (زي الشاشة المرجعية) ===== */
+table.pt th.ck, table.pt td.ck { width: 1%; padding-inline: 14px 6px; }
+table.pt input[type=checkbox], .ck input[type=checkbox] { width: 17px; height: 17px; accent-color: var(--brand); cursor: pointer; border-radius: 5px; }
+.tgl { position: relative; display: inline-block; width: 44px; height: 24px; cursor: pointer; }
+.tgl input { display: none; }
+.tgl i { position: absolute; inset: 0; border-radius: 99px; background: #cfd8e0; transition: .2s; }
+.tgl i::after { content: ''; position: absolute; top: 3px; right: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: .2s; }
+.tgl input:checked + i { background: var(--brand); }
+.tgl input:checked + i::after { right: 23px; }
+.tgl input:disabled + i { opacity: .5; cursor: not-allowed; }
+.efil .btn:disabled, .efil .btn.alt:disabled { background: #eef1f4; color: #a3adb5; border-color: #eef1f4; cursor: not-allowed; }
+.calcard { padding: 16px 18px; }
+.calcard .dwh h3 { min-width: 150px; text-align: center; }
+.calgrid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.calh { text-align: center; font-weight: 700; font-size: 12px; color: var(--muted); padding: 6px 0; }
+.cald { min-height: 86px; border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 8px 10px; text-align: start; display: flex; flex-direction: column; gap: 6px; cursor: pointer; font: inherit; }
+.cald.off { border: 0; background: none; cursor: default; }
+.cald:not(.off):hover { border-color: var(--brand); box-shadow: 0 2px 10px rgba(14,165,233,.15); }
+.cald.wk { background: #f4f6f8; } .cald.hol { background: #fff7ed; border-color: #fcd9a0; }
+.cald.now { border: 2px solid var(--brand); }
+.cald > b { font-size: 13px; }
+.cald .hn { font-style: normal; font-size: 11px; font-weight: 700; color: #b45309; line-height: 1.4; }
+.cald .wn { font-style: normal; font-size: 11px; color: var(--muted); }
+.cs { display: flex; gap: 4px; flex-wrap: wrap; margin-top: auto; }
+.cc { min-width: 22px; height: 22px; border-radius: 7px; display: inline-grid; place-items: center; font-size: 11px; font-weight: 700; padding: 0 5px; }
+.cc.g { background: #dcfce7; color: #15803d; } .cc.a { background: #fef3c7; color: #b45309; } .cc.r { background: #fee2e2; color: #b91c1c; } .cc.b { background: #dbeafe; color: #1d4ed8; }
+.appnote { margin: 16px 0 6px; padding: 14px 16px; border-radius: 14px; background: var(--brand-l); color: var(--brand-d); display: grid; gap: 4px; text-align: center; }
+.appnote b { font-size: 13.5px; } .appnote span { font-size: 12px; color: var(--ink); }
+@media (max-width: 900px) { .cald { min-height: 64px; padding: 6px; } .cald .hn, .cald .wn { font-size: 9.5px; } }

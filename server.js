@@ -156,6 +156,15 @@ CREATE TABLE IF NOT EXISTS config_items (
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (${NOW})
 );
+CREATE TABLE IF NOT EXISTS penalty_flags (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  date TEXT NOT NULL, kind TEXT NOT NULL,
+  applied INTEGER NOT NULL DEFAULT 1, note TEXT DEFAULT '',
+  by_user INTEGER, by_name TEXT DEFAULT '',
+  at TEXT NOT NULL DEFAULT (${NOW}),
+  UNIQUE(user_id, date, kind)
+);
 CREATE TABLE IF NOT EXISTS payslips (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -392,7 +401,9 @@ async function computeMonth(user, month, st, tiers = []) {
     db.all('SELECT * FROM adjustments WHERE user_id=? AND month=? ORDER BY id', user.id, month),
   ]);
   const attByDate = Object.fromEntries(att.map((a) => [a.date, a]));
+  const waived = new Set((await db.all('SELECT date,kind FROM penalty_flags WHERE user_id=? AND applied=0 AND date BETWEEN ? AND ?', user.id, first, last)).map((f) => f.date + '|' + f.kind));
   const covered = new Set();
+  let waivedLate = 0, waivedEarly = 0, waivedAbsent = 0;
   let overtimeMinutes = 0, permissionHours = 0;
   for (const r of reqs) {
     if (LEAVE_TYPES.includes(r.type)) for (const d of eachDay(r.from_date, r.to_date)) covered.add(d);
@@ -411,18 +422,19 @@ async function computeMonth(user, month, st, tiers = []) {
       const a = attByDate[d];
       if (a && a.check_in) {
         presentDays++; lateMinutes += a.late_minutes; earlyMinutes += a.early_minutes;
-        if (a.late_minutes > 0) { lateDays++; lateTierTotal += tierDeduction(tiers, a.late_minutes, dailyRate); }
+        if (a.late_minutes > 0) { lateDays++; if (waived.has(d + '|late')) waivedLate += a.late_minutes; else lateTierTotal += tierDeduction(tiers, a.late_minutes, dailyRate); }
+        if (a.early_minutes > 0 && waived.has(d + '|early')) waivedEarly += a.early_minutes;
       }
       else if (covered.has(d)) leaveDays++;
-      else if (d < today) absentDays++;
+      else if (d < today) { absentDays++; if (waived.has(d + '|absent')) waivedAbsent++; }
     }
   }
   const lateFactor = parseFloat(st.late_factor || 1);
   // لو فيه شرائح: التأخير بيتخصم حسبها. لو مفيش: بالدقيقة (دقائق التأخير ÷ 60 × أجر الساعة)
-  const lateOnly = tiers.length ? lateTierTotal : (lateMinutes / 60) * hourlyRate * lateFactor;
-  const earlyDeduction = (earlyMinutes / 60) * hourlyRate * lateFactor;
+  const lateOnly = tiers.length ? lateTierTotal : ((lateMinutes - waivedLate) / 60) * hourlyRate * lateFactor;
+  const earlyDeduction = ((earlyMinutes - waivedEarly) / 60) * hourlyRate * lateFactor;
   const lateDeduction = round2(lateOnly + earlyDeduction);
-  const absenceDeduction = round2(absentDays * dailyRate * parseFloat(st.absence_factor || 1));
+  const absenceDeduction = round2((absentDays - waivedAbsent) * dailyRate * parseFloat(st.absence_factor || 1));
   const overtimeHours = overtimeMinutes / 60;
   const overtimePay = overtimePayFor(overtimeMinutes, hourlyRate, st);
   const sumKind = (k) => round2(adj.filter((a) => a.kind === k).reduce((s, a) => s + a.amount, 0));
@@ -587,6 +599,8 @@ app.post('/api/me/face', auth, wrap(async (req, res) => {
 
 /* ----- تسجيل الحضور والانصراف ----- */
 app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
+  // تسجيل الحضور والانصراف من التطبيق المثبّت فقط (التطبيق بيبعت الهيدر ده)
+  if (req.get('x-app-mode') !== '1') return res.status(403).json({ error: 'تسجيل الحضور والانصراف من التطبيق فقط. افتحي التطبيق المثبّت على موبايلك.' });
   const { type, lat, lng, descriptor } = req.body || {};
   if (!['in', 'out'].includes(type)) return res.status(400).json({ error: 'نوع غير صالح' });
   const u = req.user, st = await settings();
@@ -787,11 +801,94 @@ app.get('/api/dash/hourly', auth, need('dashboard.view'), wrap(async (req, res) 
   }
   res.json({ in: inn, out });
 }));
+// جزاءات الحضور (غياب/تأخير/انصراف مبكر) يوم بيوم، مع حالة التطبيق على المرتب
+app.get('/api/att/penalties', auth, need('attendance.view_all'), wrap(async (req, res) => {
+  const { from, to, today } = dashRange(req.query);
+  const [st, tiers, all] = await Promise.all([settings(), getTiers(), dashUsers(req.query)]);
+  const uid = toId(req.query.user_id), users = uid ? all.filter((u) => u.id === uid) : all;
+  const { att, covered } = await dashData(users, from, to);
+  const flags = new Map((await db.all('SELECT * FROM penalty_flags WHERE date BETWEEN ? AND ?', from, to)).map((f) => [`${f.user_id}|${f.date}|${f.kind}`, f]));
+  const lateFactor = parseFloat(st.late_factor || 1), rows = [];
+  const push = (u, d, kind, reason, value, unit) => {
+    const f = flags.get(`${u.id}|${d}|${kind}`);
+    rows.push({ user_id: u.id, user_name: u.name, department: u.department || '', date: d, kind, reason, value, unit, from: 'المرتب', applied: f ? !!f.applied : true, by: f ? f.by_name : '', at: f ? f.at : null, note: f ? f.note : '' });
+  };
+  for (const d of eachDay(from, to < today ? to : today)) {
+    if (isWeekend(st, d)) continue;
+    for (const u of users) {
+      if (d < u.hire_date) continue;
+      const a = att.get(u.id + '|' + d);
+      if (a && a.check_in) {
+        if (a.late_minutes > 0) {
+          if (tiers.length) { const t = tiers.find((x) => a.late_minutes >= x.from_minutes && (x.to_minutes === null || a.late_minutes <= x.to_minutes)); if (t) push(u, d, 'late', `جزاء التأخير (${a.late_minutes} دقيقة)`, t.value, t.kind === 'fixed' ? 'جنيه' : 'الأيام'); }
+          else push(u, d, 'late', `جزاء التأخير (${a.late_minutes} دقيقة)`, round2((a.late_minutes / 60) * lateFactor), 'الساعات');
+        }
+        if (a.early_minutes > 0) push(u, d, 'early', 'جزاء تسجيل الانصراف مبكرًا', round2((a.early_minutes / 60) * lateFactor), 'الساعات');
+      } else if (!covered.has(u.id + '|' + d) && d < today) push(u, d, 'absent', 'غائب - عدم الحضور', parseFloat(st.absence_factor || 1), 'الأيام');
+    }
+  }
+  const reason = ['absent', 'late', 'early'].includes(req.query.reason) ? req.query.reason : null;
+  res.json({ rows: rows.filter((r) => !reason || r.kind === reason).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.user_name.localeCompare(b.user_name))).slice(0, 3000) });
+}));
+app.post('/api/att/penalties/flag', auth, need('attendance.edit'), wrap(async (req, res) => {
+  const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 500) : [];
+  const applied = req.body.applied === false || req.body.applied === 0 ? 0 : 1, note = String(req.body.note || '').slice(0, 200);
+  if (!items.length) return res.status(400).json({ error: 'اختاري عنصر واحد على الأقل' });
+  for (const it of items) {
+    const uid = toId(it.user_id);
+    if (!uid || !isDate(it.date) || !['absent', 'late', 'early'].includes(it.kind)) return res.status(400).json({ error: 'بيانات غير صحيحة' });
+    if (!(await db.get('SELECT id FROM users WHERE id=?', uid))) return res.status(404).json({ error: 'موظف غير موجود' });
+    await db.run(`INSERT INTO penalty_flags(user_id,date,kind,applied,note,by_user,by_name,at) VALUES(?,?,?,?,?,?,?,?)
+      ON CONFLICT(user_id,date,kind) DO UPDATE SET applied=excluded.applied, note=excluded.note, by_user=excluded.by_user, by_name=excluded.by_name, at=excluded.at`,
+      uid, it.date, it.kind, applied, note, req.user.id, req.user.name, new Date().toISOString());
+  }
+  res.json({ ok: true, count: items.length });
+}));
+// تقويم العمل: حالة كل يوم في الشهر (حضور/تأخير/غياب/إجازة) + العطلات الأسبوعية والرسمية
+app.get('/api/att/calendar', auth, need('attendance.view_all'), wrap(async (req, res) => {
+  const month = isMonth(req.query.month) ? req.query.month : tzParts().date.slice(0, 7);
+  const [first, last] = monthRange(month), today = tzParts().date;
+  const [st, users, hol] = await Promise.all([settings(), dashUsers({}), db.all("SELECT name,data FROM config_items WHERE kind='holiday' AND active=1")]);
+  const { att, covered } = await dashData(users, first, last);
+  const holidays = hol.map((h) => { let d = {}; try { d = JSON.parse(h.data); } catch { /* تجاهل */ } return { name: h.name, from: d.date, to: d.to || d.date }; }).filter((h) => isDate(h.from));
+  const days = [];
+  for (const d of eachDay(first, last)) {
+    const row = { date: d, present: 0, late: 0, absent: 0, leave: 0, weekend: isWeekend(st, d), holidays: holidays.filter((h) => d >= h.from && d <= h.to).map((h) => h.name) };
+    if (!row.weekend && !row.holidays.length) for (const u of users) {
+      if (d < u.hire_date) continue;
+      const a = att.get(u.id + '|' + d);
+      if (a && a.check_in) a.late_minutes > 0 ? row.late++ : row.present++;
+      else if (covered.has(u.id + '|' + d)) row.leave++;
+      else if (d < today) row.absent++;
+    }
+    days.push(row);
+  }
+  res.json({ month, days, employees: users.length });
+}));
+// سجل رصيد الإجازات السنوية
+app.get('/api/att/balance', auth, need('attendance.view_all'), wrap(async (req, res) => {
+  const year = /^\d{4}$/.test(req.query.year || '') ? req.query.year : tzParts().date.slice(0, 4);
+  const uid = toId(req.query.user_id), users = (await dashUsers({})).filter((u) => !uid || u.id === uid), ids = new Set(users.map((u) => u.id));
+  const reqs = (await db.all("SELECT * FROM requests WHERE status='approved' AND type IN ('annual_leave','sick_leave','emergency_leave') AND from_date LIKE ? ORDER BY from_date", year + '%')).filter((r) => ids.has(r.user_id));
+  const rows = [];
+  for (const u of users) {
+    let bal = u.annual_leave_days;
+    rows.push({ user_id: u.id, user_name: u.name, date: `${year}-01-01`, type: 'رصيد افتتاحي', days: u.annual_leave_days, change: u.annual_leave_days, balance: bal });
+    for (const r of reqs.filter((x) => x.user_id === u.id)) {
+      const days = [...eachDay(r.from_date, r.to_date)].length, annual = r.type === 'annual_leave';
+      if (annual) bal -= days;
+      rows.push({ user_id: u.id, user_name: u.name, date: r.from_date, type: REQUEST_TYPES[r.type], days, change: annual ? -days : 0, balance: bal });
+    }
+  }
+  res.json({ year, rows });
+}));
+
 // تجميع لكل موظف في المدى: غياب، تأخير، إضافي، ساعات عمل، وقيمها بالفلوس (بنفس معادلات كشف المرتب)
 app.get('/api/dash/agg', auth, need('dashboard.view'), wrap(async (req, res) => {
   const { from, to, today } = dashRange(req.query);
   const [st, tiers, users] = await Promise.all([settings(), getTiers(), dashUsers(req.query)]);
   const { att, covered, ot } = await dashData(users, from, to);
+  const wv = new Set((await db.all('SELECT user_id,date,kind FROM penalty_flags WHERE applied=0 AND date BETWEEN ? AND ?', from, to)).map((f) => `${f.user_id}|${f.date}|${f.kind}`));
   const upto = to < today ? to : today, lateFactor = parseFloat(st.late_factor || 1);
   const list = users.map((u) => {
     const shiftHours = Math.max(1, (toMin(u.shift_end) - toMin(u.shift_start)) / 60), dailyRate = u.base_salary / 30, hourlyRate = dailyRate / shiftHours;
@@ -800,10 +897,10 @@ app.get('/api/dash/agg', auth, need('dashboard.view'), wrap(async (req, res) => 
       if (isWeekend(st, d) || d < u.hire_date) continue;
       const a = att.get(u.id + '|' + d);
       if (a && a.check_in) {
-        lateMinutes += a.late_minutes; earlyMinutes += a.early_minutes;
-        if (a.late_minutes > 0) tierTotal += tierDeduction(tiers, a.late_minutes, dailyRate);
+        if (!wv.has(`${u.id}|${d}|late`)) { lateMinutes += a.late_minutes; if (a.late_minutes > 0) tierTotal += tierDeduction(tiers, a.late_minutes, dailyRate); }
+        if (!wv.has(`${u.id}|${d}|early`)) earlyMinutes += a.early_minutes;
         if (a.check_out) worked += Math.max(0, (new Date(a.check_out) - new Date(a.check_in)) / 60000);
-      } else if (!covered.has(u.id + '|' + d) && d < today) absentDays++;
+      } else if (!covered.has(u.id + '|' + d) && d < today && !wv.has(`${u.id}|${d}|absent`)) absentDays++;
     }
     const lateOnly = tiers.length ? tierTotal : (lateMinutes / 60) * hourlyRate * lateFactor;
     const otMin = ot.get(u.id) || 0;
@@ -1200,10 +1297,12 @@ app.get('/api/reports/monthly', auth, need('reports.view'), wrap(async (req, res
 const CONFIG_KINDS = new Set(['schedule', 'department', 'grade', 'position', 'access_level', 'custom_field', 'announcement',
   'leave_profile', 'leave_type', 'holiday', 'compensation_rule', 'holiday_limit', 'payroll_preset', 'allowance', 'deduction',
   'expense_category', 'payroll_lieu', 'payslip_display', 'document', 'automation_rule', 'override_rule',
-  'work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template']);
+  'work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template',
+  'assignment', 'task_rule', 'open_shift', 'att_template']);
+const ATT_KINDS = new Set(['assignment', 'task_rule', 'open_shift', 'att_template']);
 const HR_KINDS = new Set(['work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template']);
 const cfgAuth = (req, res, next) => {
-  const ok = HR_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'employees.view' : 'employees.manage') : can(req.user, 'settings.manage');
+  const ok = ATT_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'attendance.view_all' : 'attendance.edit') : HR_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'employees.view' : 'employees.manage') : can(req.user, 'settings.manage');
   return ok ? next() : res.status(403).json({ error: 'ليس لديك صلاحية لهذا الإجراء' });
 };
 const parseCfg = (r) => { let d = {}; try { d = JSON.parse(r.data || '{}'); } catch { /* تجاهل */ } return { id: r.id, kind: r.kind, name: r.name, active: !!r.active, created_at: r.created_at, ...d }; };
