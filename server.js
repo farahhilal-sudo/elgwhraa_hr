@@ -156,15 +156,6 @@ CREATE TABLE IF NOT EXISTS config_items (
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (${NOW})
 );
-CREATE TABLE IF NOT EXISTS penalty_flags (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  date TEXT NOT NULL, kind TEXT NOT NULL,
-  applied INTEGER NOT NULL DEFAULT 1, note TEXT DEFAULT '',
-  by_user INTEGER, by_name TEXT DEFAULT '',
-  at TEXT NOT NULL DEFAULT (${NOW}),
-  UNIQUE(user_id, date, kind)
-);
 CREATE TABLE IF NOT EXISTS payslips (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -205,8 +196,6 @@ const DEFAULT_SETTINGS = {
   late_factor: '1',
   absence_factor: '1',
   overtime_factor: '1.5',
-  overtime_minute_rate: '2', // قيمة الدقيقة الإضافية بالجنيه (لو 0 بيرجع يحسب بأجر الساعة × المعامل)
-  overtime_auto_approve: '1', // اعتماد الإضافي التلقائي لحظة تسجيل الانصراف
   country: 'Egypt',
   currency: 'EGP',
   language: 'arabic',
@@ -236,12 +225,12 @@ async function init() {
   // حسابات التسجيل الذاتي: pending=1 يعني بانتظار موافقة المدير (ومش بيقدر يدخل)
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS pending INTEGER NOT NULL DEFAULT 0');
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT');
-  await pool.query('ALTER TABLE requests ADD COLUMN IF NOT EXISTS auto INTEGER NOT NULL DEFAULT 0');
   // مواقع الحضور المسموحة لكل موظف (قائمة ids). لو فاضية، الموظف يقدر يسجل من أي موقع معرّف.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS location_ids TEXT NOT NULL DEFAULT '[]'");
   await pool.query('ALTER TABLE work_locations ADD COLUMN IF NOT EXISTS active INTEGER NOT NULL DEFAULT 1');
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality TEXT DEFAULT ''");
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS manager_id INTEGER');
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS leave_profile_id INTEGER');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS in_loc TEXT');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS out_loc TEXT');
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
@@ -325,7 +314,7 @@ function publicUser(u) {
     id: u.id, name: u.name, username: u.username, is_admin: !!u.is_admin, must_change: !!u.must_change,
     permissions: userPerms(u).filter((p) => p !== '*'), job_title: u.job_title, department: u.department,
     phone: u.phone, location_ids: parseIds(u.location_ids), shift_start: u.shift_start, shift_end: u.shift_end, hire_date: u.hire_date,
-    nationality: u.nationality || '', manager_id: u.manager_id || null,
+    nationality: u.nationality || '', manager_id: u.manager_id || null, leave_profile_id: u.leave_profile_id || null,
     annual_leave_days: u.annual_leave_days, face_enrolled: !!u.face_descriptor, face_exempt: !!u.is_admin, active: !!u.active, pending: !!u.pending, email: u.email || '',
   };
 }
@@ -371,23 +360,77 @@ function tierDeduction(tiers, lateMin, dailyRate) {
   return t.kind === 'fixed' ? t.value : t.value * dailyRate;
 }
 
-// قيمة الإضافي: كل دقيقة بعد نهاية الشفت = قيمة الدقيقة (الافتراضي 2 جنيه). لو القيمة صفر نرجع لأجر الساعة × المعامل.
-function overtimePayFor(minutes, hourlyRate, st) {
-  const rate = parseFloat(st.overtime_minute_rate);
-  return rate > 0 ? round2(minutes * rate) : round2((minutes / 60) * hourlyRate * parseFloat(st.overtime_factor || 1.5));
+/* ---------- سياسات الحضور (جزاءات + وقت إضافي) المربوطة بمواعيد العمل ---------- */
+// السياسة بتتحدد من موعد العمل اللي بدايته ونهايته = وردية الموظف. لو مفيش سياسة مربوطة: بنرجع للإعدادات العامة زي ما كان.
+let _pctx = { at: 0, v: null };
+const invalidatePolicyCtx = () => { _pctx = { at: 0, v: null }; };
+async function getPolicyCtx() {
+  if (_pctx.v && Date.now() - _pctx.at < 5000) return _pctx.v;
+  const rows = (await db.all("SELECT * FROM config_items WHERE kind IN ('schedule','penalty_policy','overtime_policy','holiday','compensation_rule','leave_profile')")).map(parseCfg);
+  const live = (k) => Object.fromEntries(rows.filter((r) => r.kind === k && r.active && !r.archived).map((r) => [String(r.id), r]));
+  const list = (k) => rows.filter((r) => r.kind === k && r.active && !r.archived);
+  const v = {
+    schedules: rows.filter((r) => r.kind === 'schedule' && r.active), pen: live('penalty_policy'), ot: live('overtime_policy'),
+    holidays: list('holiday'), comp: list('compensation_rule'), profiles: live('leave_profile'),
+  };
+  _pctx = { at: Date.now(), v };
+  return v;
 }
-// الإضافي التلقائي: انصراف بعد معاد نهاية الشفت (مثلاً 5:05 والشفت بينتهي 5:00) = 5 دقايق إضافي في طلب وقت إضافي تلقائي
-async function syncAutoOvertime(u, date, outMin, st) {
-  const start = toMin(u.shift_start), end = toMin(u.shift_end);
-  const extra = outMin !== null && outMin !== undefined && end > start ? Math.max(0, outMin - end) : 0;
-  const ex = await db.get("SELECT * FROM requests WHERE user_id=? AND type='overtime' AND auto=1 AND from_date=?", u.id, date);
-  if (extra < 1) { if (ex && ex.status !== 'rejected') await db.run('DELETE FROM requests WHERE id=?', ex.id); return 0; }
-  if (ex) { if (ex.status !== 'rejected') await db.run('UPDATE requests SET hours=? WHERE id=?', extra / 60, ex.id); return extra; }
-  const auto = st.overtime_auto_approve !== '0';
-  await db.run('INSERT INTO requests(user_id,type,from_date,to_date,hours,reason,status,auto,decision_note,decided_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
-    u.id, 'overtime', date, date, extra / 60, `وقت إضافي تلقائي: ${extra} دقيقة بعد نهاية الشفت`, auto ? 'approved' : 'pending', 1, auto ? 'اعتماد تلقائي' : '', auto ? new Date().toISOString() : null);
-  return extra;
+const hhmm = (t) => { const [h, m] = String(t || '').split(':'); return `${Number(h)}:${String(Number(m) || 0).padStart(2, '0')}`; };
+function policiesFor(user, pctx) {
+  const same = pctx.schedules.filter((s) => hhmm(s.start) === hhmm(user.shift_start) && hhmm(s.end) === hhmm(user.shift_end));
+  const pick = (idKey, pool) => { for (const s of same) { const p = s[idKey] && pool[String(s[idKey])]; if (p) return p; } return null; };
+  return { pen: pick('penalty_id', pctx.pen), ot: pick('overtime_id', pctx.ot) };
 }
+const graceOf = (user, st, pctx) => {
+  const p = policiesFor(user, pctx).pen;
+  return p && Number.isFinite(Number(p.grace)) ? Number(p.grace) : parseInt(st.grace_minutes || 0, 10);
+};
+// خصم يوم تأخير واحد حسب شرائح السياسة:
+// "minutes" = (الدقائق داخل نطاق الشريحة ÷ 60 × أجر الساعة × المعامل) ، "fixed" / "day_fraction" = خصم ثابت للشريحة اللي التأخير وقع فيها
+function policyLate(p, late, dailyRate, hourlyRate) {
+  let total = 0;
+  for (const t of [...(p.tiers || [])].sort((a, b) => a.from - b.from)) {
+    const to = t.to === null || t.to === undefined ? Infinity : t.to;
+    if (late < t.from) break;
+    if (t.kind === 'minutes') total += ((Math.min(late, to) - t.from + 1) / 60) * hourlyRate * t.value;
+    else if (late <= to) total += t.kind === 'fixed' ? t.value : t.value * dailyRate;
+  }
+  return total;
+}
+// ساعات الوقت الإضافي المحتسبة لطلب واحد حسب السياسة (بعد حد البداية، ثم الحد اليومي، ثم التقريب)
+function policyOvertime(o, hours) {
+  if (!o) return hours;
+  if (!o.calc_on) return 0;
+  let h = Math.max(0, hours - (Number(o.after_min) || 0) / 60);
+  if (Number(o.cap_hours) > 0) h = Math.min(h, Number(o.cap_hours));
+  const unit = (Number(o.round_unit) || 15) / 60;
+  if (o.rounding === 'up') h = Math.ceil(h / unit - 1e-9) * unit;
+  else if (o.rounding === 'down') h = Math.floor(h / unit + 1e-9) * unit;
+  return h;
+}
+
+// أيام العطلات الرسمية داخل مدى معيّن (Map: تاريخ ← اسم العطلة)، مع دعم التكرار السنوي
+function holidayMap(pctx, first, last) {
+  const m = new Map();
+  const y0 = Number(first.slice(0, 4)), y1 = Number(last.slice(0, 4));
+  for (const h of pctx.holidays || []) {
+    if (!isDate(h.date)) continue;
+    const to = isDate(h.to) && h.to >= h.date ? h.to : h.date;
+    const span = [...eachDay(h.date, to)];
+    if (span.length > 366) continue;
+    const shifts = truthy(h.yearly) ? Array.from({ length: Math.max(1, y1 - y0 + 1) }, (_, i) => y0 + i - Number(h.date.slice(0, 4))) : [0];
+    for (const sh of shifts) for (const d of span) { const nd = sh ? `${Number(d.slice(0, 4)) + sh}${d.slice(4)}` : d; if (nd >= first && nd <= last) m.set(nd, h.name); }
+  }
+  return m;
+}
+// قاعدة التعويض المناسبة ليوم عمل فيه الموظف في عطلة رسمية أو إجازة أسبوعية (الأخص أولاً ثم "الاثنين")
+function compRuleFor(pctx, kinds) {
+  const rules = pctx.comp || [];
+  for (const k of kinds) { const r = rules.find((x) => x.applies === k); if (r) return r; }
+  return rules.find((x) => x.applies === 'both') || null;
+}
+const profileOf = (user, pctx) => (user.leave_profile_id && pctx.profiles && pctx.profiles[String(user.leave_profile_id)]) || null;
 
 /* ---------- حساب شهر لموظف (حضور + غياب + خصومات + مرتب) ---------- */
 async function computeMonth(user, month, st, tiers = []) {
@@ -395,48 +438,77 @@ async function computeMonth(user, month, st, tiers = []) {
   const today = tzParts().date;
   const upto = last < today ? last : today;
   const weekend = String(st.weekend_days || '').split(',').filter(Boolean).map(Number);
-  const [att, reqs, adj] = await Promise.all([
+  const [att, reqs, adj, pctx] = await Promise.all([
     db.all('SELECT * FROM attendance WHERE user_id=? AND date BETWEEN ? AND ?', user.id, first, last),
     db.all("SELECT * FROM requests WHERE user_id=? AND status='approved' AND to_date>=? AND from_date<=?", user.id, first, last),
     db.all('SELECT * FROM adjustments WHERE user_id=? AND month=? ORDER BY id', user.id, month),
+    getPolicyCtx(),
   ]);
+  const { pen, ot } = policiesFor(user, pctx);
+  const polGrace = pen && Number.isFinite(Number(pen.grace)) ? Number(pen.grace) : null;
   const attByDate = Object.fromEntries(att.map((a) => [a.date, a]));
-  const waived = new Set((await db.all('SELECT date,kind FROM penalty_flags WHERE user_id=? AND applied=0 AND date BETWEEN ? AND ?', user.id, first, last)).map((f) => f.date + '|' + f.kind));
   const covered = new Set();
-  let waivedLate = 0, waivedEarly = 0, waivedAbsent = 0;
-  let overtimeMinutes = 0, permissionHours = 0;
+  let overtimeHours = 0, permissionHours = 0;
   for (const r of reqs) {
     if (LEAVE_TYPES.includes(r.type)) for (const d of eachDay(r.from_date, r.to_date)) covered.add(d);
-    if (r.type === 'overtime' && r.from_date >= first && r.from_date <= last) overtimeMinutes += Math.round((r.hours || 0) * 60);
+    if (r.type === 'overtime' && r.from_date >= first && r.from_date <= last) overtimeHours += policyOvertime(ot, r.hours || 0);
     if (r.type === 'permission' && r.from_date >= first && r.from_date <= last) permissionHours += r.hours || 0;
   }
-  const shiftHours = Math.max(1, (toMin(user.shift_end) - toMin(user.shift_start)) / 60);
+  // ملف الإجازة والاستراحة: لو الاستراحة غير مدفوعة بتتشال من ساعات الوردية المدفوعة (بيرتفع أجر الساعة)
+  const prof = profileOf(user, pctx);
+  const unpaidBreak = prof && prof.break_paid === false ? Math.max(0, Number(prof.break_min) || 0) : 0;
+  const shiftHours = Math.max(1, (toMin(user.shift_end) - toMin(user.shift_start) - unpaidBreak) / 60);
   const dailyRate = user.base_salary / 30;
   const hourlyRate = dailyRate / shiftHours;
-  let presentDays = 0, absentDays = 0, leaveDays = 0, lateMinutes = 0, earlyMinutes = 0, workDays = 0, lateDays = 0, lateTierTotal = 0;
+  const hmap = holidayMap(pctx, first, last);
+  let presentDays = 0, absentDays = 0, leaveDays = 0, lateMinutes = 0, earlyMinutes = 0, workDays = 0, lateDays = 0, lateTierTotal = 0, partialDays = 0, partialTotal = 0;
+  let holidayDays = 0, offDaysWorked = 0, compDays = 0, compPay = 0;
   if (first <= upto) {
     for (const d of eachDay(first, upto)) {
       const dow = new Date(d + 'T00:00:00Z').getUTCDay();
-      if (weekend.includes(dow) || d < user.hire_date) continue;
+      if (d < user.hire_date) continue;
+      const isWeekend = weekend.includes(dow), hol = hmap.get(d);
+      // الإجازة الأسبوعية والعطلات الرسمية: مش يوم عمل (مفيش غياب ولا تأخير). ولو اشتغل فيها بتتطبق قاعدة التعويض
+      if (isWeekend || hol) {
+        if (hol && !isWeekend) holidayDays++;
+        const a0 = attByDate[d];
+        if (a0 && a0.check_in) {
+          const rule = compRuleFor(pctx, [...(hol ? ['holiday'] : []), ...(isWeekend ? ['weekend'] : [])]);
+          const hrs = a0.check_out ? Math.max(0, (toMin(a0.check_out) - toMin(a0.check_in)) / 60) : 0;
+          if (rule && hrs >= (Number(rule.min_hours) || 0) && (Number(rule.min_hours) > 0 ? !!a0.check_out : true)) {
+            offDaysWorked++;
+            if (rule.mode === 'time_off') compDays += Number(rule.days) || 1;
+            else compPay += dailyRate * (Number(rule.factor) || 0);
+          }
+        }
+        continue;
+      }
       workDays++;
       const a = attByDate[d];
       if (a && a.check_in) {
-        presentDays++; lateMinutes += a.late_minutes; earlyMinutes += a.early_minutes;
-        if (a.late_minutes > 0) { lateDays++; if (waived.has(d + '|late')) waivedLate += a.late_minutes; else lateTierTotal += tierDeduction(tiers, a.late_minutes, dailyRate); }
-        if (a.early_minutes > 0 && waived.has(d + '|early')) waivedEarly += a.early_minutes;
+        presentDays++;
+        // مع السياسة: السماحية بتاعتها هي المعتمدة، وسماحية الانصراف المبكر
+        const lm = polGrace !== null && a.late_minutes <= polGrace ? 0 : a.late_minutes;
+        const em = pen && a.early_minutes <= (Number(pen.early_grace) || 0) ? 0 : a.early_minutes;
+        lateMinutes += lm; earlyMinutes += em;
+        if (lm > 0) { lateDays++; lateTierTotal += pen ? policyLate(pen, lm, dailyRate, hourlyRate) : tierDeduction(tiers, lm, dailyRate); }
+        // انصراف ناقص: يوم فات فيه حضور من غير انصراف
+        if (pen && pen.partial_on && !a.check_out && d < today) {
+          partialDays++; partialTotal += pen.partial_kind === 'fixed' ? Number(pen.partial_value) || 0 : (Number(pen.partial_value) || 0) * dailyRate;
+        }
       }
       else if (covered.has(d)) leaveDays++;
-      else if (d < today) { absentDays++; if (waived.has(d + '|absent')) waivedAbsent++; }
+      else if (d < today) absentDays++;
     }
   }
   const lateFactor = parseFloat(st.late_factor || 1);
   // لو فيه شرائح: التأخير بيتخصم حسبها. لو مفيش: بالدقيقة (دقائق التأخير ÷ 60 × أجر الساعة)
-  const lateOnly = tiers.length ? lateTierTotal : ((lateMinutes - waivedLate) / 60) * hourlyRate * lateFactor;
-  const earlyDeduction = ((earlyMinutes - waivedEarly) / 60) * hourlyRate * lateFactor;
-  const lateDeduction = round2(lateOnly + earlyDeduction);
-  const absenceDeduction = round2((absentDays - waivedAbsent) * dailyRate * parseFloat(st.absence_factor || 1));
-  const overtimeHours = overtimeMinutes / 60;
-  const overtimePay = overtimePayFor(overtimeMinutes, hourlyRate, st);
+  // لو الموظف وردية مربوطة بسياسة جزاءات: السياسة هي اللي بتحكم (شرائحها + تفعيل كل بند). غير كده: الإعدادات العامة زي ما كانت.
+  const lateOnly = pen ? (pen.late_on ? lateTierTotal : 0) : (tiers.length ? lateTierTotal : (lateMinutes / 60) * hourlyRate * lateFactor);
+  const earlyDeduction = pen ? (pen.early_on ? (earlyMinutes / 60) * hourlyRate * (Number(pen.early_factor) || 0) : 0) : (earlyMinutes / 60) * hourlyRate * lateFactor;
+  const lateDeduction = round2(lateOnly + earlyDeduction + partialTotal);
+  const absenceDeduction = round2(absentDays * dailyRate * (pen ? Number(pen.absence_factor) || 0 : parseFloat(st.absence_factor || 1)));
+  const overtimePay = round2(overtimeHours * hourlyRate * (ot ? Number(ot.factor) || 0 : parseFloat(st.overtime_factor || 1.5)));
   const sumKind = (k) => round2(adj.filter((a) => a.kind === k).reduce((s, a) => s + a.amount, 0));
   const bonuses = sumKind('bonus'), manualDeductions = sumKind('deduction'), penalties = sumKind('penalty');
   // المرتب بيتحسب يوم بيوم: كل يوم بيعدّي (من أول الشهر أو من تاريخ التعيين) بيستحق فيه الموظف أجر يوم = (الأساسي + البدلات) ÷ 30
@@ -445,14 +517,17 @@ async function computeMonth(user, month, st, tiers = []) {
   const elapsed = startAcc <= upto ? [...eachDay(startAcc, upto)].length : 0;
   const accruedDays = last < today && user.hire_date <= first ? 30 : Math.min(30, elapsed);
   const accruedBasic = round2((user.base_salary / 30) * accruedDays), accruedAllowances = round2((user.allowances / 30) * accruedDays);
-  const gross = round2(accruedBasic + accruedAllowances + bonuses + overtimePay);
+  const compensationPay = round2(compPay);
+  const gross = round2(accruedBasic + accruedAllowances + bonuses + overtimePay + compensationPay);
   const totalDeductions = round2(lateDeduction + absenceDeduction + manualDeductions + penalties);
   return {
     user_id: user.id, name: user.name, job_title: user.job_title, department: user.department, month,
     base_salary: user.base_salary, allowances: user.allowances, accrued_days: accruedDays, accrued_basic: accruedBasic, accrued_allowances: accruedAllowances,
     daily_rate: round2(dailyRate),
     work_days: workDays, present_days: presentDays, absent_days: absentDays, leave_days: leaveDays,
-    late_days: lateDays, late_minutes: lateMinutes, early_minutes: earlyMinutes, overtime_hours: overtimeHours, permission_hours: permissionHours,
+    late_days: lateDays, late_minutes: lateMinutes, early_minutes: earlyMinutes, partial_days: partialDays, overtime_hours: overtimeHours, permission_hours: permissionHours,
+    penalty_policy: pen ? pen.name : null, overtime_policy: ot ? ot.name : null, leave_profile: prof ? prof.name : null,
+    holiday_days: holidayDays, off_days_worked: offDaysWorked, comp_days: compDays, compensation_pay: compensationPay,
     overtime_pay: overtimePay, bonuses, late_deduction: lateDeduction, absence_deduction: absenceDeduction,
     manual_deductions: manualDeductions, penalties, gross, total_deductions: totalDeductions,
     net: round2(gross - totalDeductions), adjustments: adj,
@@ -574,7 +649,7 @@ app.get('/api/me', auth, wrap(async (req, res) => {
     user: publicUser(req.user), today: today || null, today_date: date, unread: unread.c,
     settings: {
       company_name: st.company_name, face_threshold: parseFloat(st.face_threshold),
-      weekend_days: st.weekend_days, grace_minutes: parseInt(st.grace_minutes || 0, 10),
+      weekend_days: st.weekend_days, grace_minutes: graceOf(req.user, st, await getPolicyCtx()),
       needs_geo: locs.length > 0, locations: locs.map((l) => l.name),
     },
   });
@@ -599,8 +674,6 @@ app.post('/api/me/face', auth, wrap(async (req, res) => {
 
 /* ----- تسجيل الحضور والانصراف ----- */
 app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
-  // تسجيل الحضور والانصراف من التطبيق المثبّت فقط (التطبيق بيبعت الهيدر ده)
-  if (req.get('x-app-mode') !== '1') return res.status(403).json({ error: 'تسجيل الحضور والانصراف من التطبيق فقط. افتحي التطبيق المثبّت على موبايلك.' });
   const { type, lat, lng, descriptor } = req.body || {};
   if (!['in', 'out'].includes(type)) return res.status(400).json({ error: 'نوع غير صالح' });
   const u = req.user, st = await settings();
@@ -628,7 +701,7 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
   const iso = new Date().toISOString();
   if (type === 'in') {
     if (rec && rec.check_in) return res.status(409).json({ error: 'تم تسجيل الحضور اليوم بالفعل' });
-    const start = toMin(u.shift_start), grace = parseInt(st.grace_minutes || 0, 10);
+    const start = toMin(u.shift_start), grace = graceOf(u, st, await getPolicyCtx());
     const late = now.minutes > start + grace ? now.minutes - start : 0;
     try {
       if (rec) await db.run('UPDATE attendance SET check_in=?,in_lat=?,in_lng=?,in_face=?,late_minutes=?,in_loc=? WHERE id=?', iso, la, ln, score, late, where, rec.id);
@@ -642,7 +715,6 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
     if (rec.check_out) return res.status(409).json({ error: 'تم تسجيل الانصراف اليوم بالفعل' });
     const early = Math.max(0, toMin(u.shift_end) - now.minutes);
     await db.run('UPDATE attendance SET check_out=?,out_lat=?,out_lng=?,out_face=?,early_minutes=?,out_loc=? WHERE id=?', iso, la, ln, score, early, where, rec.id);
-    await syncAutoOvertime(u, now.date, now.minutes, st);
   }
   res.json({ ok: true, record: await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date) });
 }));
@@ -663,19 +735,56 @@ app.get('/api/requests/mine', auth, wrap(async (req, res) => {
     typeSum('annual_leave'), typeSum('sick_leave'), typeSum('emergency_leave'),
     db.get("SELECT COALESCE(SUM(hours),0) AS h FROM requests WHERE user_id=? AND type='permission' AND status='approved' AND from_date LIKE ?", req.user.id, tzParts().date.slice(0, 7) + '%'),
   ]);
+  const prof = profileOf(req.user, await getPolicyCtx());
   res.json({
     requests: rows,
     balances: {
-      annual_total: req.user.annual_leave_days, annual_used: used,
+      annual_total: prof ? Number(prof.annual) : req.user.annual_leave_days, annual_used: used,
+      sick_total: prof ? Number(prof.sick) || 0 : 0, emergency_total: prof ? Number(prof.emergency) || 0 : 0,
       sick_used: sick, emergency_used: emergency, permission_hours_month: Number(perm.h),
     },
   });
 }));
 
+// قواعد الإجازات: رصيد «ملف الإجازة» المربوط بالموظف + «قواعد الحد من أيام العطلات» (أقصى مدة / أقصى عدد في نفس اليوم / فترات منع)
+const LIMITED_LEAVES = ['annual_leave', 'sick_leave', 'emergency_leave'];
+async function checkLeaveRules(user, type, from, to) {
+  if (!LIMITED_LEAVES.includes(type)) return null;
+  const days = [...eachDay(from, to)];
+  const pctx = await getPolicyCtx();
+  const prof = profileOf(user, pctx);
+  if (prof) {
+    const key = { annual_leave: 'annual', sick_leave: 'sick', emergency_leave: 'emergency' }[type];
+    const cap = Number(prof[key]) || 0;
+    if (cap > 0 || key === 'annual') {
+      const rows = await db.all("SELECT from_date,to_date FROM requests WHERE user_id=? AND type=? AND status IN ('approved','pending') AND from_date LIKE ?", user.id, type, from.slice(0, 4) + '%');
+      const used = rows.reduce((s, r) => s + [...eachDay(r.from_date, r.to_date)].length, 0);
+      if (used + days.length > cap) return `رصيد ${REQUEST_TYPES[type]} في ملف «${prof.name}» ${cap} يوم، المستخدم والمحجوز ${used} والمطلوب ${days.length}`;
+    }
+  }
+  const rules = (await db.all("SELECT * FROM config_items WHERE kind='holiday_limit' AND active=1")).map(parseCfg).filter((r) => !r.archived && (r.types || []).includes(type));
+  for (const r of rules) {
+    if (r.rule === 'max_consecutive' && days.length > r.value) return `قاعدة «${r.name}»: أقصى مدة للطلب الواحد ${r.value} يوم`;
+    if (r.rule === 'blackout' && from <= r.to && to >= r.from) return `قاعدة «${r.name}»: الإجازات ممنوعة من ${r.from} إلى ${r.to}`;
+    if (r.rule === 'max_concurrent') {
+      const dept = r.scope === 'department';
+      const others = await db.all(`SELECT q.from_date, q.to_date FROM requests q JOIN users u ON u.id=q.user_id WHERE q.user_id<>? AND q.status IN ('approved','pending')
+        AND q.type IN ('annual_leave','sick_leave','emergency_leave') AND q.from_date<=? AND q.to_date>=? ${dept ? 'AND u.department=?' : ''}`, user.id, to, from, ...(dept ? [user.department || ''] : []));
+      for (const d of days) {
+        const n = others.filter((o) => o.from_date <= d && o.to_date >= d).length;
+        if (n + 1 > r.value) return `قاعدة «${r.name}»: ${dept ? 'في نفس القسم' : 'في الشركة'} يوم ${d} فيه ${n} في إجازة بالفعل والحد الأقصى ${r.value}`;
+      }
+    }
+  }
+  return null;
+}
+
 app.post('/api/requests', auth, wrap(async (req, res) => {
   const { type, from_date, to_date, hours = 0, reason = '' } = req.body || {};
   if (!REQUEST_TYPES[type]) return res.status(400).json({ error: 'نوع الطلب غير صالح' });
   if (!isDate(from_date) || !isDate(to_date) || to_date < from_date) return res.status(400).json({ error: 'التواريخ غير صحيحة' });
+  const ruleErr = await checkLeaveRules(req.user, type, from_date, to_date);
+  if (ruleErr) return res.status(400).json({ error: ruleErr });
   if (['overtime', 'permission'].includes(type) && !(Number(hours) > 0 && Number(hours) <= 24)) return res.status(400).json({ error: 'حددي عدد الساعات' });
   const id = await db.insert('INSERT INTO requests(user_id,type,from_date,to_date,hours,reason) VALUES(?,?,?,?,?,?)',
     req.user.id, type, from_date, ['overtime', 'permission', 'attendance_edit'].includes(type) ? from_date : to_date, Number(hours) || 0, String(reason).slice(0, 500));
@@ -722,217 +831,27 @@ app.post('/api/notifications/read', auth, wrap(async (req, res) => {
 }));
 
 /* ----- لوحة المعلومات ----- */
-/* ----- لوحة المعلومات ----- */
-const locIds = (u) => { try { return JSON.parse(u.location_ids || '[]'); } catch { return []; } };
-async function dashUsers(q) {
-  let users = await db.all('SELECT * FROM users WHERE active=1 AND is_admin=0 AND pending=0');
-  const office = toId(q.office);
-  if (office) users = users.filter((u) => { const l = locIds(u); return !l.length || l.includes(office); });
-  if (q.dept) users = users.filter((u) => u.department === String(q.dept));
-  if (q.job) users = users.filter((u) => u.job_title === String(q.job));
-  return users;
-}
-function dashRange(q) {
-  const today = tzParts().date;
-  let from = isDate(q.from) ? q.from : today.slice(0, 7) + '-01', to = isDate(q.to) ? q.to : today;
-  if (from > to) [from, to] = [to, from];
-  const lim = new Date(from + 'T00:00:00Z'); lim.setUTCDate(lim.getUTCDate() + 400);
-  if (to > lim.toISOString().slice(0, 10)) to = lim.toISOString().slice(0, 10);
-  return { from, to, today };
-}
-async function dashData(users, from, to) {
-  const ids = new Set(users.map((u) => u.id));
-  const [attAll, reqAll] = await Promise.all([
-    db.all('SELECT * FROM attendance WHERE date BETWEEN ? AND ?', from, to),
-    db.all("SELECT * FROM requests WHERE status='approved' AND to_date>=? AND from_date<=?", from, to),
-  ]);
-  const att = new Map(), covered = new Set(), ot = new Map();
-  for (const a of attAll) if (ids.has(a.user_id)) att.set(a.user_id + '|' + a.date, a);
-  for (const r of reqAll) {
-    if (!ids.has(r.user_id)) continue;
-    if (LEAVE_TYPES.includes(r.type)) for (const d of eachDay(r.from_date < from ? from : r.from_date, r.to_date > to ? to : r.to_date)) covered.add(r.user_id + '|' + d);
-    if (r.type === 'overtime' && r.from_date >= from && r.from_date <= to) ot.set(r.user_id, (ot.get(r.user_id) || 0) + Math.round((r.hours || 0) * 60));
-  }
-  return { att, covered, ot };
-}
-const isWeekend = (st, d) => String(st.weekend_days || '').split(',').filter(Boolean).map(Number).includes(new Date(d + 'T00:00:00Z').getUTCDay());
-// حضور/تأخير/غياب/إجازة لكل يوم في المدى
-app.get('/api/dash/daily', auth, need('dashboard.view'), wrap(async (req, res) => {
-  const { from, to, today } = dashRange(req.query);
-  const [st, users] = await Promise.all([settings(), dashUsers(req.query)]);
-  const { att, covered } = await dashData(users, from, to);
-  const days = [];
-  for (const d of eachDay(from, to)) {
-    const row = { date: d, present: 0, late: 0, absent: 0, leave: 0 };
-    if (!isWeekend(st, d)) for (const u of users) {
-      if (d < u.hire_date) continue;
-      const a = att.get(u.id + '|' + d);
-      if (a && a.check_in) a.late_minutes > 0 ? row.late++ : row.present++;
-      else if (covered.has(u.id + '|' + d)) row.leave++;
-      else if (d < today) row.absent++;
-    }
-    days.push(row);
-  }
-  res.json({ days });
-}));
-// الطلبات حسب النوع والحالة
-app.get('/api/dash/requests', auth, need('dashboard.view'), wrap(async (req, res) => {
-  const { from, to } = dashRange(req.query);
-  const users = await dashUsers(req.query), ids = new Set(users.map((u) => u.id));
-  const only = REQUEST_TYPES[req.query.type] ? req.query.type : null;
-  const rows = Object.entries(REQUEST_TYPES).filter(([k]) => !only || k === only).map(([k, label]) => ({ type: k, label, total: 0, pending: 0, approved: 0, rejected: 0 }));
-  const by = Object.fromEntries(rows.map((r) => [r.type, r]));
-  for (const r of await db.all('SELECT user_id,type,status FROM requests WHERE from_date BETWEEN ? AND ?', from, to)) {
-    if (!ids.has(r.user_id) || !by[r.type]) continue;
-    by[r.type].total++; if (r.status in by[r.type]) by[r.type][r.status]++;
-  }
-  const totals = rows.reduce((t, r) => ({ total: t.total + r.total, pending: t.pending + r.pending, approved: t.approved + r.approved, rejected: t.rejected + r.rejected }), { total: 0, pending: 0, approved: 0, rejected: 0 });
-  res.json({ rows, totals, types: Object.entries(REQUEST_TYPES) });
-}));
-// توزيع تسجيلات الحضور والانصراف على ساعات اليوم
-app.get('/api/dash/hourly', auth, need('dashboard.view'), wrap(async (req, res) => {
-  const { from, to } = dashRange(req.query);
-  const users = await dashUsers(req.query), ids = new Set(users.map((u) => u.id));
-  const inn = Array(24).fill(0), out = Array(24).fill(0);
-  for (const a of await db.all('SELECT user_id,check_in,check_out FROM attendance WHERE date BETWEEN ? AND ?', from, to)) {
-    if (!ids.has(a.user_id)) continue;
-    if (a.check_in) inn[Math.floor(tzParts(new Date(a.check_in)).minutes / 60)]++;
-    if (a.check_out) out[Math.floor(tzParts(new Date(a.check_out)).minutes / 60)]++;
-  }
-  res.json({ in: inn, out });
-}));
-// جزاءات الحضور (غياب/تأخير/انصراف مبكر) يوم بيوم، مع حالة التطبيق على المرتب
-app.get('/api/att/penalties', auth, need('attendance.view_all'), wrap(async (req, res) => {
-  const { from, to, today } = dashRange(req.query);
-  const [st, tiers, all] = await Promise.all([settings(), getTiers(), dashUsers(req.query)]);
-  const uid = toId(req.query.user_id), users = uid ? all.filter((u) => u.id === uid) : all;
-  const { att, covered } = await dashData(users, from, to);
-  const flags = new Map((await db.all('SELECT * FROM penalty_flags WHERE date BETWEEN ? AND ?', from, to)).map((f) => [`${f.user_id}|${f.date}|${f.kind}`, f]));
-  const lateFactor = parseFloat(st.late_factor || 1), rows = [];
-  const push = (u, d, kind, reason, value, unit) => {
-    const f = flags.get(`${u.id}|${d}|${kind}`);
-    rows.push({ user_id: u.id, user_name: u.name, department: u.department || '', date: d, kind, reason, value, unit, from: 'المرتب', applied: f ? !!f.applied : true, by: f ? f.by_name : '', at: f ? f.at : null, note: f ? f.note : '' });
-  };
-  for (const d of eachDay(from, to < today ? to : today)) {
-    if (isWeekend(st, d)) continue;
-    for (const u of users) {
-      if (d < u.hire_date) continue;
-      const a = att.get(u.id + '|' + d);
-      if (a && a.check_in) {
-        if (a.late_minutes > 0) {
-          if (tiers.length) { const t = tiers.find((x) => a.late_minutes >= x.from_minutes && (x.to_minutes === null || a.late_minutes <= x.to_minutes)); if (t) push(u, d, 'late', `جزاء التأخير (${a.late_minutes} دقيقة)`, t.value, t.kind === 'fixed' ? 'جنيه' : 'الأيام'); }
-          else push(u, d, 'late', `جزاء التأخير (${a.late_minutes} دقيقة)`, round2((a.late_minutes / 60) * lateFactor), 'الساعات');
-        }
-        if (a.early_minutes > 0) push(u, d, 'early', 'جزاء تسجيل الانصراف مبكرًا', round2((a.early_minutes / 60) * lateFactor), 'الساعات');
-      } else if (!covered.has(u.id + '|' + d) && d < today) push(u, d, 'absent', 'غائب - عدم الحضور', parseFloat(st.absence_factor || 1), 'الأيام');
-    }
-  }
-  const reason = ['absent', 'late', 'early'].includes(req.query.reason) ? req.query.reason : null;
-  res.json({ rows: rows.filter((r) => !reason || r.kind === reason).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.user_name.localeCompare(b.user_name))).slice(0, 3000) });
-}));
-app.post('/api/att/penalties/flag', auth, need('attendance.edit'), wrap(async (req, res) => {
-  const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 500) : [];
-  const applied = req.body.applied === false || req.body.applied === 0 ? 0 : 1, note = String(req.body.note || '').slice(0, 200);
-  if (!items.length) return res.status(400).json({ error: 'اختاري عنصر واحد على الأقل' });
-  for (const it of items) {
-    const uid = toId(it.user_id);
-    if (!uid || !isDate(it.date) || !['absent', 'late', 'early'].includes(it.kind)) return res.status(400).json({ error: 'بيانات غير صحيحة' });
-    if (!(await db.get('SELECT id FROM users WHERE id=?', uid))) return res.status(404).json({ error: 'موظف غير موجود' });
-    await db.run(`INSERT INTO penalty_flags(user_id,date,kind,applied,note,by_user,by_name,at) VALUES(?,?,?,?,?,?,?,?)
-      ON CONFLICT(user_id,date,kind) DO UPDATE SET applied=excluded.applied, note=excluded.note, by_user=excluded.by_user, by_name=excluded.by_name, at=excluded.at`,
-      uid, it.date, it.kind, applied, note, req.user.id, req.user.name, new Date().toISOString());
-  }
-  res.json({ ok: true, count: items.length });
-}));
-// تقويم العمل: حالة كل يوم في الشهر (حضور/تأخير/غياب/إجازة) + العطلات الأسبوعية والرسمية
-app.get('/api/att/calendar', auth, need('attendance.view_all'), wrap(async (req, res) => {
-  const month = isMonth(req.query.month) ? req.query.month : tzParts().date.slice(0, 7);
-  const [first, last] = monthRange(month), today = tzParts().date;
-  const [st, users, hol] = await Promise.all([settings(), dashUsers({}), db.all("SELECT name,data FROM config_items WHERE kind='holiday' AND active=1")]);
-  const { att, covered } = await dashData(users, first, last);
-  const holidays = hol.map((h) => { let d = {}; try { d = JSON.parse(h.data); } catch { /* تجاهل */ } return { name: h.name, from: d.date, to: d.to || d.date }; }).filter((h) => isDate(h.from));
-  const days = [];
-  for (const d of eachDay(first, last)) {
-    const row = { date: d, present: 0, late: 0, absent: 0, leave: 0, weekend: isWeekend(st, d), holidays: holidays.filter((h) => d >= h.from && d <= h.to).map((h) => h.name) };
-    if (!row.weekend && !row.holidays.length) for (const u of users) {
-      if (d < u.hire_date) continue;
-      const a = att.get(u.id + '|' + d);
-      if (a && a.check_in) a.late_minutes > 0 ? row.late++ : row.present++;
-      else if (covered.has(u.id + '|' + d)) row.leave++;
-      else if (d < today) row.absent++;
-    }
-    days.push(row);
-  }
-  res.json({ month, days, employees: users.length });
-}));
-// سجل رصيد الإجازات السنوية
-app.get('/api/att/balance', auth, need('attendance.view_all'), wrap(async (req, res) => {
-  const year = /^\d{4}$/.test(req.query.year || '') ? req.query.year : tzParts().date.slice(0, 4);
-  const uid = toId(req.query.user_id), users = (await dashUsers({})).filter((u) => !uid || u.id === uid), ids = new Set(users.map((u) => u.id));
-  const reqs = (await db.all("SELECT * FROM requests WHERE status='approved' AND type IN ('annual_leave','sick_leave','emergency_leave') AND from_date LIKE ? ORDER BY from_date", year + '%')).filter((r) => ids.has(r.user_id));
-  const rows = [];
-  for (const u of users) {
-    let bal = u.annual_leave_days;
-    rows.push({ user_id: u.id, user_name: u.name, date: `${year}-01-01`, type: 'رصيد افتتاحي', days: u.annual_leave_days, change: u.annual_leave_days, balance: bal });
-    for (const r of reqs.filter((x) => x.user_id === u.id)) {
-      const days = [...eachDay(r.from_date, r.to_date)].length, annual = r.type === 'annual_leave';
-      if (annual) bal -= days;
-      rows.push({ user_id: u.id, user_name: u.name, date: r.from_date, type: REQUEST_TYPES[r.type], days, change: annual ? -days : 0, balance: bal });
-    }
-  }
-  res.json({ year, rows });
-}));
-
-// تجميع لكل موظف في المدى: غياب، تأخير، إضافي، ساعات عمل، وقيمها بالفلوس (بنفس معادلات كشف المرتب)
-app.get('/api/dash/agg', auth, need('dashboard.view'), wrap(async (req, res) => {
-  const { from, to, today } = dashRange(req.query);
-  const [st, tiers, users] = await Promise.all([settings(), getTiers(), dashUsers(req.query)]);
-  const { att, covered, ot } = await dashData(users, from, to);
-  const wv = new Set((await db.all('SELECT user_id,date,kind FROM penalty_flags WHERE applied=0 AND date BETWEEN ? AND ?', from, to)).map((f) => `${f.user_id}|${f.date}|${f.kind}`));
-  const upto = to < today ? to : today, lateFactor = parseFloat(st.late_factor || 1);
-  const list = users.map((u) => {
-    const shiftHours = Math.max(1, (toMin(u.shift_end) - toMin(u.shift_start)) / 60), dailyRate = u.base_salary / 30, hourlyRate = dailyRate / shiftHours;
-    let absentDays = 0, lateMinutes = 0, earlyMinutes = 0, tierTotal = 0, worked = 0;
-    if (from <= upto) for (const d of eachDay(from, upto)) {
-      if (isWeekend(st, d) || d < u.hire_date) continue;
-      const a = att.get(u.id + '|' + d);
-      if (a && a.check_in) {
-        if (!wv.has(`${u.id}|${d}|late`)) { lateMinutes += a.late_minutes; if (a.late_minutes > 0) tierTotal += tierDeduction(tiers, a.late_minutes, dailyRate); }
-        if (!wv.has(`${u.id}|${d}|early`)) earlyMinutes += a.early_minutes;
-        if (a.check_out) worked += Math.max(0, (new Date(a.check_out) - new Date(a.check_in)) / 60000);
-      } else if (!covered.has(u.id + '|' + d) && d < today && !wv.has(`${u.id}|${d}|absent`)) absentDays++;
-    }
-    const lateOnly = tiers.length ? tierTotal : (lateMinutes / 60) * hourlyRate * lateFactor;
-    const otMin = ot.get(u.id) || 0;
-    return { id: u.id, name: u.name, department: u.department || '', job_title: u.job_title || '', absent_days: absentDays, late_minutes: lateMinutes,
-      absence_deduction: round2(absentDays * dailyRate * parseFloat(st.absence_factor || 1)), late_deduction: round2(lateOnly + (earlyMinutes / 60) * hourlyRate * lateFactor),
-      overtime_minutes: otMin, overtime_pay: overtimePayFor(otMin, hourlyRate, st), worked_minutes: Math.round(worked) };
-  });
-  const ids = new Set(users.map((u) => u.id));
-  const adj = (await db.all('SELECT user_id,month,kind,amount FROM adjustments WHERE month BETWEEN ? AND ?', from.slice(0, 7), to.slice(0, 7))).filter((a) => ids.has(a.user_id));
-  res.json({ users: list, adj, currency: st.currency, ot_rate: parseFloat(st.overtime_minute_rate) || 0 });
-}));
-
 app.get('/api/dashboard', auth, need('dashboard.view'), wrap(async (req, res) => {
   const now = tzParts();
-  const [st, users, attRows, leaveRows, pending] = await Promise.all([
+  const [st, users, attRows, leaveRows, pending, pctx] = await Promise.all([
     settings(),
-    dashUsers(req.query),
+    db.all('SELECT * FROM users WHERE active=1 AND is_admin=0'),
     db.all('SELECT * FROM attendance WHERE date=?', now.date),
     db.all("SELECT user_id FROM requests WHERE status='approved' AND from_date<=? AND to_date>=? AND type IN ('annual_leave','sick_leave','emergency_leave','work_mission')", now.date, now.date),
     db.get("SELECT COUNT(*)::int AS c FROM requests WHERE status='pending'"),
+    getPolicyCtx(),
   ]);
   const att = Object.fromEntries(attRows.map((a) => [a.user_id, a]));
   const leaves = leaveRows.map((r) => r.user_id);
   const dow = new Date(now.date + 'T00:00:00Z').getUTCDay();
-  const weekendToday = String(st.weekend_days).split(',').map(Number).includes(dow);
+  const weekendToday = String(st.weekend_days).split(',').map(Number).includes(dow) || holidayMap(pctx, now.date, now.date).has(now.date);
   const list = users.map((u) => {
     const a = att[u.id];
     let status = 'absent';
     if (a && a.check_in) status = a.late_minutes > 0 ? 'late' : 'present';
     else if (leaves.includes(u.id)) status = 'leave';
     else if (weekendToday) status = 'off';
-    else if (now.minutes < toMin(u.shift_start) + parseInt(st.grace_minutes || 0, 10)) status = 'not_yet';
+    else if (now.minutes < toMin(u.shift_start) + graceOf(u, st, pctx)) status = 'not_yet';
     return { id: u.id, name: u.name, job_title: u.job_title, department: u.department, status, check_in: a?.check_in || null, check_out: a?.check_out || null, late_minutes: a?.late_minutes || 0 };
   });
   const count = (s) => list.filter((x) => x.status === s).length;
@@ -940,13 +859,12 @@ app.get('/api/dashboard', auth, need('dashboard.view'), wrap(async (req, res) =>
     date: now.date, total: list.length, present: count('present'), late: count('late'), absent: count('absent'),
     leave: count('leave'), not_yet: count('not_yet'), off: count('off'),
     pending_requests: pending.c,
-    no_schedule: users.filter((u) => !u.shift_start || !u.shift_end).length,
     missing_face: users.filter((u) => !u.face_descriptor && !u.is_admin).length, list,
   });
 }));
 
 /* ----- الموظفون ----- */
-const EMP_FIELDS = ['name', 'job_title', 'department', 'phone', 'base_salary', 'allowances', 'shift_start', 'shift_end', 'hire_date', 'annual_leave_days', 'nationality', 'manager_id'];
+const EMP_FIELDS = ['name', 'job_title', 'department', 'phone', 'base_salary', 'allowances', 'shift_start', 'shift_end', 'hire_date', 'annual_leave_days', 'nationality', 'manager_id', 'leave_profile_id'];
 function validateEmp(b, partial) {
   if (!partial && (!b.name || !b.username || !b.password)) return 'الاسم واسم المستخدم وكلمة المرور مطلوبين';
   if (b.password !== undefined && String(b.password).length < 6) return 'كلمة المرور 6 أحرف على الأقل';
@@ -957,13 +875,13 @@ function validateEmp(b, partial) {
 }
 // حالة كل موظف النهارده (حاضر / متأخر / غائب / إجازة / عطلة / لسه ما سجّلش)
 async function todayStatusMap(users) {
-  const now = tzParts(), st = await settings();
+  const now = tzParts(), st = await settings(), pctx = await getPolicyCtx();
   const [attRows, leaveRows] = await Promise.all([
     db.all('SELECT * FROM attendance WHERE date=?', now.date),
     db.all("SELECT user_id FROM requests WHERE status='approved' AND from_date<=? AND to_date>=? AND type IN ('annual_leave','sick_leave','emergency_leave','work_mission')", now.date, now.date),
   ]);
   const att = Object.fromEntries(attRows.map((a) => [a.user_id, a])), leaves = new Set(leaveRows.map((r) => r.user_id));
-  const weekendToday = String(st.weekend_days).split(',').map(Number).includes(new Date(now.date + 'T00:00:00Z').getUTCDay());
+  const weekendToday = String(st.weekend_days).split(',').map(Number).includes(new Date(now.date + 'T00:00:00Z').getUTCDay()) || holidayMap(pctx, now.date, now.date).has(now.date);
   const out = {};
   for (const u of users) {
     const a = att[u.id];
@@ -971,7 +889,7 @@ async function todayStatusMap(users) {
     if (a && a.check_in) status = a.late_minutes > 0 ? 'late' : 'present';
     else if (leaves.has(u.id)) status = 'leave';
     else if (weekendToday) status = 'off';
-    else if (now.minutes < toMin(u.shift_start) + parseInt(st.grace_minutes || 0, 10)) status = 'not_yet';
+    else if (now.minutes < toMin(u.shift_start) + graceOf(u, st, pctx)) status = 'not_yet';
     out[u.id] = { status, check_in: a?.check_in || null, check_out: a?.check_out || null, late_minutes: a?.late_minutes || 0 };
   }
   return out;
@@ -1015,7 +933,7 @@ app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, r
   for (const f of EMP_FIELDS) {
     if (b[f] === undefined) continue;
     sets.push(`${f}=?`);
-    vals.push(['base_salary', 'allowances'].includes(f) ? Number(b[f]) : f === 'annual_leave_days' ? parseInt(b[f], 10) : f === 'manager_id' ? (toId(b[f]) === u.id ? null : toId(b[f])) : f === 'nationality' ? String(b[f]).slice(0, 40) : b[f]);
+    vals.push(['base_salary', 'allowances'].includes(f) ? Number(b[f]) : f === 'annual_leave_days' ? parseInt(b[f], 10) : f === 'manager_id' ? (toId(b[f]) === u.id ? null : toId(b[f])) : f === 'leave_profile_id' ? toId(b[f]) : f === 'nationality' ? String(b[f]).slice(0, 40) : b[f]);
   }
   if (b.location_ids !== undefined) {
     const ids = parseIds(JSON.stringify(b.location_ids));
@@ -1120,20 +1038,17 @@ app.post('/api/attendance', auth, need('attendance.edit'), wrap(async (req, res)
   if (!u || !isDate(date)) return res.status(400).json({ error: 'بيانات غير صحيحة' });
   const mk = (t) => (t ? new Date(`${date}T${t}:00+03:00`).toISOString() : null);
   const ci = mk(check_in), co = mk(check_out);
-  const grace = parseInt((await settings()).grace_minutes || 0, 10);
-  const late = check_in && toMin(check_in) > toMin(u.shift_start) + grace ? toMin(check_in) - toMin(u.shift_start) : 0;
+  const grace = graceOf(u, await settings(), await getPolicyCtx());
+  const late = check_in &&toMin(check_in) > toMin(u.shift_start) + grace ? toMin(check_in) - toMin(u.shift_start) : 0;
   const early = check_out ? Math.max(0, toMin(u.shift_end) - toMin(check_out)) : 0;
   await db.run(`INSERT INTO attendance(user_id,date,check_in,check_out,late_minutes,early_minutes,note) VALUES(?,?,?,?,?,?,?)
     ON CONFLICT(user_id,date) DO UPDATE SET check_in=excluded.check_in, check_out=excluded.check_out, late_minutes=excluded.late_minutes, early_minutes=excluded.early_minutes, note=excluded.note`,
     u.id, date, ci, co, late, early, String(note).slice(0, 200));
-  await syncAutoOvertime(u, date, check_out ? toMin(check_out) : null, await settings());
   res.json({ ok: true });
 }));
 app.delete('/api/attendance/:id', auth, need('attendance.edit'), wrap(async (req, res) => {
   const id = toId(req.params.id);
-  const a = id && await db.get('SELECT * FROM attendance WHERE id=?', id);
   if (id) await db.run('DELETE FROM attendance WHERE id=?', id);
-  if (a) { const u = await db.get('SELECT * FROM users WHERE id=?', a.user_id); if (u) await syncAutoOvertime(u, a.date, null, await settings()); }
   res.json({ ok: true });
 }));
 
@@ -1297,48 +1212,138 @@ app.get('/api/reports/monthly', auth, need('reports.view'), wrap(async (req, res
 const CONFIG_KINDS = new Set(['schedule', 'department', 'grade', 'position', 'access_level', 'custom_field', 'announcement',
   'leave_profile', 'leave_type', 'holiday', 'compensation_rule', 'holiday_limit', 'payroll_preset', 'allowance', 'deduction',
   'expense_category', 'payroll_lieu', 'payslip_display', 'document', 'automation_rule', 'override_rule',
-  'work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template',
-  'assignment', 'task_rule', 'open_shift', 'att_template']);
-const ATT_KINDS = new Set(['assignment', 'task_rule', 'open_shift', 'att_template']);
+  'penalty_policy', 'overtime_policy', 'leave_template',
+  'work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template']);
 const HR_KINDS = new Set(['work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template']);
 const cfgAuth = (req, res, next) => {
-  const ok = ATT_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'attendance.view_all' : 'attendance.edit') : HR_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'employees.view' : 'employees.manage') : can(req.user, 'settings.manage');
+  const ok = HR_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'employees.view' : 'employees.manage') : can(req.user, 'settings.manage');
   return ok ? next() : res.status(403).json({ error: 'ليس لديك صلاحية لهذا الإجراء' });
 };
 const parseCfg = (r) => { let d = {}; try { d = JSON.parse(r.data || '{}'); } catch { /* تجاهل */ } return { id: r.id, kind: r.kind, name: r.name, active: !!r.active, created_at: r.created_at, ...d }; };
 const cfgKind = (req, res, next) => (CONFIG_KINDS.has(req.params.kind) ? next() : res.status(404).json({ error: 'نوع غير معروف' }));
-function cfgBody(b) {
+// تنظيف قيمة JSON جاية من العميل (نصوص قصيرة، أرقام سليمة، قوائم وكائنات بعمق محدود) — بتسمح بالشرائح والإصدارات والأنواع المتداخلة
+const cleanJson = (v, depth = 0) => {
+  if (typeof v === 'string') return v.slice(0, 500);
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'boolean' || v === null) return v;
+  if (depth >= 5) return null;
+  if (Array.isArray(v)) return v.slice(0, 60).map((x) => cleanJson(x, depth + 1));
+  if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).slice(0, 60).map(([k, x]) => [String(k).slice(0, 40), cleanJson(x, depth + 1)]));
+  return String(v ?? '').slice(0, 500);
+};
+const nz = (v, d = 0) => { const x = Number(v); return Number.isFinite(x) ? x : d; };
+const truthy = (v) => v === true || v === 1 || v === '1' || v === 'true';
+// توحيد أنواع بيانات سياسات الحضور + التحقق منها (بترجّع رسالة خطأ أو null)
+function cfgPolicy(kind, d) {
+  if (kind === 'penalty_policy') {
+    d.grace = Math.round(nz(d.grace, 0)); d.early_grace = Math.round(nz(d.early_grace, 0));
+    for (const k of ['late_on', 'early_on', 'partial_on', 'archived']) d[k] = truthy(d[k]);
+    d.absence_factor = nz(d.absence_factor, 1); d.early_factor = nz(d.early_factor, 1);
+    d.late_method = d.late_method === 'periods' ? 'periods' : 'minutes';
+    d.partial_kind = d.partial_kind === 'fixed' ? 'fixed' : 'day_fraction'; d.partial_value = nz(d.partial_value, 0);
+    d.deduct_from = 'salary';
+    d.tiers = (Array.isArray(d.tiers) ? d.tiers : []).map((t) => ({
+      from: Math.round(nz(t && t.from, 0)),
+      to: t && (t.to === '' || t.to === null || t.to === undefined) ? null : Math.round(nz(t && t.to, NaN)),
+      kind: String((t && t.kind) || ''), value: nz(t && t.value, 0),
+    }));
+    if (d.grace < 0 || d.grace > 240) return 'سماحية التأخير بين 0 و 240 دقيقة';
+    if (d.early_grace < 0 || d.early_grace > 240) return 'سماحية الانصراف المبكر بين 0 و 240 دقيقة';
+    if (d.absence_factor < 0 || d.absence_factor > 10) return 'معامل خصم الغياب بين 0 و 10';
+    if (d.early_factor < 0 || d.early_factor > 10) return 'معامل خصم الانصراف المبكر بين 0 و 10';
+    if (d.partial_on && !(d.partial_value > 0 && d.partial_value <= (d.partial_kind === 'fixed' ? 1000000 : 10))) return 'قيمة خصم الانصراف الناقص غير صحيحة';
+    if (d.tiers.length > 20) return 'حد أقصى 20 شريحة';
+    if (d.late_on) {
+      if (!d.tiers.length) return 'أضيفي شريحة تأخير واحدة على الأقل';
+      d.tiers.sort((a, b) => a.from - b.from);
+      for (let i = 0; i < d.tiers.length; i++) {
+        const t = d.tiers[i];
+        if (!Number.isInteger(t.from) || t.from < 1) return 'بداية الشريحة لازم تكون رقم صحيح 1 أو أكبر';
+        if (t.to !== null && (!Number.isInteger(t.to) || t.to < t.from)) return 'نهاية الشريحة لازم تكون رقم صحيح أكبر من أو يساوي بدايتها';
+        if (!['minutes', 'fixed', 'day_fraction'].includes(t.kind) || (d.late_method === 'periods' && t.kind === 'minutes')) return 'نوع الخصم غير صحيح';
+        if (!(t.value > 0) || t.value > (t.kind === 'fixed' ? 1000000 : 10)) return 'قيمة الخصم غير صحيحة';
+        if (i && (d.tiers[i - 1].to === null || t.from <= d.tiers[i - 1].to)) return 'الشرائح متداخلة. بداية كل شريحة لازم تكون بعد نهاية اللي قبلها، والشريحة المفتوحة (وما فوق) تكون الأخيرة';
+      }
+    }
+  } else if (kind === 'overtime_policy') {
+    d.calc_on = truthy(d.calc_on); d.archived = truthy(d.archived);
+    d.after_min = Math.round(nz(d.after_min, 0)); d.cap_hours = nz(d.cap_hours, 0); d.factor = nz(d.factor, 1.5);
+    d.rounding = ['up', 'down'].includes(d.rounding) ? d.rounding : 'none';
+    d.round_unit = [5, 10, 15, 30, 60].includes(Number(d.round_unit)) ? Number(d.round_unit) : 15;
+    if (d.after_min < 0 || d.after_min > 600) return 'بداية الاحتساب بين 0 و 600 دقيقة';
+    if (d.cap_hours < 0 || d.cap_hours > 24) return 'الحد اليومي بين 0 و 24 ساعة (0 = بدون حد)';
+    if (!(d.factor > 0) || d.factor > 10) return 'معامل الوقت الإضافي بين 0.1 و 10';
+  } else if (kind === 'holiday') {
+    d.archived = truthy(d.archived); d.yearly = truthy(d.yearly);
+    if (!isDate(d.date)) return 'اختاري تاريخ بداية العطلة';
+    if (d.to === '' || d.to === null || d.to === undefined) d.to = d.date;
+    if (!isDate(d.to) || d.to < d.date) return 'تاريخ نهاية العطلة لازم يكون بعد البداية أو نفس اليوم';
+    if ([...eachDay(d.date, d.to)].length > 60) return 'العطلة الواحدة حد أقصى 60 يوم';
+  } else if (kind === 'compensation_rule') {
+    d.archived = truthy(d.archived);
+    d.applies = ['holiday', 'weekend', 'both'].includes(d.applies) ? d.applies : 'both';
+    d.mode = d.mode === 'time_off' ? 'time_off' : 'pay'; // (مش "kind" عشان parseCfg بيكتب فوق نوع العنصر)
+    d.factor = nz(d.factor, 2); d.days = nz(d.days, 1); d.min_hours = nz(d.min_hours, 0);
+    if (d.mode === 'pay' && (!(d.factor > 0) || d.factor > 10)) return 'معامل أجر اليوم بين 0.1 و 10';
+    if (d.mode === 'time_off' && (!(d.days > 0) || d.days > 5)) return 'أيام التعويض بين 0.5 و 5';
+    if (d.min_hours < 0 || d.min_hours > 24) return 'الحد الأدنى لساعات العمل بين 0 و 24';
+  } else if (kind === 'holiday_limit') {
+    d.archived = truthy(d.archived);
+    d.rule = ['max_consecutive', 'max_concurrent', 'blackout'].includes(d.rule) ? d.rule : 'max_consecutive';
+    d.scope = d.scope === 'department' ? 'department' : 'all';
+    d.types = (Array.isArray(d.types) ? d.types : []).filter((t) => ['annual_leave', 'sick_leave', 'emergency_leave'].includes(t));
+    if (!d.types.length) return 'اختاري نوع إجازة واحد على الأقل';
+    d.value = Math.round(nz(d.value, 0));
+    if (d.rule !== 'blackout' && (d.value < 1 || d.value > 365)) return 'القيمة لازم تكون من 1 إلى 365';
+    if (d.rule === 'blackout') {
+      if (!isDate(d.from) || !isDate(d.to) || d.to < d.from) return 'حددي فترة المنع (من وإلى)';
+    } else { d.from = ''; d.to = ''; }
+  } else if (kind === 'leave_profile') {
+    d.archived = truthy(d.archived); d.carry = truthy(d.carry); d.break_paid = !(d.break_paid === false || d.break_paid === 'false' || d.break_paid === 0 || d.break_paid === '0');
+    d.annual = Math.round(nz(d.annual, 21)); d.sick = Math.round(nz(d.sick, 0)); d.emergency = Math.round(nz(d.emergency, 0)); d.break_min = Math.round(nz(d.break_min, 0));
+    if (d.annual < 0 || d.annual > 365) return 'الإجازة السنوية بين 0 و 365 يوم';
+    for (const k of ['sick', 'emergency']) if (d[k] < 0 || d[k] > 365) return 'رصيد الإجازة بين 0 و 365 يوم (0 = بدون حد)';
+    if (d.break_min < 0 || d.break_min > 240) return 'مدة الاستراحة بين 0 و 240 دقيقة';
+  }
+  return null;
+}
+function cfgBody(b, kind) {
   const name = String(b.name || '').trim().slice(0, 120);
   if (!name) return { error: 'اكتبي الاسم' };
   const data = {};
   for (const [k, v] of Object.entries(b)) {
     if (['id', 'kind', 'name', 'active', 'created_at'].includes(k)) continue;
-    if (k === 'versions') { data.versions = Array.isArray(v) ? v.slice(0, 30) : []; continue; }
-    data[k] = typeof v === 'string' ? v.slice(0, 500) : (typeof v === 'number' || typeof v === 'boolean' ? v : String(v ?? '').slice(0, 500));
+    data[k] = k === 'versions' ? cleanJson(Array.isArray(v) ? v.slice(0, 30) : []) : cleanJson(v);
   }
-  if (JSON.stringify(data).length > 20000) return { error: 'البيانات كبيرة جداً' };
+  const err = cfgPolicy(kind, data);
+  if (err) return { error: err };
+  if (JSON.stringify(data).length > 60000) return { error: 'البيانات كبيرة جداً' };
   return { name, data: JSON.stringify(data) };
 }
 app.get('/api/config/:kind', auth, cfgKind, cfgAuth, wrap(async (req, res) => {
   res.json((await db.all('SELECT * FROM config_items WHERE kind=? ORDER BY id', req.params.kind)).map(parseCfg));
 }));
 app.post('/api/config/:kind', auth, cfgKind, cfgAuth, wrap(async (req, res) => {
-  const c = cfgBody(req.body || {});
+  const c = cfgBody(req.body || {}, req.params.kind);
   if (c.error) return res.status(400).json({ error: c.error });
   const active = req.body.active === 0 || req.body.active === false || req.body.active === '0' ? 0 : 1;
-  res.json({ id: await db.insert('INSERT INTO config_items(kind,name,data,active) VALUES(?,?,?,?)', req.params.kind, c.name, c.data, active) });
+  const id = await db.insert('INSERT INTO config_items(kind,name,data,active) VALUES(?,?,?,?)', req.params.kind, c.name, c.data, active);
+  invalidatePolicyCtx();
+  res.json({ id });
 }));
 app.put('/api/config/:kind/:id', auth, cfgKind, cfgAuth, wrap(async (req, res) => {
-  const id = toId(req.params.id), c = cfgBody(req.body || {});
+  const id = toId(req.params.id), c = cfgBody(req.body || {}, req.params.kind);
   if (c.error) return res.status(400).json({ error: c.error });
   const act = req.body.active === undefined ? null : (req.body.active === 0 || req.body.active === false || req.body.active === '0' ? 0 : 1);
   const r = id && await db.run('UPDATE config_items SET name=?,data=?,active=COALESCE(?,active) WHERE id=? AND kind=?', c.name, c.data, act, id, req.params.kind);
   if (!r || !r.rowCount) return res.status(404).json({ error: 'غير موجود' });
+  invalidatePolicyCtx();
   res.json({ ok: true });
 }));
 app.delete('/api/config/:kind/:id', auth, cfgKind, cfgAuth, wrap(async (req, res) => {
   const id = toId(req.params.id);
   if (id) await db.run('DELETE FROM config_items WHERE id=? AND kind=?', id, req.params.kind);
+  invalidatePolicyCtx();
   res.json({ ok: true });
 }));
 
@@ -1352,8 +1357,8 @@ app.put('/api/settings', auth, need('settings.manage'), wrap(async (req, res) =>
     if (b[k] === undefined) continue;
     const v = String(b[k]).trim();
     if (['work_lat', 'work_lng'].includes(k) && v !== '' && !isFinite(Number(v))) return res.status(400).json({ error: 'إحداثيات غير صحيحة' });
-    if (['radius_m', 'grace_minutes', 'late_factor', 'absence_factor', 'overtime_factor', 'overtime_minute_rate'].includes(k) && !(Number(v) >= 0)) return res.status(400).json({ error: 'قيمة رقمية غير صحيحة' });
-    if (['signup_enabled', 'overtime_auto_approve'].includes(k) && !['0', '1'].includes(v)) return res.status(400).json({ error: 'قيمة غير صحيحة' });
+    if (['radius_m', 'grace_minutes', 'late_factor', 'absence_factor', 'overtime_factor'].includes(k) && !(Number(v) >= 0)) return res.status(400).json({ error: 'قيمة رقمية غير صحيحة' });
+    if (k === 'signup_enabled' && !['0', '1'].includes(v)) return res.status(400).json({ error: 'قيمة غير صحيحة' });
     if (k === 'face_threshold' && !(Number(v) >= 0.3 && Number(v) <= 0.7)) return res.status(400).json({ error: 'حساسية الوجه بين 0.3 و 0.7' });
     if (k === 'timezone') {
       try { new Intl.DateTimeFormat('en', { timeZone: v }); } catch { return res.status(400).json({ error: 'المنطقة الزمنية غير صحيحة' }); }

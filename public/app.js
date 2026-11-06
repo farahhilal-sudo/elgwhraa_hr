@@ -20,7 +20,7 @@ function toast(msg, err) {
 }
 async function api(path, method = 'GET', body) {
   const r = await fetch('/api' + path, {
-    method, headers: { 'Content-Type': 'application/json', ...(S.token ? { Authorization: 'Bearer ' + S.token } : {}), ...(IS_APP ? { 'X-App-Mode': '1' } : {}) },
+    method, headers: { 'Content-Type': 'application/json', ...(S.token ? { Authorization: 'Bearer ' + S.token } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await r.json().catch(() => ({}));
@@ -148,7 +148,7 @@ async function renderLogin() {
     <div class="grid">
       <label class="f">اسم المستخدم<input name="u" autocomplete="username" autocapitalize="none" required></label>
       <label class="f">كلمة المرور<input name="p" type="password" autocomplete="current-password" required></label>
-      <button class="btn big" style="font-size:15px;padding:12px">دخول</button>
+      <button class="btn big" style="font-size:16px;padding:12px">دخول</button>
       <div class="row" style="justify-content:space-between">
         <button type="button" class="link" id="forgot">نسيت كلمة المرور؟</button>
         ${pub.signup_enabled ? '<button type="button" class="link" id="signup">إنشاء حساب جديد</button>' : ''}
@@ -252,10 +252,6 @@ function installApp() {
     <p class="muted small">بعد التثبيت افتحيه من أيقونته على الشاشة، وهيظهر كتطبيق بشريط سفلي من غير شريط المتصفح.</p><div class="actions"><button class="btn" data-close>تمام</button></div>`);
 }
 // قائمة بمجموعات (زي الشاشة): عنصر مفرد أو مجموعة فيها عناصر فرعية
-const ATT_TABS = [
-  ['att_calendar', 'تقويم العمل', 'users'], ['attendance', 'سجل الحضور', 'clock'], ['att_penalties', 'الجزاءات', 'grid'], ['att_assign', 'التكليفات', 'clock'],
-  ['att_taskrules', 'قواعد المهام', 'clock'], ['att_balance', 'سجل الرصيد', 'file'], ['att_open_in', 'تسجيلات الوصول المفتوحة', 'file'], ['att_checkins', 'تسجيلات الوصول', 'file'], ['att_open_shifts', 'الورديات المفتوحة', 'clock'],
-];
 const MENU = [
   { id: 'dashboard', ic: 'grid', t: 'لوحة المعلومات', ok: () => has('dashboard.view') },
   { id: 'me', ic: 'user', t: 'حسابي', ok: () => true },
@@ -268,8 +264,7 @@ const MENU = [
     ['permissions', 'الصلاحيات', () => S.me.user.is_admin, 'lock']] },
   { id: 'requests', ic: 'file', t: 'الطلبات', ok: () => has('requests.view_all') },
   { g: 'att', ic: 'clock', t: 'الحضور', items: [
-    ['home', 'تسجيل الحضور', () => IS_APP || !has('attendance.view_all'), 'clock'],
-    ...ATT_TABS.map(([k, l, ic]) => [k, l, () => has('attendance.view_all'), ic])] },
+    ['home', 'تسجيل الحضور', () => true], ['attendance', 'سجل الحضور', () => has('attendance.view_all')]] },
   { g: 'fin', ic: 'wallet', t: 'المالية', items: [
     ['payroll', 'المرتبات والخصومات', () => has('payroll.view')], ['adjustments', 'المكافآت والجزاءات', () => has('payroll.view')], ['tiers', 'شرائح خصم التأخير', () => has('settings.manage')]] },
   { id: 'reports', ic: 'chart', t: 'التقارير', ok: () => has('reports.view') },
@@ -366,7 +361,7 @@ function forcePassword() {
     <h2 style="margin-bottom:6px">اختاري كلمة مرور جديدة</h2>
     <p class="muted" style="margin:0 0 14px">لازم تغيّري كلمة المرور المؤقتة قبل ما تكملي.</p>
     <div class="grid"><label class="f">كلمة المرور الجديدة (6 أحرف على الأقل)<input name="n" type="password" minlength="6" required autocomplete="new-password"></label>
-    <button class="btn big" style="font-size:15px;padding:12px">حفظ ومتابعة</button></div></form></div>`;
+    <button class="btn big" style="font-size:16px;padding:12px">حفظ ومتابعة</button></div></form></div>`;
   $('#pf').onsubmit = (e) => { e.preventDefault(); run($('button', e.target), async () => { await api('/me/password', 'POST', { new_password: e.target.n.value }); await boot(); }); };
 }
 function changePassword() {
@@ -443,7 +438,6 @@ PAGES.home = async (view) => {
         ? `<p class="small" style="background:var(--warn-l);color:var(--warn);padding:10px;border-radius:10px;margin:14px 0 10px">لازم تسجّلي بصمة وجهك مرة واحدة قبل أول تسجيل حضور.</p><button class="pbtn" id="enroll">تسجيل بصمة الوجه</button>`
         : '<button class="pbtn" id="go">تسجيل الحضور <span>⇥</span></button>';
     }
-    if (!IS_APP && action) action = `<div class="appnote"><b>تسجيل الحضور والانصراف من التطبيق فقط</b><span>افتحي التطبيق المثبّت على موبايلك وسجّلي منه. الموقع للمتابعة والاطلاع بس.</span></div>`;
     $('#pc').innerHTML = `<div class="shift">(${esc(fmt12(u.shift_start))} - ${esc(fmt12(u.shift_end))})</div>${status}${body}${action}
       ${isToday && !(r && r.check_out) ? `<p class="muted small" style="text-align:center;margin:12px 0 0">${u.face_exempt ? 'التسجيل' : 'التسجيل بالوجه'} ${S.me.settings.needs_geo ? 'والموقع (' + esc(S.me.settings.locations.join('، ')) + ')' : ''}</p>` : ''}`;
     if ($('#enroll')) $('#enroll').onclick = (e) => run(e.target, async () => {
@@ -490,7 +484,7 @@ function slipHtml(m) {
       <div class="slper"><div class="muted small">فترة الصرف</div><b dir="ltr">${dmy(mo + '-01')} - ${dmy(last)}</b><div class="muted small">${m.paid ? 'مدفوع ' + dmy(String(m.paid_at).slice(0, 10)) : 'قيد الحساب (لم يُصرف بعد)'}</div></div></div>
     <div class="slsec">المستحقات</div>
     ${L(`المرتب الأساسي المستحق <small class="muted">(${m.accrued_days} يوم من 30 · أجر اليوم ${money(m.daily_rate)})</small>`, gbp(m.accrued_basic))}${L('البدلات المستحقة', gbp(m.accrued_allowances))}${L('إجمالي المرتب', gbp(earned), 'tot')}
-    ${L('المكافآت', gbp(m.bonuses))}${L(`وقت إضافي <small class="muted">(${m.overtime_hours} س)</small>`, gbp(m.overtime_pay))}
+    ${L('المكافآت', gbp(m.bonuses))}${L(`وقت إضافي <small class="muted">(${m.overtime_hours} س)</small>`, gbp(m.overtime_pay))}${m.compensation_pay ? L('تعويض العمل في العطلات', gbp(m.compensation_pay)) : ''}
     <div class="slsec">الاستقطاعات</div>
     ${L(`خصم التأخير <small class="muted">(${m.late_days} يوم${m.early_minutes ? ' + انصراف مبكر ' + m.early_minutes + ' د' : ''})</small>`, `(${gbp(m.late_deduction)})`, 'neg')}${L(`خصم الغياب <small class="muted">(${m.absent_days} يوم)</small>`, `(${gbp(m.absence_deduction)})`, 'neg')}
     ${L('الجزاءات', `(${gbp(m.penalties)})`, 'neg')}${L('خصومات أخرى', `(${gbp(m.manual_deductions)})`, 'neg')}${L('إجمالي الخصومات', gbp(m.total_deductions), 'tot')}
@@ -700,7 +694,7 @@ const ADJ = { bonus: ['مكافأة', 'pos', '＋'], penalty: ['جزاء', 'neg'
 function payslip(m) {
   const line = (k, v, c) => `<tr><td>${k}</td><td class="num ${c || ''}">${money(v)}</td></tr>`;
   return `<div class="grid g2" style="align-items:start"><div class="tablewrap"><table style="min-width:0">
-    ${line(`الأساسي المستحق (${m.accrued_days} يوم من 30، أجر اليوم ${money(m.daily_rate)})`, m.accrued_basic)}${line('البدلات المستحقة', m.accrued_allowances)}${line('المكافآت', m.bonuses, 'pos')}${line(`وقت إضافي (${m.overtime_hours} س)`, m.overtime_pay, 'pos')}
+    ${line(`الأساسي المستحق (${m.accrued_days} يوم من 30، أجر اليوم ${money(m.daily_rate)})`, m.accrued_basic)}${line('البدلات المستحقة', m.accrued_allowances)}${line('المكافآت', m.bonuses, 'pos')}${line(`وقت إضافي (${m.overtime_hours} س)`, m.overtime_pay, 'pos')}${m.compensation_pay ? line(`تعويض العمل في العطلات (${m.off_days_worked} يوم)`, m.compensation_pay, 'pos') : ''}${m.comp_days ? `<tr><td>أيام إجازة بدل مكتسبة</td><td class="num">${m.comp_days} يوم</td></tr>` : ''}
     <tr><th>الإجمالي</th><th class="num">${money(m.gross)}</th></tr>
     ${line(`خصم تأخير (${m.late_days} يوم) وانصراف مبكر (${m.early_minutes} د)`, m.late_deduction, 'neg')}${line(`خصم غياب (${m.absent_days} يوم)`, m.absence_deduction, 'neg')}${line('جزاءات', m.penalties, 'neg')}${line('خصومات أخرى', m.manual_deductions, 'neg')}
     <tr><th>الصافي</th><th class="num">${money(m.net)}</th></tr></table></div>
@@ -736,202 +730,20 @@ function requestForm(done, preset = {}) {
   }); };
 }
 
-/* --- لوحة المعلومات (على شكل الشاشات المرجعية) --- */
-const DSVG = {
-  users: '<svg viewBox="0 0 32 32"><circle cx="11" cy="10" r="4.5" fill="#38bdf8"/><circle cx="22" cy="12" r="4.5" fill="#0ea5e9"/><circle cx="12" cy="22" r="4.5" fill="#0ea5e9"/><circle cx="23" cy="23" r="3.5" fill="#7dd3fc"/></svg>',
-  present: '<svg viewBox="0 0 32 32"><circle cx="16" cy="18" r="11" fill="#86efac"/><circle cx="16" cy="18" r="8" fill="#fff" opacity=".55"/><path d="M13 4h6M16 4v3M12.5 18.5l2.5 2.5 5-5.5" stroke="#16a34a" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  late: '<svg viewBox="0 0 32 32"><circle cx="16" cy="18" r="11" fill="#fecaca"/><path d="M4 9l5-4M28 9l-5-4" stroke="#ef4444" stroke-width="3" stroke-linecap="round"/><path d="M16 12v6l4 2" stroke="#dc2626" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>',
-  absent: '<svg viewBox="0 0 32 32"><circle cx="16" cy="9" r="6" fill="#f87171"/><path d="M5 28c0-7 5-11 11-11s11 4 11 11z" fill="#fca5a5"/><rect x="11" y="21" width="10" height="3" rx="1.5" fill="#dc2626"/></svg>',
-  not_yet: '<svg viewBox="0 0 32 32"><path d="M8 4h16M8 28h16" stroke="#d97706" stroke-width="3" stroke-linecap="round"/><path d="M10 4c0 7 6 8 6 12s-6 5-6 12h12c0-7-6-8-6-12s6-5 6-12z" fill="#fdba74" stroke="#d97706" stroke-width="1.5"/></svg>',
-  leave: '<svg viewBox="0 0 32 32"><circle cx="19" cy="6" r="3.5" fill="#38bdf8"/><path d="M17 12l-5 6 3 3-3 7M17 12l5 5 5-1M15 21l5 7" stroke="#0ea5e9" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18M9 15.5l2 2 4-4"/></svg>',
-};
-const DASH_WN = { att: 'سجل الحضور', req: 'الطلبات الشهرية', hour: 'الحضور بالساعة', sav: 'التوفير', ot: 'الوقت الإضافي', hrs: 'ساعات العمل لكل قسم', pen: 'الجزاءات', bon: 'المكافآت / الخصومات' };
-const monthStart = (d = todayStr()) => d.slice(0, 7) + '-01';
-const monthEnd = (d = todayStr()) => { const [y, m] = d.split('-').map(Number); return `${d.slice(0, 7)}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`; };
-const yearAgo = () => { const t = todayStr(); return `${Number(t.slice(0, 4)) - 1}${t.slice(4)}`; };
-const monthsBetween = (a, b) => { const out = []; let [y, m] = a.slice(0, 7).split('-').map(Number); const [y2, m2] = b.slice(0, 7).split('-').map(Number); while (y < y2 || (y === y2 && m <= m2)) { out.push(`${y}-${String(m).padStart(2, '0')}`); if (++m > 12) { m = 1; y++; } } return out; };
-const hrs2 = (min) => (min / 60).toFixed(2);
-
-/* رسوم SVG بسيطة */
-const niceMax = (m) => { if (!(m > 0)) return 4; const e = 10 ** Math.floor(Math.log10(m)), f = m / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 4 ? 4 : f <= 5 ? 5 : 10) * e; };
-const smoothPath = (pts, base) => {
-  if (pts.length < 2) return '';
-  let d = `M${pts[0][0]},${pts[0][1]}`;
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
-    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, Math.min(base, p1[1] + (p2[1] - p0[1]) / 6)], c2 = [p2[0] - (p3[0] - p1[0]) / 6, Math.min(base, p2[1] - (p3[1] - p1[1]) / 6)];
-    d += `C${c1[0].toFixed(1)},${c1[1].toFixed(1)} ${c2[0].toFixed(1)},${c2[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
-  }
-  return d;
-};
-const chartFrame = (W, H, padL, padT, base, max, fmt = (v) => v) => [0, 1, 2, 3, 4].map((i) => {
-  const y = base - (i / 4) * (base - padT);
-  return `<line x1="${padL}" x2="${W - 10}" y1="${y}" y2="${y}" stroke="#e5e9ee" stroke-dasharray="${i ? '4 4' : '0'}"/><text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10.5" fill="#6b7280">${fmt((max * i) / 4)}</text>`;
-}).join('');
-const legendHtml = (series) => `<div class="lgd">${series.map((s) => `<span><i style="background:${s.color}"></i>${s.name}</span>`).join('')}</div>`;
-function lineChart(labels, series, o = {}) {
-  const H = o.h || 300, padL = 46, padT = 16, padB = 36, base = H - padB, n = labels.length;
-  const step = Math.max(o.step || 74, ((o.minW || 700) - padL - 40) / Math.max(1, n - 1)), W = padL + 30 + step * Math.max(1, n - 1) + 30;
-  const max = niceMax(Math.max(0, ...series.flatMap((s) => s.data))), X = (i) => padL + 30 + i * step, Y = (v) => base - (v / max) * (base - padT);
-  return `<div class="chscroll"><svg class="chart" viewBox="0 0 ${W} ${H}" style="width:${W}px;min-width:100%;height:${H}px" role="img">${chartFrame(W, H, padL, padT, base, max, (v) => +v.toFixed(2))}
-    ${series.map((s) => { const pts = s.data.map((v, i) => [X(i), Y(v)]); return `<path d="${smoothPath(pts, base)}" fill="none" stroke="${s.color}" stroke-width="3" stroke-linecap="round"/>${pts.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="3.6" fill="#fff" stroke="${s.color}" stroke-width="2"><title>${s.name}: ${s.data[i]} (${labels[i]})</title></circle>`).join('')}`; }).join('')}
-    ${labels.map((l, i) => `<text x="${X(i)}" y="${base + 22}" text-anchor="middle" font-size="11" fill="#374151">${l}</text>`).join('')}<line x1="${padL}" x2="${W - 10}" y1="${base + 30}" y2="${base + 30}" stroke="#374151" stroke-width="2.5" opacity=".0"/></svg></div>`;
-}
-function barChart(labels, series, o = {}) {
-  const H = o.h || 320, padL = 50, padT = 14, padB = o.rot ? 70 : 36, base = H - padB, n = labels.length;
-  const step = Math.max(o.step || 56, ((o.minW || 520) - padL - 20) / Math.max(1, n)), W = padL + 20 + step * n;
-  const max = niceMax(Math.max(0, ...series.flatMap((s) => s.data))), bw = Math.min(20, (step - 14) / series.length), Y = (v) => base - (v / max) * (base - padT);
-  return `<div class="chscroll"><svg class="chart" viewBox="0 0 ${W} ${H}" style="width:${W}px;min-width:100%;height:${H}px" role="img">${chartFrame(W, H, padL, padT, base, max, (v) => +v.toFixed(2))}
-    ${labels.map((l, i) => { const cx = padL + 10 + step * i + step / 2; return `${series.map((s, k) => { const v = s.data[i] || 0, x = cx - (series.length * bw) / 2 + k * bw + 1, h = base - Y(v); return h > 0 ? `<rect x="${x}" y="${Y(v)}" width="${bw - 2}" height="${h}" rx="3" fill="${s.color}"><title>${s.name}: ${+v.toFixed(2)} (${l})</title></rect>` : ''; }).join('')}
-      <text ${o.rot ? `transform="rotate(-35 ${cx} ${base + 16})" text-anchor="end"` : 'text-anchor="middle"'} x="${cx}" y="${base + 16}" font-size="11" fill="#374151">${esc(l)}</text>`; }).join('')}</svg></div>`;
-}
-const gcard = (cls, big, unit, label, val, ic) => `<div class="gc ${cls}"><div class="gct"><div class="gbig"><b>${big}</b> <span>${unit}</span></div><i class="gi">${ico(ic || 'chev', ic ? '' : 'rotm90')}</i></div><div class="gcl">${label}${val !== undefined ? ` <b>${val}</b>` : ''}</div><div class="gbar"></div></div>`;
-
+/* --- لوحة المعلومات --- */
 PAGES.dashboard = async (view) => {
   if (IS_APP) return appDashboard(view);
   view.innerHTML = '<div class="empty"><span class="spin"></span></div>';
-  const [d0, locs] = await Promise.all([api('/dashboard'), api('/locations').catch(() => [])]);
-  const uniq = (a) => [...new Set(a.filter(Boolean))].sort();
-  const OPT = { office: ['building', 'جميع المكاتب', locs.map((l) => [l.id, l.name])], dept: ['building', 'جميع الأقسام', uniq(d0.list.map((x) => x.department))], job: ['users', 'جميع المناصب', uniq(d0.list.map((x) => x.job_title))] };
-  let hidden = []; try { hidden = JSON.parse(localStorage.getItem('dash_hide') || '[]'); } catch { /* تجاهل */ }
-  const G = S.dashG = S.dashG || { office: '', dept: '', job: '' };
-  const selHtml = (k, v, kk) => { const [ic, ph, arr] = kk || OPT[k]; return `<label class="sel2 ${v ? '' : 'ph'}">${ico(ic)}<select data-k="${k}"><option value="">${ph}</option>${arr.map((x) => { const val = Array.isArray(x) ? x[0] : x, l = Array.isArray(x) ? x[1] : x; return `<option value="${esc(val)}" ${String(v) === String(val) ? 'selected' : ''}>${esc(l)}</option>`; }).join('')}</select></label>`; };
-  const dateHtml = (k, v) => `<label class="dt">${ico('calendar')}<input type="date" data-k="${k}" value="${v}"></label>`;
-
-  view.innerHTML = `<div class="dhead"><h2>لوحة المعلومات</h2><button class="sqb" id="dcust" title="تخصيص اللوحة">${ico('menu')}</button>
-      <div class="dgf">${['office', 'dept', 'job'].map((k) => selHtml(k, G[k])).join('')}</div></div>
-    <div class="dstats" id="dstats"></div><div id="dmiss"></div>
-    ${['att', 'req', 'hour', 'sav'].map((id) => `<div id="w-${id}" ${hidden.includes(id) ? 'hidden' : ''}></div>`).join('')}
-    <div class="grid g2 drow"><div id="w-ot" ${hidden.includes('ot') ? 'hidden' : ''}></div><div id="w-hrs" ${hidden.includes('hrs') ? 'hidden' : ''}></div></div>
-    <div class="grid g2 drow"><div id="w-pen" ${hidden.includes('pen') ? 'hidden' : ''}></div><div id="w-bon" ${hidden.includes('bon') ? 'hidden' : ''}></div></div>`;
-
-  /* --- بطاقات اليوم --- */
-  const drawStats = async () => {
-    const q = new URLSearchParams(Object.entries(G).filter(([, v]) => v));
-    const d = await api('/dashboard?' + q);
-    const go2 = (st) => { S.empf = st ? { st: [st], activeOnly: true } : null; S.emptab = 'list'; go('employees'); };
-    const C = [['الموظفون', d.total, 'users', ''], ['في الموعد', d.present, 'present', 'present'], ['متأخر', d.late, 'late', 'late'], ['غائب', d.absent, 'absent', 'absent'], ['لم يسجل الحضور', d.not_yet, 'not_yet', 'not_yet'], ['إجازة', d.leave, 'leave', 'leave']];
-    $('#dstats', view).innerHTML = C.map(([l, n, ic, st], i) => `<div class="card dsc"><div class="dsh"><span>${l}</span><i class="dsi">${DSVG[ic]}</i></div><b>${n}</b>${n > 0 && has('employees.view') ? `<button class="link" data-go="${i}">عرض الكل</button>` : ''}</div>`).join('');
-    view.querySelectorAll('[data-go]').forEach((b) => (b.onclick = () => go2(C[Number(b.dataset.go)][3])));
-    $('#dmiss', view).innerHTML = `<div class="card dmiss"><div class="dwh"><h3>موظفون بجداول ناقصة</h3><i class="dsq">${DSVG.cal}</i></div>
-      ${d.no_schedule ? `<div class="mrow warn"><i class="dsq warn">${DSVG.cal}</i><div><b>${d.no_schedule} موظف بدون موعد عمل</b><span>حددي الوردية من بيانات الموظف</span></div></div>`
-        : `<div class="mrow"><i class="dsq ok">${DSVG.cal}</i><div><b>جميع الموظفين لديهم جدول اليوم</b><span>لا يلزم اتخاذ إجراء الآن</span></div></div>`}</div>`;
-  };
-  view.querySelectorAll('.dgf [data-k]').forEach((el) => (el.onchange = () => { G[el.dataset.k] = el.value; el.closest('.sel2').classList.toggle('ph', !el.value); drawStats().catch((e) => toast(e.message, true)); }));
-  $('#dcust', view).onclick = (e) => popMenu(e.currentTarget, Object.entries(DASH_WN).map(([id, l]) => ({ ic: hidden.includes(id) ? 'plus' : 'check', t: l, fn: () => { hidden = hidden.includes(id) ? hidden.filter((x) => x !== id) : [...hidden, id]; try { localStorage.setItem('dash_hide', JSON.stringify(hidden)); } catch { /* تجاهل */ } PAGES.dashboard(view); } })));
-
-  /* --- إطار الكروت: فلاتر + تبديل مخطط/جدول + تحميل مستقل لكل كارت --- */
-  const widget = (cfg) => {
-    const root = $('#w-' + cfg.id, view), s = { office: '', dept: '', job: '', mode: cfg.mode || 'chart', ...cfg.state };
-    const fl = cfg.filters.map((k) => (k === 'from' || k === 'to' ? dateHtml(k, s[k]) : k === 'type' ? selHtml(k, s[k], ['file', 'تحديد خيار', Object.entries(TYPES())]) : k === 'cur' ? '<label class="sel2"><select disabled><option>جنيه مصري</option></select></label>' : selHtml(k, s[k])));
-    const lab = (k) => ({ from: 'من تاريخ', to: 'إلى تاريخ', office: 'المكتب', dept: 'القسم', job: 'المنصب', type: 'نوع الطلب' }[k]);
-    root.innerHTML = `<div class="card dw"><div class="dwh"><h3>${cfg.title}</h3><span class="dwhead"></span><span class="grow"></span>${cfg.top || ''}${cfg.toggle ? `<label class="tg"><span>مخطط</span><input type="checkbox" ${s.mode === 'table' ? 'checked' : ''}><i></i><span>جدول</span></label>` : ''}</div>
-      <div class="dwf ${cfg.fcls || ''}">${fl.map((h, i) => (cfg.labels ? `<div class="fl"><small>${lab(cfg.filters[i])}</small>${h}</div>` : h)).join('')}</div><div class="dwb"><div class="empty"><span class="spin"></span></div></div></div>`;
-    let data = null;
-    const paint = () => {
-      const body = $('.dwb', root);
-      body.innerHTML = cfg.render(data, s);
-      $('.dwhead', root).innerHTML = cfg.head ? cfg.head(data, s) : '';
-      if (cfg.after) cfg.after(body, data, s, root);
-      const sc = body.querySelector('.chscroll'); if (sc && cfg.endScroll) sc.scrollLeft = sc.scrollWidth;
-    };
-    const load = async () => {
-      const q = new URLSearchParams(cfg.filters.filter((k) => s[k]).map((k) => [k, s[k]]));
-      try { data = await cfg.fetch(q); paint(); } catch (e) { $('.dwb', root).innerHTML = `<div class="empty neg">${esc(e.message)}</div>`; }
-    };
-    root.querySelectorAll('[data-k]').forEach((el) => (el.onchange = () => { s[el.dataset.k] = el.value; const w = el.closest('.sel2'); if (w) w.classList.toggle('ph', !el.value); load(); }));
-    const tg = root.querySelector('.tg input'); if (tg) tg.onchange = () => { s.mode = tg.checked ? 'table' : 'chart'; if (data) paint(); };
-    load();
-  };
-  const T = (heads, rows, cls = '') => `<div class="tablewrap st ${cls}"><table><thead><tr>${heads.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c) => `<td>${c}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${heads.length}" class="empty">لا توجد بيانات</td></tr>`}</tbody></table></div>`;
-  const byDept = (users) => { const m = {}; users.forEach((u) => { const k = u.department || 'بدون قسم'; (m[k] = m[k] || []).push(u); }); return Object.entries(m); };
-  const sum = (a, f) => a.reduce((t, x) => t + f(x), 0);
-  const aggFetch = (q) => api('/dash/agg?' + q);
-
-  widget({ id: 'att', title: 'سجل الحضور', filters: ['office', 'dept', 'job', 'from', 'to'], state: { from: monthStart(), to: monthEnd() }, endScroll: true,
-    fetch: (q) => api('/dash/daily?' + q),
-    head: () => legendHtml([{ name: 'في الموعد', color: '#16a34a' }, { name: 'متأخر', color: '#ef4444' }, { name: 'غائب', color: '#facc15' }]),
-    render: (d) => lineChart(d.days.map((x) => new Date(x.date + 'T00:00:00Z').toLocaleDateString('en-US', { month: 'short', day: '2-digit', timeZone: 'UTC' })), [
-      { name: 'في الموعد', color: '#16a34a', data: d.days.map((x) => x.present) }, { name: 'متأخر', color: '#ef4444', data: d.days.map((x) => x.late) }, { name: 'غائب', color: '#facc15', data: d.days.map((x) => x.absent) }], { minW: 1000 }) });
-
-  widget({ id: 'req', title: 'الطلبات الشهرية', toggle: true, mode: 'table', labels: true, fcls: 'six', filters: ['from', 'to', 'office', 'dept', 'job', 'type'], state: { from: monthStart(), to: monthEnd() },
-    fetch: (q) => api('/dash/requests?' + q),
-    head: (d) => `<span class="rchips"><em class="rc b">الإجمالي: ${d.totals.total}</em><em class="rc w">قيد الانتظار: ${d.totals.pending}</em><em class="rc g">مقبولة: ${d.totals.approved}</em><em class="rc r">مرفوضة: ${d.totals.rejected}</em></span>`,
-    render: (d, s) => {
-      if (s.mode === 'chart') return barChart(d.rows.map((r) => r.label), [{ name: 'قيد الانتظار', color: '#f59e0b', data: d.rows.map((r) => r.pending) }, { name: 'مقبولة', color: '#22c55e', data: d.rows.map((r) => r.approved) }, { name: 'مرفوضة', color: '#ef4444', data: d.rows.map((r) => r.rejected) }], { minW: 800, rot: true });
-      const tb = (rows) => `<table class="rq"><thead><tr><th class="c-name">نوع الطلب</th><th class="c-t">${ico('menu')} الإجمالي</th><th class="c-p">${ico('clock')} قيد الانتظار</th><th class="c-a">${ico('check')} مقبولة</th><th class="c-r">✕ مرفوضة</th></tr></thead><tbody>
-        ${rows.map((r) => `<tr><td class="c-name">${r.total ? `<a class="lk" data-lk="1">${esc(r.label)} <i>›</i></a>` : `<span>${esc(r.label)}</span>`}<em class="dico">${ico('file')}</em></td><td class="c-t">${r.total}</td><td class="c-p">${r.pending}</td><td class="c-a">${r.approved}</td><td class="c-r">${r.rejected}</td></tr>`).join('')}</tbody></table>`;
-      const h = Math.ceil(d.rows.length / 2);
-      return `<div class="rqwrap">${tb(d.rows.slice(0, h))}${tb(d.rows.slice(h))}</div>`;
-    },
-    after: (body) => body.querySelectorAll('[data-lk]').forEach((a) => (a.onclick = () => go(has('requests.view_all') ? 'requests' : 'me'))) });
-
-  widget({ id: 'hour', title: 'الحضور بالساعة', toggle: true, filters: ['office', 'dept', 'job', 'from', 'to'], state: { from: monthStart(), to: monthEnd() },
-    fetch: (q) => api('/dash/hourly?' + q), head: () => legendHtml([{ name: 'حضور', color: '#16a34a' }, { name: 'انصراف', color: '#ef4444' }]),
-    render: (d, s) => {
-      const labels = d.in.map((_, h) => String(h).padStart(2, '0') + ':00');
-      return s.mode === 'table' ? T(['الساعة', 'تسجيلات الحضور', 'تسجيلات الانصراف'], labels.map((l, h) => [l, d.in[h], d.out[h]]).filter((r) => r[1] || r[2]))
-        : lineChart(labels, [{ name: 'حضور', color: '#16a34a', data: d.in }, { name: 'انصراف', color: '#ef4444', data: d.out }], { minW: 1000, step: 46 });
-    } });
-
-  widget({ id: 'sav', title: 'التوفير', filters: ['office', 'dept', 'job', 'cur', 'from', 'to'], state: { from: monthStart(), to: monthEnd() }, fetch: aggFetch,
-    top: exportCsvBtn('sexp'),
-    head: (d) => `<b class="bl">${money(sum(d.users, (u) => u.absence_deduction + u.late_deduction))}</b> <span class="curl">${esc(d.currency === 'EGP' ? 'جنيه مصري' : d.currency)}</span>`,
-    render: (d) => {
-      const U = d.users, n = U.length, cur = d.currency === 'EGP' ? 'جنيه مصري' : d.currency;
-      const days = sum(U, (u) => u.absent_days), lateH = sum(U, (u) => u.late_minutes) / 60, otH = sum(U, (u) => u.overtime_minutes) / 60;
-      return `<div class="ssec"><div class="sh"><b>يتم إدارته داخليًا</b><span>الموظف <b class="bl">${n}</b></span></div><div class="dash3">
-        ${gcard('g-blue', money(sum(U, (u) => u.absence_deduction)), cur, 'العقوبات بالأيام', days.toFixed(2))}${gcard('g-green', money(sum(U, (u) => u.late_deduction)), cur, 'العقوبات بالساعات', lateH.toFixed(2))}${gcard('g-purple', money(sum(U, (u) => u.overtime_pay)), cur, 'فرق ساعات العمل الإضافي', otH.toFixed(2))}</div></div>
-        <div class="ssec"><div class="sh"><b>آلة حاسبة مُدارة خارجيًا</b><span>الموظف <input type="number" min="0" id="xn" value="0" class="mini"></span></div><div class="dash3x">
-        <div class="calc"><label>متوسط أيام العقوبة<div class="pf"><span>${cur}</span><input type="number" min="0" step="0.01" id="xd"></div></label><div id="xc1"></div></div>
-        <div class="calc"><label>متوسط ساعات العقوبة<div class="pf"><span>${cur}</span><input type="number" min="0" step="0.01" id="xh"></div></label><div id="xc2"></div></div>
-        <div class="calc"><label>متوسط ساعات العمل الإضافي<div class="pf"><span>${cur}</span><input type="number" min="0" step="0.01" id="xo"></div></label><div id="xc3"></div></div></div></div>`;
-    },
-    after: (body, d, s, root) => {
-      const U = d.users, n = Math.max(1, U.length), cur = d.currency === 'EGP' ? 'جنيه مصري' : d.currency;
-      const avg = { days: sum(U, (u) => u.absent_days) / n, lateH: sum(U, (u) => u.late_minutes) / 60 / n, otH: sum(U, (u) => u.overtime_minutes) / 60 / n };
-      const calc = () => {
-        const k = Number($('#xn', body).value) || 0, v = (id) => Number($(id, body).value) || 0;
-        $('#xc1', body).innerHTML = gcard('g-red', money(avg.days * k * v('#xd')), cur, 'العقوبات بالأيام', (avg.days * k).toFixed(2));
-        $('#xc2', body).innerHTML = gcard('g-pink', money(avg.lateH * k * v('#xh')), cur, 'العقوبات بالساعات', (avg.lateH * k).toFixed(2));
-        $('#xc3', body).innerHTML = gcard('g-orange', money(avg.otH * k * v('#xo')), cur, 'فرق ساعات العمل الإضافي', (avg.otH * k).toFixed(2));
-      };
-      body.querySelectorAll('input').forEach((i) => (i.oninput = calc)); calc();
-      $('#sexp', root).onclick = () => csv('savings.csv', [['الموظف', 'القسم', 'أيام الغياب', 'خصم الغياب', 'دقائق التأخير', 'خصم التأخير', 'دقائق الإضافي', 'قيمة الإضافي'], ...U.map((u) => [u.name, u.department, u.absent_days, u.absence_deduction, u.late_minutes, u.late_deduction, u.overtime_minutes, u.overtime_pay])]);
-    } });
-
-  widget({ id: 'ot', title: 'الوقت الإضافي', toggle: true, mode: 'table', filters: ['office', 'dept', 'job', 'from', 'to'], state: { from: monthStart(), to: monthEnd() }, fetch: aggFetch,
-    render: (d, s) => {
-      const U = d.users, cur = d.currency === 'EGP' ? 'جنيه مصري' : d.currency, g = byDept(U);
-      if (s.mode === 'chart') return barChart(g.map(([k]) => k), [{ name: 'ساعات إضافي', color: '#f59e0b', data: g.map(([, a]) => +hrs2(sum(a, (u) => u.overtime_minutes))) }], { rot: true, minW: 420 });
-      return `<div class="gstack">${gcard('g-orange', hrs2(sum(U, (u) => u.overtime_minutes)), 'ساعات', 'إجمالي ساعات الإضافي', U.filter((u) => u.overtime_minutes).length + ' موظف', 'clock')}${gcard('g-lime', money(sum(U, (u) => u.overtime_pay)), cur, 'قيمة الإضافي' + (d.ot_rate ? ' (الدقيقة ' + d.ot_rate + ')' : ' (بأجر الساعة)'), undefined, 'dollar')}</div>`
-        + T(['الموظف', 'دقائق إضافي', 'القيمة'], U.filter((u) => u.overtime_minutes).sort((a, b) => b.overtime_minutes - a.overtime_minutes).slice(0, 8).map((u) => [esc(u.name), u.overtime_minutes, money(u.overtime_pay)]));
-    } });
-
-  widget({ id: 'hrs', title: 'ساعات العمل لكل قسم', toggle: true, filters: ['office', 'dept', 'job'], fcls: 'two', fetch: aggFetch,
-    render: (d, s) => {
-      const g = byDept(d.users);
-      return s.mode === 'table' ? T(['القسم', 'عدد الموظفين', 'ساعات العمل'], g.map(([k, a]) => [esc(k), a.length, hrs2(sum(a, (u) => u.worked_minutes))]))
-        : barChart(g.map(([k]) => k), [{ name: 'ساعات العمل', color: '#0ea5e9', data: g.map(([, a]) => +hrs2(sum(a, (u) => u.worked_minutes))) }], { rot: true, minW: 420 });
-    } });
-
-  widget({ id: 'pen', title: 'الجزاءات', toggle: true, mode: 'table', filters: ['office', 'dept', 'job', 'from', 'to'], fcls: 'two', state: { from: monthStart(), to: monthEnd() }, fetch: aggFetch,
-    render: (d, s) => {
-      const U = d.users, fixed = sum(d.adj.filter((a) => a.kind === 'penalty'), (a) => a.amount), g = byDept(U);
-      if (s.mode === 'chart') return barChart(g.map(([k]) => k), [{ name: 'ساعات تأخير', color: '#d946ef', data: g.map(([, a]) => +hrs2(sum(a, (x) => x.late_minutes))) }, { name: 'أيام غياب', color: '#ef4444', data: g.map(([, a]) => sum(a, (x) => x.absent_days)) }], { rot: true, minW: 420 });
-      return `<div class="gpen">${gcard('g-red', sum(U, (u) => u.absent_days).toFixed(2), 'الأيام', 'إجمالي العقوبات كأيام', undefined, 'calendar')}${gcard('g-magenta', hrs2(sum(U, (u) => u.late_minutes)), 'ساعات', 'إجمالي العقوبات كساعات', undefined, 'clock')}${gcard('g-lime', money(fixed), 'ثابتة', 'إجمالي العقوبات كقيمة ثابتة', undefined, 'dollar')}</div>`;
-    } });
-
-  widget({ id: 'bon', title: 'المكافآت / الخصومات', toggle: true, filters: ['office', 'dept', 'job', 'from', 'to'], fcls: 'two', state: { from: yearAgo(), to: todayStr() }, fetch: aggFetch,
-    render: (d, s) => {
-      const ms = monthsBetween(s.from, s.to), val = (m, ks) => sum(d.adj.filter((a) => a.month === m && ks.includes(a.kind)), (a) => a.amount);
-      const lab = ms.map((m) => `${m.slice(5)}-${m.slice(0, 4)}`), bon = ms.map((m) => val(m, ['bonus'])), ded = ms.map((m) => val(m, ['deduction', 'penalty']));
-      return s.mode === 'table' ? T(['الشهر', 'المكافآت', 'الخصومات'], lab.map((l, i) => [l, money(bon[i]), money(ded[i])]))
-        : legendHtml([{ name: 'مكافآت', color: '#0ea5e9' }, { name: 'خصومات', color: '#f43f5e' }]) + barChart(lab, [{ name: 'خصومات', color: '#f43f5e', data: ded }, { name: 'مكافآت', color: '#0ea5e9', data: bon }], { rot: true, minW: 520 });
-    } });
-
-  drawStats().catch((e) => toast(e.message, true));
+  const d = await api('/dashboard');
+  const SL = { present: ['في الموعد', 'b-ok', '#15803d'], late: ['متأخر', 'b-warn', '#d97706'], absent: ['غائب', 'b-bad', '#dc2626'], leave: ['إجازة', 'b-info', '#2563eb'], not_yet: ['لم يسجّل بعد', '', '#94a3b8'], off: ['عطلة', '', '#cbd5e1'] };
+  view.innerHTML = `<div class="page-head"><h2>لوحة المعلومات</h2><span class="muted">${fmtDate(d.date)}</span></div>
+    <div class="grid g4">${[['الموظفون', d.total], ['في الموعد', d.present], ['متأخر', d.late], ['غائب', d.absent], ['إجازة', d.leave], ['لم يسجّل بعد', d.not_yet], ['طلبات معلّقة', d.pending_requests], ['بدون بصمة وجه', d.missing_face]]
+      .map(([k, v]) => `<div class="card stat"><b>${v}</b><span>${k}</span></div>`).join('')}</div>
+    <div class="card" style="margin-top:12px"><h3 style="margin-bottom:10px">توزيع الحضور اليوم</h3>
+      <div class="bar">${['present', 'late', 'absent', 'leave', 'not_yet', 'off'].map((k) => (d[k] ? `<i style="width:${(d[k] / Math.max(1, d.total)) * 100}%;background:${SL[k][2]}"></i>` : '')).join('')}</div>
+      <div class="legend">${['present', 'late', 'absent', 'leave', 'not_yet'].map((k) => `<span style="--c:${SL[k][2]}">${SL[k][0]} (${d[k]})</span>`).join('')}</div></div>
+    <div class="tablewrap" style="margin-top:12px"><table><tr><th>الموظف</th><th>الحالة</th><th>حضور</th><th>انصراف</th><th>تأخير</th></tr>
+    ${d.list.map((x) => `<tr><td><b>${esc(x.name)}</b> <span class="muted small">${esc(x.job_title || '')}</span></td><td><span class="badge ${SL[x.status][1]}">${SL[x.status][0]}</span></td><td>${fmtTime(x.check_in)}</td><td>${fmtTime(x.check_out)}</td><td>${x.late_minutes ? x.late_minutes + ' د' : '—'}</td></tr>`).join('') || '<tr><td colspan="5" class="empty">لا يوجد موظفون</td></tr>'}</table></div>`;
 };
 
 /* --- تابات أعلى الصفحة (زي الشاشة) --- */
@@ -1056,7 +868,7 @@ PAGES.employees = async (view) => {
     body.querySelectorAll('[data-rs]').forEach((b) => (b.onclick = () => { if (confirm('إنشاء كلمة مرور مؤقتة جديدة؟ كلمة المرور القديمة هتتلغي.')) run(b, async () => {
       const r = await api(`/password-resets/${b.dataset.rs}/resolve`, 'POST');
       modal(`<h3>كلمة المرور المؤقتة</h3><p>سلّميها للموظف بشكل آمن. <b>مش هتظهر تاني</b>، وهيطلب منه النظام يغيّرها عند أول دخول.</p>
-        <input readonly value="${esc(r.temp_password)}" style="font-size:20px;text-align:center;letter-spacing:2px;direction:ltr" onfocus="this.select()">
+        <input readonly value="${esc(r.temp_password)}" style="font-size:22px;text-align:center;letter-spacing:2px;direction:ltr" onfocus="this.select()">
         <div class="actions"><button class="btn alt" id="cpy">نسخ</button><button class="btn" data-close>تم</button></div>`, (m) => {
         $('#cpy', m).onclick = () => { navigator.clipboard?.writeText(r.temp_password); toast('تم النسخ'); };
         m.onclose = again;
@@ -1218,6 +1030,8 @@ async function empForm(u, done) {
   try { ppl = (await api('/employees')).filter((x) => !x.pending && (!u || x.id !== u.id)); } catch { /* تجاهل */ }
   let scheds = [];
   try { scheds = (await api('/config/schedule')).filter((x) => x.active); } catch { /* مفيش صلاحية إعدادات */ }
+  let lprofs = [];
+  try { lprofs = (await api('/config/leave_profile')).filter((x) => x.active && !x.archived); } catch { /* مفيش صلاحية إعدادات */ }
   const isNew = !u, canSal = isNew || u.base_salary !== undefined;
   const o = modal(`<h3>${isNew ? 'موظف جديد' : 'تعديل ' + esc(u.name)}</h3><form class="form" id="ef">
     <label class="f full">الاسم<input name="name" value="${esc(u?.name)}" required></label>
@@ -1236,6 +1050,7 @@ async function empForm(u, done) {
     <label class="f">نهاية الوردية<input type="time" name="shift_end" value="${esc(u?.shift_end || '17:00')}"></label>
     ${locs.length ? `<div class="full"><div class="muted small" style="margin-bottom:4px;font-weight:600">مواقع الحضور المسموحة (لو ماحددتيش، يسجّل من أي موقع)</div><div class="row">${locs.map((l) => `<label class="perm"><input type="checkbox" data-loc="${l.id}" ${u?.location_ids?.includes(l.id) ? 'checked' : ''}>${esc(l.name)}</label>`).join('')}</div></div>` : ''}
     <label class="f">رصيد الإجازة السنوية (يوم)<input type="number" min="0" name="annual_leave_days" value="${u?.annual_leave_days ?? 21}"></label>
+    ${lprofs.length ? `<label class="f">ملف الإجازة والاستراحة<select name="leave_profile_id"><option value="">— بدون (يستخدم الرصيد السنوي) —</option>${lprofs.map((x) => `<option value="${x.id}" ${String(u?.leave_profile_id || '') === String(x.id) ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>` : ''}
     ${S.me.user.is_admin && (isNew || u.id !== S.me.user.id) ? `<label class="f">نوع الحساب<select name="role"><option value="employee" ${u?.is_admin ? '' : 'selected'}>موظف (بصلاحيات يحددها المدير)</option><option value="admin" ${u?.is_admin ? 'selected' : ''}>مدير (كل الصلاحيات)</option></select></label>` : ''}
     ${!isNew && !u.is_admin ? `<label class="f">الحالة<select name="active"><option value="1" ${u.active ? 'selected' : ''}>نشط</option><option value="0" ${u.active ? '' : 'selected'}>موقوف</option></select></label>` : ''}
     <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
@@ -1253,166 +1068,11 @@ async function empForm(u, done) {
 }
 
 /* --- سجل الحضور للجميع --- */
-/* --- تابات الحضور (على شكل الشاشة المرجعية) --- */
-const ATT_VIEWS = {};
-const navTabs = (list, cur) => `<div class="card setnav etabs"><div class="stabs" id="etabs">${list.map(([k, l, ic]) => `<button data-et="${k}" class="${k === cur ? 'on' : ''}">${ico(ic)}<span>${l}</span></button>`).join('')}</div>
-  <button class="tarrow" id="tarr" title="المزيد">${ico('chev', 'rotm90')}</button></div>`;
-async function attPage(view, key) {
-  view.innerHTML = navTabs(ATT_TABS, key) + '<div id="abody"><div class="empty"><span class="spin"></span></div></div>';
-  bindEmpTabs(view);
-  const body = $('#abody', view);
-  try { await ATT_VIEWS[key](body); } catch (e) { body.innerHTML = `<div class="card empty neg">${esc(e.message)}</div>`; }
-}
-ATT_TABS.forEach(([k]) => (PAGES[k] = (v) => attPage(v, k)));
-const selBox = (k, ic, ph, arr, cur) => `<label class="sel2 ${cur ? '' : 'ph'}">${ico(ic)}<select data-f="${k}"><option value="">${ph}</option>${arr.map((x) => { const v = Array.isArray(x) ? x[0] : x, l = Array.isArray(x) ? x[1] : x; return `<option value="${esc(v)}" ${String(cur) === String(v) ? 'selected' : ''}>${esc(l)}</option>`; }).join('')}</select></label>`;
-const dtBox = (k, v) => `<label class="dt">${ico('calendar')}<input type="date" data-f="${k}" value="${v}"></label>`;
-const attPeople = async () => (has('employees.view') ? (await api('/employees').catch(() => [])).filter((u) => !u.pending && !u.is_admin) : []);
-
-/* تقويم العمل */
-ATT_VIEWS.att_calendar = async (body) => {
-  let month = S.calm || thisMonth();
-  const shift = (n) => { const [y, m] = month.split('-').map(Number); return new Date(Date.UTC(y, m - 1 + n, 1)).toISOString().slice(0, 7); };
-  const draw = async () => {
-    const d = await api('/att/calendar?month=' + month);
-    S.calm = month;
-    const off = (new Date(month + '-01T00:00:00Z').getUTCDay() + 1) % 7, today = todayStr();
-    const names = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
-    const title = new Date(month + '-01T00:00:00Z').toLocaleDateString('ar-EG-u-nu-latn', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-    body.innerHTML = `<div class="card calcard"><div class="dwh"><button class="sqb" id="cprev" title="الشهر السابق">${ico('chev', 'rot90')}</button><h3>${title}</h3><button class="sqb" id="cnext" title="الشهر التالي">${ico('chev', 'rotm90')}</button>
-      <button class="btn alt sm" id="ctoday">الشهر الحالي</button><span class="grow"></span>${legendHtml([{ name: 'حضور', color: '#16a34a' }, { name: 'متأخر', color: '#d97706' }, { name: 'غائب', color: '#dc2626' }, { name: 'إجازة', color: '#2563eb' }])}</div>
-      <div class="calgrid">${names.map((n) => `<div class="calh">${n}</div>`).join('')}${'<div class="cald off"></div>'.repeat(off)}
-      ${d.days.map((x) => `<button class="cald ${x.weekend ? 'wk' : ''} ${x.holidays.length ? 'hol' : ''} ${x.date === today ? 'now' : ''}" data-d="${x.date}"><b>${Number(x.date.slice(8))}</b>
-        ${x.holidays.map((h) => `<em class="hn">${esc(h)}</em>`).join('')}${x.weekend && !x.holidays.length ? '<em class="wn">عطلة أسبوعية</em>' : ''}
-        ${!x.weekend && !x.holidays.length && x.date <= today ? `<span class="cs"><span class="cc g" title="حضور">${x.present + x.late}</span>${x.late ? `<span class="cc a" title="متأخر">${x.late}</span>` : ''}${x.absent ? `<span class="cc r" title="غائب">${x.absent}</span>` : ''}${x.leave ? `<span class="cc b" title="إجازة">${x.leave}</span>` : ''}</span>` : ''}</button>`).join('')}</div>
-      <p class="muted small" style="margin:10px 0 0">اضغطي على أي يوم لفتح سجل الحضور الخاص به. العطلات الرسمية بتتضاف من الإعدادات ← الحضور ← العطلات الرسمية.</p></div>`;
-    $('#cprev', body).onclick = () => { month = shift(-1); draw().catch((e) => toast(e.message, true)); };
-    $('#cnext', body).onclick = () => { month = shift(1); draw().catch((e) => toast(e.message, true)); };
-    $('#ctoday', body).onclick = () => { month = thisMonth(); draw().catch((e) => toast(e.message, true)); };
-    body.querySelectorAll('[data-d]').forEach((b) => (b.onclick = () => { S.attf = { from: b.dataset.d, to: b.dataset.d }; go('attendance'); }));
-  };
-  await draw();
-};
-
-/* الجزاءات (غياب / تأخير / انصراف مبكر) مع تفعيل أو إلغاء تطبيقها على المرتب */
-ATT_VIEWS.att_penalties = async (body) => {
-  const canEdit = has('attendance.edit');
-  const [emps, tpls] = await Promise.all([attPeople(), api('/config/att_template').catch(() => [])]);
-  const pmap = Object.fromEntries(emps.map((u) => [u.id, u]));
-  const D = () => ({ tpl: '', q: '', from: monthStart(), to: monthEnd(), applied: '', dept: '', emp: '', reason: '', extra: [] });
-  const f = S.penf = { ...D(), ...(S.penf || {}) };
-  const EXT = { days: ['بالأيام فقط', (r) => r.unit === 'الأيام'], hours: ['بالساعات فقط', (r) => r.unit === 'الساعات'], fixed: ['بقيمة ثابتة فقط', (r) => r.unit === 'جنيه'] };
-  const REASONS = [['absent', 'غائب - عدم الحضور'], ['late', 'جزاء التأخير'], ['early', 'جزاء الانصراف مبكرًا']];
-  let rows = [], sel = new Set(), byKey = {};
-  const key = (r) => `${r.user_id}|${r.date}|${r.kind}`;
-  const filtered = () => {
-    const q = f.q.trim().toLowerCase();
-    return rows.filter((r) => (!f.applied || (f.applied === '1') === r.applied) && f.extra.every((k) => EXT[k][1](r))
-      && (!q || [r.user_name, (pmap[r.user_id] || {}).username, (pmap[r.user_id] || {}).phone].some((x) => String(x || '').toLowerCase().includes(q))));
-  };
-  const postFlag = async (items, applied, note = '') => { await api('/att/penalties/flag', 'POST', { items: items.map((r) => ({ user_id: r.user_id, date: r.date, kind: r.kind })), applied, note }); const me = S.me.user.name, at = new Date().toISOString(); items.forEach((r) => Object.assign(r, { applied, by: me, at, note })); };
-  const paintTable = () => {
-    const list = filtered(), shown = list.slice(0, 300); byKey = Object.fromEntries(shown.map((r) => [key(r), r]));
-    $('#ptab', body).innerHTML = `<div class="tablewrap st"><table class="pt"><thead><tr><th class="ck"><input type="checkbox" id="pall" ${shown.length && shown.every((r) => sel.has(key(r))) ? 'checked' : ''}></th><th>الموظف</th><th>التاريخ</th><th>السبب</th><th>القيمة</th><th>من</th><th>مُطبَّق</th><th>تم التعديل بواسطة</th><th class="actcol"></th></tr></thead><tbody>
-      ${shown.map((r) => `<tr><td class="ck"><input type="checkbox" data-r="${esc(key(r))}" ${sel.has(key(r)) ? 'checked' : ''}></td><td><b>${esc(r.user_name)}</b></td><td dir="ltr" style="text-align:right">${r.date.replace(/-/g, ' - ')}</td><td>${esc(r.reason)}</td>
-        <td><b>${r.value}</b> <span class="muted">${r.unit}</span></td><td>${r.from}</td><td><label class="tgl"><input type="checkbox" data-t="${esc(key(r))}" ${r.applied ? 'checked' : ''} ${canEdit ? '' : 'disabled'}><i></i></label></td>
-        <td>${r.by ? `${esc(r.by)}<div class="muted small">${dmy(String(r.at).slice(0, 10))}</div>` : '—'}</td>
-        <td class="actcol"><div class="racts">${canEdit ? `<button class="sqb" data-ed="${esc(key(r))}" title="تعديل">${ico('edit')}</button>` : ''}<button class="sqb" data-hi="${esc(key(r))}" title="السجل">${ico('clock')}</button></div></td></tr>`).join('') || '<tr><td colspan="9" class="empty">لا توجد جزاءات في الفترة دي</td></tr>'}</tbody></table></div>
-      <div class="pager"><span class="muted small">${list.length ? `عرض ${shown.length} من ${list.length}` : ''}</span></div>`;
-    const bar = (on) => { $('#bapply', body).disabled = !on || !canEdit; $('#bunapply', body).disabled = !on || !canEdit; }; bar(sel.size > 0);
-    $('#pall', body).onchange = (e) => { shown.forEach((r) => (e.target.checked ? sel.add(key(r)) : sel.delete(key(r)))); paintTable(); };
-    body.querySelectorAll('[data-r]').forEach((c) => (c.onchange = () => { c.checked ? sel.add(c.dataset.r) : sel.delete(c.dataset.r); bar(sel.size > 0); }));
-    body.querySelectorAll('[data-t]').forEach((c) => (c.onchange = () => run(null, async () => {
-      const r = byKey[c.dataset.t];
-      try { await postFlag([r], c.checked); toast(c.checked ? 'تم تطبيق الجزاء على المرتب' : 'تم إلغاء تطبيق الجزاء'); paintTable(); } catch (e) { c.checked = !c.checked; throw e; }
-    })));
-    body.querySelectorAll('[data-ed]').forEach((b) => (b.onclick = () => {
-      const r = byKey[b.dataset.ed];
-      const o = modal(`<h3>تعديل الجزاء</h3><p class="muted small" style="margin:0 0 10px">${esc(r.user_name)} · ${r.date} · ${esc(r.reason)}</p><form class="form" id="pf"><label class="perm full"><input type="checkbox" name="applied" ${r.applied ? 'checked' : ''}>تطبيق الجزاء على المرتب</label>
-        <label class="f full">ملاحظة (سبب الإلغاء أو التعديل)<input name="note" value="${esc(r.note)}" maxlength="200"></label><div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
-      const pf = $('#pf', o);
-      pf.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', pf), async () => { await postFlag([r], pf.applied.checked, pf.note.value); o.close(); toast('تم الحفظ'); paintTable(); }); };
-    }));
-    body.querySelectorAll('[data-hi]').forEach((b) => (b.onclick = () => {
-      const r = byKey[b.dataset.hi];
-      modal(`<h3>سجل التعديل</h3><div class="kv"><div><span class="muted">الموظف</span><b>${esc(r.user_name)}</b></div><div><span class="muted">اليوم</span><b>${r.date}</b></div><div><span class="muted">الحالة</span><b>${r.applied ? 'مُطبَّق' : 'غير مُطبَّق'}</b></div>
-        <div><span class="muted">آخر تعديل بواسطة</span><b>${r.by ? esc(r.by) : 'لم يتم التعديل'}</b></div>${r.at ? `<div><span class="muted">وقت التعديل</span><b>${dmy(String(r.at).slice(0, 10))} ${clock12(r.at)}</b></div>` : ''}${r.note ? `<div><span class="muted">ملاحظة</span><b>${esc(r.note)}</b></div>` : ''}</div><div class="actions"><button class="btn" data-close>إغلاق</button></div>`);
-    }));
-  };
-  const load = async () => {
-    const q = new URLSearchParams({ from: f.from, to: f.to });
-    ['emp:user_id', 'reason:reason', 'dept:dept'].forEach((p) => { const [a, b] = p.split(':'); if (f[a]) q.set(b, f[a]); });
-    rows = (await api('/att/penalties?' + q)).rows; sel.clear(); paintTable();
-  };
-  const applyTpl = (id) => {
-    const t = tpls.find((x) => String(x.id) === String(id)); let saved = {}; try { saved = JSON.parse((t || {}).filters || '{}'); } catch { /* تجاهل */ }
-    Object.assign(f, D(), saved, { tpl: t ? String(t.id) : '' });
-  };
-  const bulk = (applied) => run(null, async () => { const items = rows.filter((r) => sel.has(key(r))); await postFlag(items, applied); sel.clear(); toast(applied ? 'تم تطبيق الجزاءات المختارة' : 'تم إلغاء تطبيق الجزاءات المختارة'); paintTable(); });
-  const paintFilters = () => {
-    const depts = [...new Set(emps.map((u) => u.department).filter(Boolean))].sort();
-    $('#pfil', body).innerHTML = `<div class="frow2">${selBox('tpl', 'filter', 'حدد القالب', tpls.map((t) => [t.id, t.name]), f.tpl)}<button class="btn alt sm hk" id="tsv">حفظ كنموذج</button>
-        <label class="fs wide">${ico('search')}<input data-f="q" placeholder="كود الموظف / هاتفه" value="${esc(f.q)}" autocomplete="off"></label>${dtBox('from', f.from)}${dtBox('to', f.to)}${selBox('applied', 'check', 'الكل', [['1', 'مُطبَّق'], ['0', 'غير مُطبَّق']], f.applied)}</div>
-      <div class="frow2">${selBox('dept', 'building', 'كل الأقسام', depts, f.dept)}${selBox('emp', 'user', 'تحديد موظف', emps.map((u) => [u.id, u.name]), f.emp)}${selBox('reason', 'menu', 'اختر سبب', REASONS, f.reason)}
-        <button class="addf" id="addf">${ico('filter')} اضف تصفيه ${ico('chev')}</button>${f.extra.map((k) => `<button class="fchip2 on" data-x="${k}">${EXT[k][0]} <i>×</i></button>`).join('')}
-        <button class="btn alt sm" id="bapply" disabled>تطبيق عقوبات</button><button class="btn alt sm" id="bunapply" disabled>عدم تطبيق عقوبات متعددة</button></div>
-      <div class="frow2"><button class="link rs" id="reset">${ico('filter')} إعادة تعيين المرشحات</button><span class="grow"></span>${exportCsvBtn('pexp')}</div>`;
-    body.querySelectorAll('#pfil [data-f]').forEach((el) => (el[el.tagName === 'INPUT' && el.type !== 'date' ? 'oninput' : 'onchange'] = () => {
-      const k = el.dataset.f; if (k === 'tpl') applyTpl(el.value); else f[k] = el.value;
-      if (k === 'tpl') { paintFilters(); load().catch((e) => toast(e.message, true)); }
-      else if (['from', 'to', 'dept', 'emp', 'reason'].includes(k)) { const w = el.closest('.sel2'); if (w) w.classList.toggle('ph', !el.value); load().catch((e) => toast(e.message, true)); }
-      else { const w = el.closest('.sel2'); if (w) w.classList.toggle('ph', !el.value); paintTable(); }
-    }));
-    body.querySelectorAll('[data-x]').forEach((b) => (b.onclick = () => { f.extra = f.extra.filter((x) => x !== b.dataset.x); paintFilters(); paintTable(); }));
-    $('#addf', body).onclick = (e) => popMenu(e.currentTarget, Object.entries(EXT).filter(([k]) => !f.extra.includes(k)).map(([k, v]) => ({ ic: 'filter', t: v[0], fn: () => { f.extra.push(k); paintFilters(); paintTable(); } })));
-    $('#bapply', body).onclick = () => bulk(true); $('#bunapply', body).onclick = () => bulk(false);
-    $('#reset', body).onclick = () => { S.penf = null; attPage(body.parentElement, 'att_penalties'); };
-    $('#pexp', body).onclick = () => csv('penalties.csv', [['الموظف', 'التاريخ', 'السبب', 'القيمة', 'الوحدة', 'من', 'مُطبَّق'], ...filtered().map((r) => [r.user_name, r.date, r.reason, r.value, r.unit, r.from, r.applied ? 'نعم' : 'لا'])]);
-    $('#tsv', body).onclick = () => { const n = prompt('اسم القالب'); if (!n) return; const { tpl, ...rest } = f; run(null, async () => { const r = await api('/config/att_template', 'POST', { name: n, filters: JSON.stringify(rest) }); tpls.push({ id: r.id, name: n, filters: JSON.stringify(rest) }); f.tpl = String(r.id); toast('تم حفظ القالب'); paintFilters(); }); };
-  };
-  body.innerHTML = '<div class="efil" id="pfil"></div><div id="ptab"></div>';
-  paintFilters(); await load();
-};
-
-/* التكليفات / قواعد المهام / الورديات المفتوحة (قوائم بتتخزن) */
-ATT_VIEWS.att_assign = async (body) => {
-  const people = await attPeople();
-  const nf = people.length ? empSel(people) : { k: 'name', l: 'الموظف', req: true, full: true };
-  await catalog(body, logSpec('assignment', 'تكليف جديد', nf, [{ k: 'task', l: 'المهمة', full: true, req: true }, { k: 'from', l: 'من', t: 'date', d: todayStr() }, { k: 'to', l: 'إلى', t: 'date' },
-    { k: 'status', l: 'الحالة', t: 'select', o: [['new', 'جديد'], ['doing', 'جارٍ'], ['done', 'منتهي']] }, { k: 'notes', l: 'ملاحظات', full: true }]));
-};
-ATT_VIEWS.att_taskrules = (body) => catalog(body, simpleSpec('task_rule', 'قاعدة جديدة', [DESC, { k: 'applies', l: 'تنطبق على', t: 'select', o: [['all', 'كل الموظفين'], ['dept', 'قسم محدد'], ['emp', 'موظف محدد']] }]));
-ATT_VIEWS.att_open_shifts = (body) => catalog(body, simpleSpec('open_shift', 'وردية مفتوحة جديدة', [{ k: 'date', l: 'التاريخ', t: 'date', req: true }, { k: 'start', l: 'البداية', t: 'time', d: '09:00' }, { k: 'end', l: 'النهاية', t: 'time', d: '17:00' }, { k: 'slots', l: 'عدد الأماكن', t: 'number', d: 1, attrs: 'min="1"' }, { k: 'notes', l: 'ملاحظات', full: true }]));
-
-/* سجل رصيد الإجازات */
-ATT_VIEWS.att_balance = (body) => catalog(body, { readOnly: true, searchPh: 'ابحث باسم الموظف', tabs: [['all', 'الكل', () => true]], fields: [], text: (r) => r.user_name,
-  load: async () => (await api('/att/balance')).rows.map((r, i) => ({ ...r, id: i })),
-  sel: { ph: 'تحديد موظف', opts: (items) => [...new Set(items.map((r) => r.user_name))].map((n) => [n, n]), pred: (r, v) => r.user_name === v },
-  cols: [['الموظف', (r) => `<b>${esc(r.user_name)}</b>`], ['التاريخ', (r) => r.date.replace(/-/g, ' - ')], ['النوع', (r) => esc(r.type)], ['الأيام', (r) => r.days],
-    ['التغيير في الرصيد', (r) => `<b class="${r.change < 0 ? 'neg' : r.change > 0 ? 'pos' : ''}">${r.change > 0 ? '+' : ''}${r.change}</b>`], ['الرصيد بعد العملية', (r) => `<b>${r.balance}</b>`]] });
-
-/* تسجيلات الوصول (كل البصمات) والمفتوحة (حضور من غير انصراف) */
-const attRange = () => ({ from: thisMonth() + '-01', to: todayStr() });
-const loadAtt = (st) => api(`/attendance?from=${st.from}&to=${st.to}`);
-const locLink = (lat, lng) => (lat != null ? `<a target="_blank" rel="noopener" href="https://www.google.com/maps?q=${lat},${lng}">خريطة</a>` : '—');
-ATT_VIEWS.att_open_in = (body) => catalog(body, { readOnly: true, range: attRange(), searchPh: 'اسم الموظف', tabs: [['all', 'الكل', () => true]], fields: [], text: (r) => r.user_name,
-  load: async (st) => (await loadAtt(st)).filter((a) => a.check_in && !a.check_out),
-  extra: (r) => (has('attendance.edit') ? `<button class="btn alt sm" data-a="out" data-id="${r.id}">${ico('clock')} تسجيل انصراف</button>` : ''),
-  act: async (a, r, reload) => { if (a === 'out') { const emps = [{ id: r.user_id, name: r.user_name }]; manualAtt(emps, r, reload); } },
-  cols: [['الموظف', (r) => `<b>${esc(r.user_name)}</b>`], ['التاريخ', (r) => r.date.replace(/-/g, ' - ')], ['وقت الحضور', (r) => `<span dir="ltr">${clock12(r.check_in)}</span>`],
-    ['الموقع', (r) => esc(r.in_loc || '—')], ['مفتوح منذ', (r) => { const m = Math.max(0, Math.round((Date.now() - new Date(r.check_in)) / 60000)); return `${Math.floor(m / 60)} س ${m % 60} د`; }], ['الخريطة', (r) => locLink(r.in_lat, r.in_lng)]] });
-ATT_VIEWS.att_checkins = (body) => catalog(body, { readOnly: true, range: attRange(), searchPh: 'اسم الموظف', tabs: [['all', 'الكل', () => true]], fields: [], text: (r) => r.user_name,
-  chips: [['all', 'الكل', () => true], ['in', 'حضور', (r) => r.type === 'in'], ['out', 'انصراف', (r) => r.type === 'out']],
-  load: async (st) => (await loadAtt(st)).flatMap((a) => [a.check_in && { id: a.id + 'i', type: 'in', iso: a.check_in, user_name: a.user_name, date: a.date, loc: a.in_loc, face: a.in_face, lat: a.in_lat, lng: a.in_lng, manual: !!a.note },
-    a.check_out && { id: a.id + 'o', type: 'out', iso: a.check_out, user_name: a.user_name, date: a.date, loc: a.out_loc, face: a.out_face, lat: a.out_lat, lng: a.out_lng, manual: !!a.note }].filter(Boolean)).sort((x, y) => (x.iso < y.iso ? 1 : -1)),
-  cols: [['الموظف', (r) => `<b>${esc(r.user_name)}</b>`], ['التاريخ', (r) => r.date.replace(/-/g, ' - ')], ['النوع', (r) => `<span class="badge ${r.type === 'in' ? 'b-ok' : 'b-warn'}">${r.type === 'in' ? 'حضور' : 'انصراف'}</span>`],
-    ['الوقت', (r) => `<span dir="ltr">${clock12(r.iso)}</span>`], ['الموقع', (r) => esc(r.loc || '—')], ['تطابق الوجه', (r) => (r.face != null ? 100 - Math.round(r.face * 100) + '%' : r.manual ? 'يدوي' : '—')], ['الخريطة', (r) => locLink(r.lat, r.lng)]] });
-
-ATT_VIEWS.attendance = async (view) => {
+PAGES.attendance = async (view) => {
   const emps = has('employees.view') ? await api('/employees') : [];
-  const af = S.attf || {}; S.attf = null;
-  const first = af.from || thisMonth() + '-01';
+  const first = thisMonth() + '-01';
   view.innerHTML = `<div class="page-head"><h2>سجل الحضور</h2><div class="row noprint">${has('attendance.edit') ? '<button class="btn" id="man">+ تسجيل يدوي</button>' : ''}<button class="btn alt" id="exp">تصدير CSV</button></div></div>
-    <div class="card form" style="margin-bottom:12px;grid-template-columns:repeat(3,1fr)"><label class="f">من<input type="date" id="f1" value="${first}"></label><label class="f">إلى<input type="date" id="f2" value="${af.to || todayStr()}"></label>
+    <div class="card form" style="margin-bottom:12px;grid-template-columns:repeat(3,1fr)"><label class="f">من<input type="date" id="f1" value="${first}"></label><label class="f">إلى<input type="date" id="f2" value="${todayStr()}"></label>
     <label class="f">الموظف<select id="f3"><option value="">الكل</option>${emps.filter((e) => !e.is_admin).map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label></div><div id="al"></div>`;
   let rows = [];
   const load = async () => {
@@ -1586,7 +1246,7 @@ const SET_TOP = [
 ];
 const SET_SUB = {
   company: [['offices', 'مكاتب وأماكن العمل'], ['department', 'الأقسام'], ['grade', 'الدرجات'], ['position', 'المناصب'], ['access_level', 'مستويات الوصول'], ['custom_field', 'حقول مخصصة'], ['announcement', 'الإعلانات']],
-  attendance: [['schedule', 'مواعيد العمل'], ['penalty', 'سياسات الجزاءات'], ['overtime', 'سياسات الوقت الإضافي'], ['leave_profile', 'ملفات الإجازة والاستراتيجية'], ['leave_type', 'أنواع الإجازات'], ['holiday', 'العطلات الرسمية'], ['compensation_rule', 'قواعد التعويض'], ['holiday_limit', 'قواعد الحد من أيام العطلات']],
+  attendance: [['schedule', 'مواعيد العمل'], ['penalty', 'سياسات الجزاءات'], ['overtime', 'سياسات الوقت الإضافي'], ['leave_profile', 'ملفات الإجازة والاستراحة'], ['leave_type', 'أنواع الإجازات'], ['holiday', 'العطلات الرسمية'], ['compensation_rule', 'قواعد التعويض'], ['holiday_limit', 'قواعد الحد من أيام العطلات']],
   finance: [['payroll_preset', 'خيارات التكوين المسبق للراتب'], ['allowance', 'البدلات'], ['deduction', 'الخصومات'], ['expense_category', 'فئات المصاريف'], ['payroll_lieu', 'Payroll In Lieu Rules'], ['payslip_display', 'إعدادات ظهور كشف الراتب']],
 };
 const SET_SINGLE = { documents: 'document', automation: 'automation_rule', overrides: 'override_rule', misc: 'misc' };
@@ -1630,56 +1290,86 @@ const showVal = (f, v) => {
 /* --- محرك القوائم (بحث + تابات + شرائح + ترقيم + نموذج) --- */
 async function catalog(box, sp) {
   const PS = 10;
-  const st = { tab: sp.tabs[0][0], chip: sp.chips ? sp.chips[0][0] : '', q: '', sel: '', page: 1, from: sp.range ? sp.range.from : '', to: sp.range ? sp.range.to : '' };
-  const hasAct = !sp.readOnly || !!sp.extra;
-  let items = [];
-  const fields = [sp.nameField || { k: 'name', l: sp.nameLabel || 'الاسم', req: true, full: true }, ...sp.fields, ...(sp.noStatus ? [] : [{ k: 'active', l: 'الحالة', t: 'select', o: sp.statusOpts || [['1', 'نشط'], ['0', 'غير نشط']] }])];
-  const reload = async () => { items = await sp.load(st); draw(); };
+  const st = { tab: sp.tabs[0][0], chip: sp.chips ? sp.chips[0][0] : '', q: '', sel: '', page: 1, open: {}, tpl: '' };
+  let items = [], tpls = [];
+  const getFields = () => [sp.nameField || { k: 'name', l: sp.nameLabel || 'الاسم', req: true, full: true }, ...(typeof sp.fields === 'function' ? sp.fields() : sp.fields), ...(sp.noStatus ? [] : [{ k: 'active', l: 'الحالة', t: 'select', o: sp.statusOpts || [['1', 'نشط'], ['0', 'غير نشط']] }])];
+  const reload = async () => { items = await sp.load(); draw(); };
   const filtered = () => {
     const tp = (sp.tabs.find((x) => x[0] === st.tab) || sp.tabs[0])[2];
     const cp = sp.chips ? (sp.chips.find((x) => x[0] === st.chip) || sp.chips[0])[2] : null;
     const q = st.q.trim().toLowerCase();
     return items.filter((it) => tp(it) && (!cp || cp(it)) && (!st.sel || sp.sel.pred(it, st.sel)) && (!q || sp.text(it).toLowerCase().includes(q)));
   };
-  const actions = (it) => `<div class="racts">${sp.extra ? sp.extra(it) : ''}${sp.readOnly ? '' : `<button class="sqb" data-a="edit" data-id="${it.id}" title="تعديل">${ico('edit')}</button><button class="sqb" data-a="del" data-id="${it.id}" title="حذف">${ico('trash')}</button>`}</div>`;
+  const actions = (it) => (sp.rowActs ? sp.rowActs(it) : `<div class="racts">${sp.extra ? sp.extra(it) : ''}<button class="sqb" data-a="edit" data-id="${it.id}" title="تعديل">${ico('edit')}</button><button class="sqb" data-a="del" data-id="${it.id}" title="حذف">${ico('trash')}</button></div>`);
+  const doAct = (a, it, el) => {
+    if (a === 'edit') openForm(it);
+    else if (a === 'del') { if (confirm(typeof sp.delMsg === 'function' ? sp.delMsg(it) : (sp.delMsg || 'حذف العنصر ده؟'))) run(el, async () => { await sp.remove(it); toast('تم الحذف'); reload(); }); }
+    else if (sp.act) run(el, async () => { await sp.act(a, it, reload); });
+  };
+  const closeMenu = () => document.querySelectorAll('.mmenu').forEach((m) => m.remove());
   const tdraw = () => {
     const rows = filtered(), pages = Math.max(1, Math.ceil(rows.length / PS));
     st.page = Math.min(st.page, pages);
     const from = (st.page - 1) * PS, part = rows.slice(from, from + PS);
-    $('#stab', box).innerHTML = `<div class="tablewrap st"><table><thead><tr>${sp.cols.map((c) => `<th>${c[0]}</th>`).join('')}${hasAct ? `<th class="actcol">${sp.actHead || ''}</th>` : ''}</tr></thead>
-      <tbody>${part.map((it) => `<tr>${sp.cols.map((c) => `<td>${c[1](it)}</td>`).join('')}${hasAct ? `<td class="actcol">${actions(it)}</td>` : ''}</tr>`).join('') || `<tr><td colspan="${sp.cols.length + 1}" class="empty">لا توجد نتائج</td></tr>`}</tbody></table></div>
+    const rowHtml = (it) => {
+      const open = sp.expand && st.open[it.id];
+      return `<tr>${sp.cols.map((c, ci) => `<td>${ci === 0 && sp.expand ? `<div class="xcell">${c[1](it)}<button class="xbtn ${open ? 'on' : ''}" data-x="${it.id}" aria-label="تفاصيل">${ico('chev')}</button></div>` : c[1](it)}</td>`).join('')}<td class="actcol">${actions(it)}</td></tr>${open ? `<tr class="xrow"><td colspan="${sp.cols.length + 1}">${sp.expand(it)}</td></tr>` : ''}`;
+    };
+    $('#stab', box).innerHTML = `<div class="tablewrap st"><table><thead><tr>${sp.cols.map((c) => `<th>${c[0]}</th>`).join('')}<th class="actcol">${sp.actHead || ''}</th></tr></thead>
+      <tbody>${part.map(rowHtml).join('') || `<tr><td colspan="${sp.cols.length + 1}" class="empty">لا توجد نتائج</td></tr>`}</tbody></table></div>
       <div class="pager"><button class="pg" data-pg="${st.page - 1}" ${st.page <= 1 ? 'disabled' : ''}>${ico('chev', 'rot90')}</button>
         ${Array.from({ length: pages }, (_, i) => `<button class="pg ${i + 1 === st.page ? 'on' : ''}" data-pg="${i + 1}">${i + 1}</button>`).join('')}
         <button class="pg" data-pg="${st.page + 1}" ${st.page >= pages ? 'disabled' : ''}>${ico('chev', 'rotm90')}</button>
         <span class="muted small">${rows.length ? `عرض ${from + 1} إلى ${from + part.length} من ${rows.length} إدخالات` : 'لا توجد إدخالات'}</span></div>`;
     box.querySelectorAll('[data-pg]').forEach((b) => (b.onclick = () => { st.page = Number(b.dataset.pg); tdraw(); }));
-    box.querySelectorAll('[data-a]').forEach((b) => (b.onclick = () => {
-      const it = items.find((x) => x.id == b.dataset.id), a = b.dataset.a;
-      if (a === 'edit') openForm(it);
-      else if (a === 'del') { if (confirm(sp.delMsg || 'حذف العنصر ده؟')) run(b, async () => { await sp.remove(it); toast('تم الحذف'); reload(); }); }
-      else if (sp.act) run(b, async () => { await sp.act(a, it, reload); });
+    box.querySelectorAll('[data-a]').forEach((b) => (b.onclick = () => doAct(b.dataset.a, items.find((x) => x.id == b.dataset.id), b)));
+    box.querySelectorAll('[data-x]').forEach((b) => (b.onclick = () => { st.open[b.dataset.x] = !st.open[b.dataset.x]; tdraw(); }));
+    box.querySelectorAll('[data-more]').forEach((b) => (b.onclick = (e) => {
+      e.stopPropagation(); closeMenu();
+      const it = items.find((x) => x.id == b.dataset.more), r = b.getBoundingClientRect();
+      const m = document.createElement('div');
+      m.className = 'mmenu';
+      m.innerHTML = sp.more(it).map(([k, l, dng]) => `<button data-k="${k}" class="${dng ? 'dng' : ''}">${l}</button>`).join('');
+      document.body.appendChild(m);
+      m.style.top = `${Math.max(8, Math.min(r.bottom + 4, innerHeight - m.offsetHeight - 8))}px`;
+      m.style.left = `${Math.max(8, Math.min(r.left, innerWidth - m.offsetWidth - 8))}px`;
+      m.querySelectorAll('button').forEach((x) => (x.onclick = () => { closeMenu(); doAct(x.dataset.k, it, b); }));
+      setTimeout(() => document.addEventListener('click', closeMenu, { once: true }));
     }));
   };
+  const tplRow = () => `<div class="tplrow"><select id="tsel" class="fsel tsel"><option value="">حدد القالب</option>${tpls.map((t) => `<option value="${t.id}" ${String(t.id) === String(st.tpl) ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select>
+    <button class="btn alt sm" id="tsv2">حفظ كنموذج</button>${st.tpl ? `<button class="sqb" id="tdel2" title="حذف القالب">${ico('trash')}</button>` : ''}</div>`;
   const draw = () => {
-    const seg = (arr, key, attr, base) => `<div class="seg">${sp.chips && arr === sp.chips ? '<span class="seglbl">النوع</span>' : ''}${arr.map(([k, l, p]) => `<button data-${attr}="${k}" class="${k === st[key] ? 'on' : ''}">${l}${sp.counts ? `<i class="n">${(base || items).filter(p).length}</i>` : ''}</button>`).join('')}</div>`;
+    const seg = (arr, key, attr, base) => `<div class="seg">${sp.chips && arr === sp.chips && sp.chipLabel !== '' ? `<span class="seglbl">${sp.chipLabel || 'النوع'}</span>` : ''}${arr.map(([k, l, p]) => `<button data-${attr}="${k}" class="${k === st[key] ? 'on' : ''}">${l}${sp.counts ? `<i class="n">${(base || items).filter(p).length}</i>` : ''}</button>`).join('')}</div>`;
     const tp = (sp.tabs.find((x) => x[0] === st.tab) || sp.tabs[0])[2];
-    $('#sfil', box).innerHTML = `${sp.tabs.length > 1 ? seg(sp.tabs, 'tab', 'tb') : ''}${sp.chips ? seg(sp.chips, 'chip', 'cp', items.filter(tp)) : ''}
+    const segT = sp.tabs.length > 1 ? seg(sp.tabs, 'tab', 'tb') : '', segC = sp.chips ? seg(sp.chips, 'chip', 'cp', items.filter(tp)) : '';
+    $('#sfil', box).innerHTML = `${sp.tpl ? tplRow() : ''}${sp.chipsFirst ? segC + segT : segT + segC}
       <label class="fs">${ico('search')}<input id="sq" placeholder="${sp.searchPh || 'بحث'}" value="${esc(st.q)}" autocomplete="off"></label>
-      ${sp.range ? `<label class="dt">${ico('calendar')}<input type="date" id="sfrom" value="${st.from}"></label><label class="dt">${ico('calendar')}<input type="date" id="sto" value="${st.to}"></label>` : ''}
-      ${sp.sel ? `<select id="ssel" class="fsel"><option value="">${sp.sel.ph || 'الكل'}</option>${(typeof sp.sel.opts === 'function' ? sp.sel.opts(items) : sp.sel.opts).map(([v, l]) => `<option value="${esc(v)}" ${v === st.sel ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
-      <button class="link rs" id="srs">${ico('filter')} إعادة تعيين المرشحات</button><span class="grow"></span>
-      ${sp.readOnly ? '' : `<button class="btn sm" id="snew">${ico('plus')} ${sp.newLabel}</button>`}`;
+      ${sp.sel ? `<select id="ssel" class="fsel"><option value="">${sp.sel.ph || 'الكل'}</option>${sp.sel.opts.map(([v, l]) => `<option value="${esc(v)}" ${v === st.sel ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
+      <button class="link rs" id="srs">${ico('filter')} إعادة تعيين المرشحات</button><span class="grow"></span>${sp.extraBtn || ''}
+      <button class="btn sm" id="snew">${ico('plus')} ${sp.newLabel}</button>`;
     box.querySelectorAll('[data-tb]').forEach((b) => (b.onclick = () => { st.tab = b.dataset.tb; st.page = 1; draw(); }));
     box.querySelectorAll('[data-cp]').forEach((b) => (b.onclick = () => { st.chip = b.dataset.cp; st.page = 1; draw(); }));
     $('#sq', box).oninput = (e) => { st.q = e.target.value; st.page = 1; tdraw(); };
     if ($('#ssel', box)) $('#ssel', box).onchange = (e) => { st.sel = e.target.value; st.page = 1; tdraw(); };
-    if (sp.range) { const rl = () => { st.from = $('#sfrom', box).value; st.to = $('#sto', box).value; st.page = 1; reload().catch((e) => toast(e.message, true)); }; $('#sfrom', box).onchange = rl; $('#sto', box).onchange = rl; }
-    $('#srs', box).onclick = () => { Object.assign(st, { tab: sp.tabs[0][0], chip: sp.chips ? sp.chips[0][0] : '', q: '', sel: '', page: 1, from: sp.range ? sp.range.from : '', to: sp.range ? sp.range.to : '' }); if (sp.range) reload().catch((e) => toast(e.message, true)); else draw(); };
-    if ($('#snew', box)) $('#snew', box).onclick = () => openForm(null);
+    $('#srs', box).onclick = () => { Object.assign(st, { tab: sp.tabs[0][0], chip: sp.chips ? sp.chips[0][0] : '', q: '', sel: '', page: 1, tpl: '' }); draw(); };
+    $('#snew', box).onclick = () => openForm(null);
+    if (sp.bindExtra) sp.bindExtra(box, reload);
+    if (sp.tpl) {
+      $('#tsel', box).onchange = (e) => {
+        st.tpl = e.target.value;
+        const t = tpls.find((x) => String(x.id) === st.tpl);
+        if (t) { try { const f = JSON.parse(t.filters || '{}'); Object.assign(st, { tab: f.tab || sp.tabs[0][0], chip: f.chip || (sp.chips ? sp.chips[0][0] : ''), q: f.q || '', sel: f.sel || '', page: 1 }); } catch { /* قالب تالف */ } }
+        draw();
+      };
+      $('#tsv2', box).onclick = (e) => { const n = prompt('اسم النموذج'); if (!n) return; run(e.target, async () => { const r = await api('/config/' + sp.tpl, 'POST', { name: n, filters: JSON.stringify({ tab: st.tab, chip: st.chip, q: st.q, sel: st.sel }) }); tpls = await api('/config/' + sp.tpl); st.tpl = String(r.id); toast('تم حفظ النموذج'); draw(); }); };
+      if ($('#tdel2', box)) $('#tdel2', box).onclick = (e) => { if (confirm('حذف النموذج ده؟')) run(e.target, async () => { await api(`/config/${sp.tpl}/${st.tpl}`, 'DELETE'); tpls = await api('/config/' + sp.tpl); st.tpl = ''; toast('تم حذف النموذج'); draw(); }); };
+    }
     tdraw();
   };
   function openForm(it) {
     if (sp.form) return sp.form(it, reload);
+    const fields = getFields();
     const vals = it ? { ...it, active: it.active ? '1' : '0' } : { active: '1' };
     const o = modal(`<h3>${it ? 'تعديل' : sp.newLabel}</h3><form class="form" id="cf">${fields.map((f) => fieldHtml(f, vals[f.k])).join('')}
       <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
@@ -1692,7 +1382,8 @@ async function catalog(box, sp) {
     }); };
   }
   box.innerHTML = '<div class="sfil" id="sfil"></div><div id="stab"></div>';
-  items = await sp.load(st);
+  items = await sp.load();
+  if (sp.tpl) tpls = await api('/config/' + sp.tpl).catch(() => []);
   draw();
 }
 
@@ -1720,7 +1411,6 @@ const SIMPLE = {
   custom_field: ['حقل مخصص جديد', [{ k: 'type', l: 'نوع الحقل', t: 'select', o: [['text', 'نص'], ['number', 'رقم'], ['date', 'تاريخ'], ['list', 'قائمة']] }, { k: 'applies', l: 'يظهر في', t: 'select', o: [['employee', 'بيانات الموظف'], ['office', 'المكاتب'], ['department', 'الأقسام']] }, { k: 'required', l: 'حقل إلزامي', t: 'check' }]],
   announcement: ['إعلان جديد', [{ k: 'text', l: 'نص الإعلان', full: true }, { k: 'from', l: 'من', t: 'date' }, { k: 'to', l: 'إلى', t: 'date' }]],
   leave_profile: ['ملف إجازة جديد', [{ k: 'annual', l: 'الرصيد السنوي (يوم)', t: 'number', d: 21, attrs: 'min="0"' }, { k: 'carry', l: 'ترحيل الرصيد للسنة التالية', t: 'check' }]],
-  leave_type: ['نوع إجازة جديد', [{ k: 'days', l: 'الحد الأقصى سنوياً (يوم)', t: 'number', attrs: 'min="0"' }, { k: 'paid', l: 'إجازة مدفوعة', t: 'check', d: true }]],
   holiday: ['عطلة رسمية جديدة', [{ k: 'date', l: 'من تاريخ', t: 'date', req: true }, { k: 'to', l: 'إلى تاريخ', t: 'date' }]],
   compensation_rule: ['قاعدة تعويض جديدة', [DESC]],
   holiday_limit: ['قاعدة جديدة', [{ k: 'max', l: 'أقصى عدد أيام متتالية', t: 'number', attrs: 'min="1"' }, DESC]],
@@ -1762,13 +1452,20 @@ const SCHED_FIELDS = [
   { k: 'start', l: 'بداية الدوام', t: 'time', d: '09:00', req: true },
   { k: 'end', l: 'نهاية الدوام', t: 'time', d: '17:00', req: true },
 ];
-const SCHED_KEYS = ['name', 'type', 'brk', 'start', 'end'];
+const SCHED_KEYS = ['name', 'type', 'brk', 'start', 'end', 'penalty_id', 'overtime_id'];
+const polSel = (k, l, arr) => ({ k, l, t: 'select', d: '', o: [['', 'بدون سياسة (الإعدادات العامة)'], ...arr.map((p) => [String(p.id), `${p.name}${p.archived ? ' (محفوظ)' : !p.active ? ' (غير نشط)' : ''}`])] });
 const schedSpec = () => {
   const api_ = cfgApi('schedule');
   const snap = (it) => ({ at: new Date().toISOString().slice(0, 16).replace('T', ' '), ...Object.fromEntries(SCHED_KEYS.map((k) => [k, it[k]])) });
   const save = (it, b) => api_.save(it, b);
   return {
-    ...api_, newLabel: 'موعد عمل جديد', searchPh: 'ابحث في أوقات العمل', counts: true, nameLabel: 'اسم موعد العمل', fields: SCHED_FIELDS,
+    ...api_, newLabel: 'موعد عمل جديد', searchPh: 'ابحث في أوقات العمل', counts: true, nameLabel: 'اسم موعد العمل',
+    fields: () => [...SCHED_FIELDS, polSel('penalty_id', 'سياسة الجزاءات', POL.pen), polSel('overtime_id', 'سياسة الوقت الإضافي', POL.ot)],
+    load: async () => {
+      const [sch, pen, ot] = await Promise.all([api('/config/schedule'), api('/config/penalty_policy').catch(() => []), api('/config/overtime_policy').catch(() => [])]);
+      POL.pen = pen; POL.ot = ot;
+      return sch;
+    },
     statusOpts: [['1', 'نشط'], ['0', 'محفوظ (أرشيف)']], actHead: 'الإصدارات والإجراءات',
     tabs: [['1', 'نشط', (it) => it.active], ['0', 'محفوظ', (it) => !it.active]],
     chips: [['all', 'الكل', () => true], ['full', 'يوم كامل', (it) => it.type !== 'half'], ['half', 'نصف يوم', (it) => it.type === 'half']],
@@ -1777,7 +1474,10 @@ const schedSpec = () => {
       ['مواعيد العمل', (it) => `<b>${esc(it.name)}</b>`],
       ['الجدول', (it) => `<b dir="ltr">${tm12(it.start)} - ${tm12(it.end)}</b><div class="muted small">${hoursOf(it.start, it.end, it.brk)} س · استراحة ${Number(it.brk) || 0} د</div>`],
       ['النوع', (it) => `<span class="badge ${it.type === 'half' ? 'b-warn' : 'b-info'}">${it.type === 'half' ? 'نصف يوم' : 'يوم كامل'}</span>`],
-      ['السياسات', () => `<div class="small"><span class="muted">الجزاءات</span> شرائح خصم التأخير</div><div class="small"><span class="muted">وقت إضافي</span> ${Number(SETV.overtime_minute_rate) > 0 ? esc(SETV.overtime_minute_rate) + ' جنيه / دقيقة' : '× ' + esc(SETV.overtime_factor)}</div>`],
+      ['السياسات', (it) => {
+        const pn = POL.pen.find((p) => String(p.id) === String(it.penalty_id ?? '')), ot = POL.ot.find((p) => String(p.id) === String(it.overtime_id ?? ''));
+        return `<div class="small"><span class="muted">الجزاءات</span> ${pn ? `<b>${esc(pn.name)}</b>` : '<span class="muted">الإعدادات العامة</span>'}</div><div class="small"><span class="muted">وقت إضافي</span> ${ot ? `<b>${esc(ot.name)}</b>` : `<span class="muted">× ${esc(SETV.overtime_factor)} (عام)</span>`}</div>`;
+      }],
       ['حالة', (it) => `<span class="badge ${it.active ? 'b-ok' : ''}">${it.active ? 'نشط' : 'محفوظ'}</span>`],
     ],
     pre: (it, b) => {
@@ -1843,6 +1543,639 @@ async function settingsForm(box, cfg) {
   }); };
 }
 
+/* ====== سياسات الحضور (جزاءات + وقت إضافي): قوائم + معالج بخطوات على شكل الشاشات المرجعية ====== */
+const POL = { pen: [], ot: [] }; // آخر سياسات اتحمّلت (بتظهر في اختيار السياسة داخل مواعيد العمل)
+const clone = (x) => JSON.parse(JSON.stringify(x ?? null));
+const plural = (n, one, many) => (n === 1 ? one : `${n} ${many}`);
+const stamp = () => new Date().toISOString().slice(0, 16).replace('T', ' ');
+const POL_KEYS = {
+  penalty_policy: ['name', 'grace', 'early_grace', 'late_on', 'early_on', 'partial_on', 'absence_factor', 'early_factor', 'late_method', 'partial_kind', 'partial_value', 'tiers'],
+  overtime_policy: ['name', 'calc_on', 'after_min', 'cap_hours', 'factor', 'rounding', 'round_unit'],
+};
+const polState = (it) => (it.archived ? 'arch' : it.active ? 'on' : 'off');
+const POL_TABS = [['on', 'نشط', (it) => polState(it) === 'on'], ['off', 'غير نشط', (it) => polState(it) === 'off'], ['arch', 'محفوظ', (it) => polState(it) === 'arch']];
+const polBadge = (it) => { const s = polState(it); return `<span class="badge ${s === 'on' ? 'b-ok' : s === 'arch' ? 'b-info' : ''}">${{ on: 'نشط', off: 'غير نشط', arch: 'محفوظ' }[s]}</span>`; };
+const linkedCell = (it) => (it._sch && it._sch.length
+  ? `<button class="link lk" data-a="links" data-id="${it.id}">${plural(it._sch.length, 'توقيت عمل واحد', 'توقيتات عمل')}</button><div class="muted small">${esc(it._sch.slice(0, 3).map((s) => s.name).join('، '))}${it._sch.length > 3 ? '…' : ''}</div>`
+  : '<span class="muted small">غير مرتبط بعد</span>');
+
+/* نفس معادلات السيرفر (server.js) عشان المعاينة تطلع بنفس الرقم */
+function polLateCalc(p, late, daily, hourly) {
+  if (late <= (Number(p.grace) || 0)) return 0;
+  let total = 0;
+  for (const t of [...(p.tiers || [])].sort((a, b) => a.from - b.from)) {
+    const to = t.to === null || t.to === undefined || t.to === '' ? Infinity : Number(t.to);
+    if (late < t.from) break;
+    if (t.kind === 'minutes') total += ((Math.min(late, to) - t.from + 1) / 60) * hourly * Number(t.value);
+    else if (late <= to) total += t.kind === 'fixed' ? Number(t.value) : Number(t.value) * daily;
+  }
+  return total;
+}
+function polOtCalc(o, hours) {
+  if (!o.calc_on) return 0;
+  let h = Math.max(0, hours - (Number(o.after_min) || 0) / 60);
+  if (Number(o.cap_hours) > 0) h = Math.min(h, Number(o.cap_hours));
+  const unit = (Number(o.round_unit) || 15) / 60;
+  if (o.rounding === 'up') h = Math.ceil(h / unit - 1e-9) * unit;
+  else if (o.rounding === 'down') h = Math.floor(h / unit + 1e-9) * unit;
+  return h;
+}
+
+/* --- نصوص "ماذا يعني هذا" --- */
+const HELP = {
+  penalty_policy: {
+    details: ['سياسة الجزاءات', 'سياسة واحدة بتغطي التأخير والانصراف المبكر والغياب والانصراف الناقص. بتتكتب مرة واحدة وبتتربط بمواعيد العمل من صفحة «مواعيد العمل».', 'مفيش هنا أوقات فعلية: كل حاجة بتتحسب بفرق الدقائق عن وردية الموظف.'],
+    pick: ['اختيار الجزاءات', 'فعّلي البنود اللي عايزة السياسة دي تطبقها. البند غير المفعّل بيتجاهل خالص ومش بيتخصم منه حاجة. الغياب مطبق دايماً.', null],
+    absence: ['الغياب', 'الغياب هو يوم عمل مفيهوش تسجيل حضور ولا إجازة معتمدة. بيتخصم أجر اليوم × المعامل (المعامل 1 = يوم كامل).', 'أجر اليوم = المرتب الأساسي ÷ 30.'],
+    grace: ['السماحية', 'لو الموظف وصل خلال المدة دي بعد بداية الوردية يعتبر في الميعاد ومفيش خصم. لو عدّاها، التأخير بيتحسب من بداية الوردية حسب الشرائح.', null],
+    method: ['طريقة الحساب', 'دقائق: الخصم = المعامل × الدقائق اللي وقعت داخل نطاق الشريحة ÷ 60 × أجر الساعة. فترات زمنية: لو التأخير وقع داخل الشريحة بيتخصم مبلغ ثابت (أو جزء من اليوم) مرة واحدة.', null],
+    deduct: ['خصم من', 'الجهة اللي بيتخصم منها الجزاء. حالياً الخصم بيتم من المرتب فقط. الخصم من رصيد الإجازات غير متاح في النظام.', 'الخصم من الإجازات مش مفعّل، فالجزاءات كلها بتتخصم من المرتب.'],
+    tier: ['نطاق الشريحة', 'بداية الشريحة ونهايتها بالدقائق من بداية الوردية. الشريحة اللي بعدها لازم تبدأ بعد نهاية اللي قبلها، وسيبي «إلى» فاضية في آخر شريحة عشان تشمل أي تأخير أكبر.', 'أي تأخير بعد نهاية آخر شريحة (لو ليها حد أعلى) مش هيتخصم.'],
+    calc: ['جرّبي حساب خصم', 'اكتبي مرتب ودقائق تأخير وشوفي الخصم بنفس معادلة الرواتب.', null],
+    early: ['الانصراف المبكر', 'لو الموظف مشي قبل نهاية الوردية بأكتر من السماحية، كل دقائق الانصراف المبكر بتتخصم: الدقائق ÷ 60 × أجر الساعة × المعامل.', null],
+    partial: ['الانصراف الناقص', 'يوم فيه تسجيل حضور من غير تسجيل انصراف (وفات اليوم). بيتخصم جزء من أجر اليوم أو مبلغ ثابت عن كل يوم.', 'مش بيتطبق على اليوم الحالي.'],
+  },
+  overtime_policy: {
+    details: ['سياسة الوقت الإضافي', 'قواعد احتساب الساعات الإضافية المعتمدة. بتتكتب مرة واحدة وبتتربط بمواعيد العمل من صفحة «مواعيد العمل».', null],
+    calc: ['يُحتسب / لا يُحتسب', 'لو «لا يُحتسب»، الساعات الإضافية المعتمدة على الورديات المربوطة بالسياسة دي مش بتتدفع.', null],
+    start: ['بداية الاحتساب', 'عدد الدقائق اللي بتتشال من أول كل طلب وقت إضافي معتمد قبل ما يبدأ الاحتساب (0 = من أول دقيقة).', null],
+    cap: ['الحد اليومي', 'أقصى عدد ساعات إضافية بتتحسب في الطلب الواحد. اكتبي 0 لو مفيش حد.', null],
+    rounding: ['التقريب', 'الدقائق الفعلية: من غير تقريب. للأعلى/للأسفل: بيتقرب لأقرب وحدة (مثلاً 15 دقيقة).', null],
+    factor: ['معامل الأجر', 'أجر الساعة الإضافية = أجر الساعة العادية × المعامل (مثلاً 1.5).', null],
+    sim: ['جرّبي حساب', 'اكتبي ساعات طلب معتمد وشوفي الساعات المحتسبة بعد البداية والحد والتقريب.', null],
+  },
+};
+
+/* --- مكونات صغيرة للمعالج --- */
+const pwNum = (attrs, v, unit) => `<div class="ufld"><input type="number" ${attrs} value="${esc(v ?? '')}">${unit ? `<span>${unit}</span>` : ''}</div>`;
+const pwStep = (attrs, v, step, min, max) => `<div class="stp"><button type="button" data-sp="-1" data-step="${step}" aria-label="إنقاص">−</button><input type="number" step="${step}" min="${min}" max="${max}" ${attrs} value="${esc(v ?? '')}"><button type="button" data-sp="1" data-step="${step}" aria-label="زيادة">+</button></div>`;
+const pwRadio = (name, val, opts, cls = '') => `<div class="rcs ${cls}">${opts.map(([v, t, s, dis]) => `<button type="button" class="rc ${String(val) === String(v) ? 'on' : ''}" data-rc="${name}" data-v="${v}" ${dis ? 'disabled' : ''}><span class="rd"></span><span><b>${t}</b>${s ? `<small>${s}</small>` : ''}</span></button>`).join('')}</div>`;
+const pwCheck = (key, on, t, s) => `<label class="cc ${on ? 'on' : ''}"><input type="checkbox" data-ck="${key}" ${on ? 'checked' : ''}><span><b>${t}</b><small>${s}</small></span></label>`;
+const pwOff = (title, key, btn) => `<div class="pwoff"><b>${title}</b><p class="muted small">فعّليه الأول عشان تقدري تضبطي إعداداته.</p><button type="button" class="btn" data-enable="${key}">${btn}</button></div>`;
+
+function policyWizard(cfg) {
+  const { d, steps, groups } = cfg;
+  const init = JSON.stringify(d);
+  const st = { i: 0, done: new Set(), guided: !!cfg.guided, help: true, col: {}, hk: 'details' };
+  const o = document.createElement('div');
+  o.className = 'overlay pwz';
+  o.innerHTML = `<div class="pw" id="pw">
+    <header class="pwh"><div class="pwt"><h2>${cfg.title}</h2><p>${cfg.subtitle}</p></div>
+      <div class="pwc"><div class="seg" id="pwmode"><button data-mode="guided">موجّه</button><button data-mode="adv">متقدم</button></div>
+        <button class="pwhelp" id="pwhelp" type="button"><i></i><span>مساعدة</span></button>
+        <button class="pwx" id="pwx" type="button" aria-label="إغلاق">×</button></div></header>
+    <div class="pwb"><aside class="pwn" id="pwn"></aside><section class="pwm" id="pwm"></section><aside class="pwi" id="pwi"></aside></div>
+    <footer class="pwfoot"><span class="muted small" id="pwsec"></span><span class="grow"></span>
+      <button class="btn alt" id="pwback" type="button">عودة</button><button class="btn alt" id="pwcancel" type="button">إلغاء</button><button class="btn alt" id="pwsave" type="button">حفظ</button><button class="btn" id="pwnext" type="button">التالي</button></footer></div>`;
+  document.body.appendChild(o);
+  const q = (s) => o.querySelector(s);
+  const onKey = (e) => { if (e.key === 'Escape') tryClose(); };
+  document.addEventListener('keydown', onKey);
+  const close = () => { document.removeEventListener('keydown', onKey); o.remove(); };
+  const tryClose = () => { if (JSON.stringify(d) === init || confirm('إغلاق من غير حفظ التعديلات؟')) close(); };
+  const isOff = (i) => !!(steps[i].off && steps[i].off(d));
+  const h = { redraw: () => drawMain(), help: (k) => drawHelp(k) };
+  const can = (i) => !st.guided || i <= st.i || st.done.has(i) || [...st.done, st.i].some((x) => x + 1 === i);
+
+  const drawNav = () => {
+    const doneN = steps.filter((_, i) => st.done.has(i)).length;
+    q('#pwn').innerHTML = `<div class="pwp"><div class="pwpl">${cfg.progressLabel}</div><div class="pwpb"><b>${doneN}/${steps.length}</b><span class="bar"><i style="width:${(doneN / steps.length) * 100}%"></i></span></div></div>
+      ${groups.map((g) => { const dn = g.idx.filter((i) => st.done.has(i)).length; return `<div class="pwg"><div class="pwgh"><span>${g.title}</span><em class="${dn === g.idx.length ? 'ok' : ''}">${dn}/${g.idx.length}</em></div>
+        ${g.idx.map((i) => `<button type="button" class="pws ${i === st.i ? 'on' : ''} ${st.done.has(i) ? 'done' : ''} ${isOff(i) ? 'dim' : ''}" data-go="${i}" ${can(i) ? '' : 'disabled'}><span class="pwsi">${st.done.has(i) && i !== st.i ? ico('check') : ico(steps[i].icon)}</span><span class="pwst"><b>${steps[i].title}</b><small>${isOff(i) ? 'غير مفعّل في السياسة' : steps[i].sub}</small></span></button>`).join('')}</div>`; }).join('')}`;
+    o.querySelectorAll('[data-go]').forEach((b) => (b.onclick = () => goTo(Number(b.dataset.go))));
+  };
+  const drawHelp = (k) => {
+    st.hk = k || st.hk;
+    const hp = cfg.help[st.hk] || cfg.help.details;
+    q('#pwi').innerHTML = `<div class="pwih"><span>ماذا يعني هذا</span><i>${ico('info')}</i></div><div class="pwic"><h4>${hp[0]}</h4><p>${hp[1]}</p>${hp[2] ? `<div class="pwwarn">${ico('info')}<span>${hp[2]}</span></div>` : ''}</div>`;
+  };
+  const drawFoot = () => {
+    const last = lastIdx();
+    q('#pwsec').textContent = `القسم ${st.i + 1} من ${steps.length}`;
+    q('#pwback').style.visibility = st.i === 0 ? 'hidden' : 'visible';
+    q('#pwnext').textContent = st.i >= last ? 'حفظ' : 'التالي';
+    q('#pwsave').hidden = st.guided || st.i >= last;
+    q('#pwmode').querySelectorAll('button').forEach((b) => b.classList.toggle('on', (b.dataset.mode === 'guided') === st.guided));
+    q('#pw').classList.toggle('nohelp', !st.help);
+    q('#pwhelp').classList.toggle('off', !st.help);
+  };
+  const lastIdx = () => { for (let i = steps.length - 1; i >= 0; i--) if (!st.guided || !isOff(i)) return i; return steps.length - 1; };
+
+  function drawMain() {
+    const s = steps[st.i];
+    const y = q('#pwm').scrollTop;
+    q('#pwm').innerHTML = `<div class="pwcard"><div class="pwch"><span class="pwnum">${st.i + 1}</span><div><h3>${s.title}</h3><p class="muted small">${s.sub}</p></div></div>${s.body(d, st)}</div>`;
+    q('#pwm').scrollTop = y;
+    bind(q('#pwm'));
+    if (s.on) s.on(q('#pwm'), d, h, st);
+    drawNav(); drawFoot(); drawHelp(s.help);
+  }
+
+  function bind(root) {
+    root.querySelectorAll('[data-k]').forEach((el) => {
+      el.oninput = () => { const old = d[el.dataset.k]; d[el.dataset.k] = el.type === 'number' ? (el.value === '' ? '' : Number(el.value)) : el.value; if (cfg.onInput) cfg.onInput(el.dataset.k, d, old, root); };
+      el.onchange = () => { if (cfg.onChange && cfg.onChange(el.dataset.k, d)) drawMain(); };
+    });
+    root.querySelectorAll('[data-ck]').forEach((el) => (el.onchange = () => { d[el.dataset.ck] = el.checked; el.closest('.cc').classList.toggle('on', el.checked); drawNav(); }));
+    root.querySelectorAll('[data-rc]').forEach((b) => (b.onclick = () => { const k = b.dataset.rc; d[k] = /^-?[\d.]+$/.test(b.dataset.v) ? Number(b.dataset.v) : b.dataset.v; if (cfg.onChange) cfg.onChange(k, d); drawMain(); }));
+    root.querySelectorAll('[data-enable]').forEach((b) => (b.onclick = () => { d[b.dataset.enable] = true; if (cfg.onEnable) cfg.onEnable(b.dataset.enable, d); drawMain(); }));
+    root.querySelectorAll('[data-sp]').forEach((b) => (b.onclick = () => {
+      const inp = b.parentElement.querySelector('input'), step = Number(b.dataset.step) || 1;
+      const min = inp.min === '' ? -Infinity : Number(inp.min), max = inp.max === '' ? Infinity : Number(inp.max);
+      const nv = Math.min(max, Math.max(min, Math.round((Number(inp.value || 0) + step * Number(b.dataset.sp)) * 1000) / 1000));
+      inp.value = nv; inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true }));
+    }));
+    root.querySelectorAll('[data-help]').forEach((el) => el.addEventListener('focusin', () => drawHelp(el.dataset.help)));
+    root.querySelectorAll('[data-help]').forEach((el) => el.addEventListener('click', () => drawHelp(el.dataset.help)));
+  }
+
+  function goTo(i) {
+    if (i === st.i || i < 0 || i >= steps.length || !can(i)) return;
+    if (i > st.i) { const err = steps[st.i].check && !isOff(st.i) ? steps[st.i].check(d) : null; if (err) return toast(err, true); }
+    st.done.add(st.i); st.i = i; drawMain();
+  }
+  function next() {
+    const last = lastIdx();
+    const err = isOff(st.i) ? null : (steps[st.i].check ? steps[st.i].check(d) : null);
+    if (err) return toast(err, true);
+    if (st.i >= last) return save();
+    st.done.add(st.i);
+    let j = st.i + 1;
+    while (st.guided && j < last && isOff(j)) { st.done.add(j); j++; }
+    st.i = j; drawMain();
+  }
+  function save() {
+    for (let i = 0; i < steps.length; i++) {
+      const err = !isOff(i) && steps[i].check ? steps[i].check(d) : null;
+      if (err) { st.i = i; drawMain(); return toast(err, true); }
+    }
+    run(q('#pwnext'), async () => { await cfg.onSave(d); close(); toast('تم الحفظ'); cfg.done(); });
+  }
+
+  q('#pwx').onclick = tryClose; q('#pwcancel').onclick = tryClose;
+  o.addEventListener('mousedown', (e) => { if (e.target === o) tryClose(); });
+  q('#pwback').onclick = () => { if (st.i > 0) { let j = st.i - 1; while (st.guided && j > 0 && isOff(j)) j--; st.i = j; drawMain(); } };
+  q('#pwnext').onclick = next; q('#pwsave').onclick = save;
+  q('#pwhelp').onclick = () => { st.help = !st.help; drawFoot(); };
+  q('#pwmode').querySelectorAll('button').forEach((b) => (b.onclick = () => { st.guided = b.dataset.mode === 'guided'; drawMain(); }));
+  drawMain();
+}
+
+/* --- خطوات سياسة الجزاءات --- */
+function penaltySteps() {
+  const kinds = (d) => (d.late_method === 'periods' ? [['fixed', 'كمية ثابتة'], ['day_fraction', 'جزء من أجر اليوم']] : [['minutes', 'دقائق'], ['fixed', 'كمية ثابتة'], ['day_fraction', 'جزء من أجر اليوم']]);
+  const tierCard = (d, st, t, i) => {
+    const open = !st.col[i];
+    const vl = { minutes: ['اضرب دقائق التأخير في', 0.25, 0.25, 10], fixed: ['المبلغ المخصوم (جنيه)', 1, 1, 1000000], day_fraction: ['جزء من أجر اليوم (0.25 = ربع يوم)', 0.25, 0.25, 10] }[t.kind] || ['القيمة', 1, 1, 100];
+    return `<div class="tier" data-help="tier"><div class="tierh"><button type="button" class="tcol ${open ? 'on' : ''}" data-tcol="${i}">${ico('chev')}</button>
+      <div class="tierti"><b>شريحة ${i + 1}</b><small>${t.to === null || t.to === '' ? `من ${t.from} د فأكثر` : `من ${t.from} إلى ${t.to} د`}</small></div>${d.tiers.length > 1 ? `<button type="button" class="tdel" data-tdel="${i}" aria-label="حذف الشريحة">×</button>` : ''}</div>
+      ${open ? `<div class="tierb"><label class="lbl">دقائق التأخير محسوبة من بداية الوردية</label>
+        <div class="trange">${pwNum(`min="1" data-ti="${i}" data-tk="from"`, t.from, 'د')}<i>←</i>${pwNum(`min="1" data-ti="${i}" data-tk="to" placeholder="وما فوق"`, t.to ?? '', 'د')}<em>متأخر</em></div>
+        <label class="lbl">خصم كـ</label>${`<div class="rcs">${kinds(d).map(([v, l]) => `<button type="button" class="rc ${t.kind === v ? 'on' : ''}" data-tkind="${i}" data-v="${v}"><span class="rd"></span><span><b>${l}</b></span></button>`).join('')}</div>`}
+        <label class="lbl">${vl[0]}</label>${pwStep(`data-ti="${i}" data-tk="value"`, t.value, vl[2], vl[1], vl[3])}</div>` : ''}</div>`;
+  };
+  const tierBind = (root, d, h, st) => {
+    root.querySelectorAll('[data-ti]').forEach((el) => {
+      const set = () => {
+        const i = Number(el.dataset.ti), t = d.tiers[i], k = el.dataset.tk;
+        t[k] = el.value === '' ? (k === 'to' ? null : '') : Number(el.value);
+        const sub = el.closest('.tier').querySelector('.tierti small');
+        if (sub) sub.textContent = t.to === null || t.to === '' ? `من ${t.from} د فأكثر` : `من ${t.from} إلى ${t.to} د`;
+      };
+      el.addEventListener('input', set);
+    });
+    root.querySelectorAll('[data-tkind]').forEach((b) => (b.onclick = () => { const t = d.tiers[Number(b.dataset.tkind)]; t.kind = b.dataset.v; t.value = { minutes: 1, fixed: 50, day_fraction: 0.25 }[t.kind]; h.redraw(); }));
+    root.querySelectorAll('[data-tcol]').forEach((b) => (b.onclick = () => { st.col[b.dataset.tcol] = !st.col[b.dataset.tcol]; h.redraw(); }));
+    root.querySelectorAll('[data-tdel]').forEach((b) => (b.onclick = () => { d.tiers.splice(Number(b.dataset.tdel), 1); h.redraw(); }));
+    const add = root.querySelector('#tadd');
+    if (add) add.onclick = () => {
+      const last = d.tiers[d.tiers.length - 1];
+      let from = (Number(d.grace) || 0) + 1;
+      if (last) { if (last.to === null || last.to === '') last.to = Number(last.from) + 29; from = Number(last.to) + 1; }
+      d.tiers.push({ from, to: null, kind: last ? last.kind : (d.late_method === 'periods' ? 'day_fraction' : 'minutes'), value: last ? last.value : 1 });
+      h.redraw();
+    };
+    const sal = root.querySelector('#pcs'), hrs = root.querySelector('#pch'), mn = root.querySelector('#pcm'), res = root.querySelector('#pcr');
+    if (sal) {
+      const calc = () => {
+        const daily = Number(sal.value) / 30, hourly = daily / (Number(hrs.value) || 8), m = Number(mn.value);
+        res.textContent = !(Number(sal.value) > 0) || !(m > 0) ? '' : m <= (Number(d.grace) || 0) ? 'لا يوجد خصم (داخل السماحية)' : `الخصم: ${money(polLateCalc(d, m, daily, hourly))} جنيه`;
+      };
+      [sal, hrs, mn].forEach((x) => (x.oninput = calc)); calc();
+    }
+  };
+  return [
+    { title: 'تفاصيل السياسة', sub: 'اسم السياسة والجزاءات التي تغطيها', icon: 'file', help: 'details',
+      body: (d) => `<div class="pwfld" data-help="details"><label class="lbl">اسم السياسة</label><input data-k="name" value="${esc(d.name)}" maxlength="120" placeholder="مثال: سياسة جزاءات الإنتاج" autocomplete="off"></div>
+        <div class="pwfld" data-help="pick"><label class="lbl">أيّ من هذه الجزاءات تطبقها هذه السياسة؟</label><p class="muted small">الغياب غير مدرج لأنه مطبق دائماً: اليوم الذي لا يوجد به تسجيل حضور ولا طلب إجازة لا بد أن يُحسم بشيء ما.</p>
+        <div class="ccs">${pwCheck('late_on', d.late_on, 'التأخير', 'الوصول بعد بداية الوردية وانتهاء السماحية')}${pwCheck('early_on', d.early_on, 'الانصراف المبكر', 'الانصراف قبل نهاية الوردية')}${pwCheck('partial_on', d.partial_on, 'الانصراف الناقص', 'يوم به تسجيل حضور دون تسجيل انصراف')}</div></div>`,
+      check: (d) => (String(d.name || '').trim() ? null : 'اكتبي اسم السياسة') },
+    { title: 'الغياب', sub: 'لا يوجد تسجيل حضور على الإطلاق', icon: 'user', help: 'absence',
+      body: (d) => `<div class="pwfld" data-help="absence"><label class="lbl">معامل خصم الغياب</label><p class="muted small">عدد أيام الأجر المخصومة عن كل يوم غياب (1 = أجر يوم كامل).</p>${pwStep('data-k="absence_factor"', d.absence_factor, 0.25, 0, 10)}</div>
+        <div class="pwfld" data-help="deduct"><label class="lbl">خصم من</label>${pwRadio('deduct_from', 'salary', [['salary', 'المرتب'], ['leave', 'الأجازات', null, true]], 'two')}<p class="muted small">الخصم من رصيد الإجازات غير متاح، فالجزاءات بتتخصم من المرتب.</p></div>`,
+      check: (d) => (Number(d.absence_factor) >= 0 && Number(d.absence_factor) <= 10 ? null : 'معامل خصم الغياب بين 0 و 10') },
+    { title: 'التأخير', sub: 'الوصول بعد بداية الوردية', icon: 'timer', help: 'grace', off: (d) => !d.late_on,
+      body: (d, st) => (!d.late_on ? pwOff('التأخير غير مفعّل في هذه السياسة', 'late_on', 'تفعيل التأخير') : `<div class="pwnote">كل الدقائق هنا بتتحسب <b>من بداية الوردية</b> وليس بأوقات فعلية، وكل موعد عمل مربوط بالسياسة بيحدد بداية الوردية الخاصة بيه. وده اللي بيسمح بتطبيق سياسة واحدة على ورديات متعددة.</div>
+        <div class="pwfld" data-help="grace"><label class="lbl">السماحية</label>${pwNum('min="0" max="240" data-k="grace"', d.grace, 'د')}<p class="muted small">يُعتبر في الموعد ولا يُخصم شيء. تبدأ الشريحة 1 عند نهاية هذه الفترة.</p></div>
+        <div class="pwfld" data-help="method"><label class="lbl">كيف يجب حساب عقوبات التأخير؟</label>${pwRadio('late_method', d.late_method, [['minutes', 'دقائق', 'المُعامل × الدقائق داخل النطاق'], ['periods', 'فترات زمنية', 'خصم ثابت لكل شريحة']], 'two')}</div>
+        <div class="pwfld" data-help="deduct"><label class="lbl">خصم من</label>${pwRadio('deduct_from', 'salary', [['salary', 'المرتب'], ['leave', 'الأجازات', null, true]], 'two')}</div>
+        <div class="pwfld"><div class="tiersh"><label class="lbl">مستويات الجزاءات النشطة</label><button type="button" class="btn alt sm" id="tadd">+ إضافة شريحة</button></div>${d.tiers.map((t, i) => tierCard(d, st, t, i)).join('')}</div>
+        <div class="pwcalc" data-help="calc"><b>جرّبي حساب خصم</b><div class="row"><input type="number" id="pcs" placeholder="المرتب الشهري" value="6000"><input type="number" id="pch" placeholder="ساعات الوردية" value="8"><input type="number" id="pcm" placeholder="دقائق التأخير" value="45"><b id="pcr"></b></div></div>`),
+      on: (root, d, h, st) => { if (d.late_on) tierBind(root, d, h, st); },
+      check: (d) => {
+        if (!d.late_on) return null;
+        if (!(Number(d.grace) >= 0 && Number(d.grace) <= 240)) return 'سماحية التأخير بين 0 و 240 دقيقة';
+        if (!d.tiers.length) return 'أضيفي شريحة تأخير واحدة على الأقل';
+        const ts = [...d.tiers].sort((a, b) => a.from - b.from);
+        for (let i = 0; i < ts.length; i++) {
+          const t = ts[i], to = t.to === null || t.to === '' ? null : Number(t.to);
+          if (!Number.isInteger(Number(t.from)) || Number(t.from) < 1) return 'بداية الشريحة لازم تكون رقم صحيح 1 أو أكبر';
+          if (to !== null && (!Number.isInteger(to) || to < Number(t.from))) return 'نهاية الشريحة لازم تكون رقم صحيح أكبر من أو يساوي بدايتها';
+          if (!(Number(t.value) > 0) || Number(t.value) > (t.kind === 'fixed' ? 1000000 : 10)) return 'قيمة الخصم غير صحيحة';
+          if (i && (ts[i - 1].to === null || ts[i - 1].to === '' || Number(t.from) <= Number(ts[i - 1].to))) return 'الشرائح متداخلة. بداية كل شريحة لازم تكون بعد نهاية اللي قبلها، والشريحة المفتوحة (وما فوق) تكون الأخيرة';
+        }
+        return null;
+      } },
+    { title: 'الانصراف المبكر', sub: 'الانصراف قبل نهاية الوردية', icon: 'logout', help: 'early', off: (d) => !d.early_on,
+      body: (d) => (!d.early_on ? pwOff('الانصراف المبكر غير مفعّل في هذه السياسة', 'early_on', 'تفعيل الانصراف المبكر') : `<div class="pwfld" data-help="early"><label class="lbl">السماحية</label>${pwNum('min="0" max="240" data-k="early_grace"', d.early_grace, 'د')}<p class="muted small">لو الانصراف المبكر أقل من أو يساوي المدة دي مفيش خصم. لو أكبر منها بتتحسب كل الدقائق.</p></div>
+        <div class="pwfld" data-help="early"><label class="lbl">معامل خصم الانصراف المبكر</label><p class="muted small">الخصم = (دقائق الانصراف المبكر ÷ 60) × أجر الساعة × المعامل.</p>${pwStep('data-k="early_factor"', d.early_factor, 0.25, 0, 10)}</div>`),
+      check: (d) => (!d.early_on ? null : !(Number(d.early_grace) >= 0 && Number(d.early_grace) <= 240) ? 'سماحية الانصراف المبكر بين 0 و 240 دقيقة' : !(Number(d.early_factor) >= 0 && Number(d.early_factor) <= 10) ? 'معامل خصم الانصراف المبكر بين 0 و 10' : null) },
+    { title: 'الانصراف الناقص', sub: 'يوم به تسجيل حضور دون تسجيل انصراف', icon: 'clockoff', help: 'partial', off: (d) => !d.partial_on,
+      body: (d) => (!d.partial_on ? pwOff('الانصراف الناقص غير مفعّل في هذه السياسة', 'partial_on', 'تفعيل الانصراف الناقص') : `<div class="pwfld" data-help="partial"><label class="lbl">نوع الخصم</label>${pwRadio('partial_kind', d.partial_kind, [['day_fraction', 'جزء من أجر اليوم', '0.5 = نصف يوم'], ['fixed', 'كمية ثابتة', 'مبلغ بالجنيه']], 'two')}</div>
+        <div class="pwfld" data-help="partial"><label class="lbl">${d.partial_kind === 'fixed' ? 'المبلغ المخصوم عن كل يوم (جنيه)' : 'جزء أجر اليوم المخصوم عن كل يوم'}</label>${pwStep('data-k="partial_value"', d.partial_value, d.partial_kind === 'fixed' ? 1 : 0.25, 0, d.partial_kind === 'fixed' ? 1000000 : 10)}</div>`),
+      check: (d) => (d.partial_on && !(Number(d.partial_value) > 0 && Number(d.partial_value) <= (d.partial_kind === 'fixed' ? 1000000 : 10)) ? 'قيمة خصم الانصراف الناقص غير صحيحة' : null) },
+  ];
+}
+
+/* --- خطوات سياسة الوقت الإضافي --- */
+function overtimeSteps() {
+  return [
+    { title: 'تفاصيل السياسة', sub: 'الاسم وهل الوقت الإضافي يُحتسب', icon: 'file', help: 'details',
+      body: (d) => `<div class="pwfld" data-help="details"><label class="lbl">اسم السياسة</label><input data-k="name" value="${esc(d.name)}" maxlength="120" placeholder="مثال: وقت إضافي الإنتاج" autocomplete="off"></div>
+        <div class="pwfld" data-help="calc"><label class="lbl">هل يُحتسب الوقت الإضافي؟</label>${pwRadio('calc_on', d.calc_on ? 'true' : 'false', [['true', 'يُحتسب', 'الساعات الإضافية المعتمدة بتتدفع'], ['false', 'لا يُحتسب', 'لا تُحتسب الساعات بعد الانصراف']], 'two')}</div>`,
+      check: (d) => (String(d.name || '').trim() ? null : 'اكتبي اسم السياسة') },
+    { title: 'البداية والحد', sub: 'متى يبدأ الاحتساب وأقصى ساعات', icon: 'timer', help: 'start', off: (d) => !d.calc_on,
+      body: (d) => (!d.calc_on ? pwOff('الوقت الإضافي لا يُحتسب في هذه السياسة', 'calc_on', 'تفعيل احتساب الوقت الإضافي') : `<div class="pwfld" data-help="start"><label class="lbl">يبدأ الاحتساب بعد</label>${pwNum('min="0" max="600" data-k="after_min"', d.after_min, 'د')}<p class="muted small">من أول كل طلب وقت إضافي معتمد (0 = من أول دقيقة).</p></div>
+        <div class="pwfld" data-help="cap"><label class="lbl">الحد اليومي</label>${pwNum('min="0" max="24" step="0.25" data-k="cap_hours"', d.cap_hours, 'س')}<p class="muted small">أقصى ساعات إضافية في الطلب الواحد (0 = بدون حد).</p></div>`),
+      check: (d) => (!d.calc_on ? null : !(Number(d.after_min) >= 0 && Number(d.after_min) <= 600) ? 'بداية الاحتساب بين 0 و 600 دقيقة' : !(Number(d.cap_hours) >= 0 && Number(d.cap_hours) <= 24) ? 'الحد اليومي بين 0 و 24 ساعة (0 = بدون حد)' : null) },
+    { title: 'التقريب والمعامل', sub: 'تقريب الساعات ومعامل الأجر', icon: 'dollar', help: 'rounding', off: (d) => !d.calc_on,
+      body: (d) => (!d.calc_on ? pwOff('الوقت الإضافي لا يُحتسب في هذه السياسة', 'calc_on', 'تفعيل احتساب الوقت الإضافي') : `<div class="pwfld" data-help="rounding"><label class="lbl">التقريب</label>${pwRadio('rounding', d.rounding, [['none', 'الدقائق الفعلية', 'من غير تقريب'], ['up', 'تقريب للأعلى'], ['down', 'تقريب للأسفل']])}
+        ${d.rounding !== 'none' ? `<label class="lbl" style="margin-top:12px">وحدة التقريب</label><select data-k="round_unit">${[5, 10, 15, 30, 60].map((n) => `<option value="${n}" ${Number(d.round_unit) === n ? 'selected' : ''}>${n} دقيقة</option>`).join('')}</select>` : ''}</div>
+        <div class="pwfld" data-help="factor"><label class="lbl">معامل أجر الساعة الإضافية</label>${pwStep('data-k="factor"', d.factor, 0.25, 0.25, 10)}</div>
+        <div class="pwcalc" data-help="sim"><b>جرّبي حساب</b><div class="row"><input type="number" id="osh" step="0.25" placeholder="ساعات الطلب" value="2.4"><b id="osr"></b></div></div>`),
+      on: (root, d) => { const i = root.querySelector('#osh'), r = root.querySelector('#osr'); if (i) { const c = () => { r.textContent = Number(i.value) > 0 ? `المحتسب: ${Math.round(polOtCalc(d, Number(i.value)) * 100) / 100} ساعة × ${d.factor}` : ''; }; i.oninput = c; c(); } },
+      check: (d) => (!d.calc_on ? null : !(Number(d.factor) > 0 && Number(d.factor) <= 10) ? 'معامل الوقت الإضافي بين 0.1 و 10' : null) },
+  ];
+}
+
+const POL_NEW = {
+  penalty_policy: () => ({ name: '', grace: 10, early_grace: 0, late_on: true, early_on: false, partial_on: false, absence_factor: 1, early_factor: 1, late_method: 'minutes', partial_kind: 'day_fraction', partial_value: 0.5, deduct_from: 'salary', tiers: [{ from: 11, to: 30, kind: 'minutes', value: 1 }, { from: 31, to: null, kind: 'minutes', value: 2 }] }),
+  overtime_policy: () => ({ name: '', calc_on: true, after_min: 0, cap_hours: 0, factor: 1.5, rounding: 'none', round_unit: 15 }),
+};
+
+function openPolicyWizard(spec, it, reload) {
+  const isPen = spec.kind === 'penalty_policy';
+  const d = it ? { ...POL_NEW[spec.kind](), ...Object.fromEntries(spec.keys.map((k) => [k, clone(k === 'name' ? it.name : it[k])]).filter(([, v]) => v !== null && v !== undefined)) } : POL_NEW[spec.kind]();
+  if (isPen && Array.isArray(d.tiers)) d.tiers = d.tiers.map((t) => ({ ...t, to: t.to === undefined || t.to === '' ? null : t.to }));
+  policyWizard({
+    d, guided: !it, groups: isPen ? [{ title: 'السياسة', idx: [0] }, { title: 'بنود الجزاءات', idx: [1, 2, 3, 4] }] : [{ title: 'السياسة', idx: [0] }, { title: 'بنود الوقت الإضافي', idx: [1, 2] }],
+    steps: isPen ? penaltySteps() : overtimeSteps(), help: HELP[spec.kind],
+    title: `${it ? 'تعديل' : 'إضافة'} ${isPen ? 'سياسة الجزاءات' : 'سياسة الوقت الإضافي'}`,
+    subtitle: isPen ? 'التأخير والغياب والانصراف المبكر والانصراف الناقص – تُكتب مرة واحدة وتُربط بكل موعد عمل تحكمه' : 'قواعد احتساب الوقت الإضافي – تُكتب مرة واحدة وتُربط بكل موعد عمل تحكمه',
+    progressLabel: isPen ? 'سياسة الجزاءات' : 'سياسة الوقت الإضافي',
+    onInput: (k, dd, old, root) => {
+      if (k === 'grace' && dd.tiers && dd.tiers[0] && Number(dd.tiers[0].from) === Number(old) + 1) { dd.tiers[0].from = (Number(dd.grace) || 0) + 1; const f = root.querySelector('[data-ti="0"][data-tk="from"]'); if (f) f.value = dd.tiers[0].from; }
+      if (k === 'round_unit') dd.round_unit = Number(dd.round_unit);
+    },
+    onChange: (k, dd) => {
+      if (k === 'late_method' && dd.late_method === 'periods') { dd.tiers.forEach((t) => { if (t.kind === 'minutes') { t.kind = 'day_fraction'; t.value = 0.25; } }); return true; }
+      if (k === 'calc_on') { dd.calc_on = dd.calc_on === true || dd.calc_on === 'true'; return true; }
+      if (k === 'partial_kind') { dd.partial_value = dd.partial_kind === 'fixed' ? 50 : 0.5; return true; }
+      return false;
+    },
+    onEnable: (k, dd) => { if (k === 'late_on' && !dd.tiers.length) dd.tiers = POL_NEW.penalty_policy().tiers.map((t) => ({ ...t, from: t.from - 10 + (Number(dd.grace) || 0) })); },
+    onSave: (dd) => spec.saveWith(it, dd), done: reload,
+  });
+}
+
+/* --- مواعيد مرتبطة بسياسة --- */
+function linksModal(it) {
+  const o = modal(`<h3>مواعيد العمل المرتبطة بـ ${esc(it.name)}</h3><div class="vlist">${it._sch.map((s) => `<div class="vrow"><div><b>${esc(s.name)}</b> <span class="muted small" dir="ltr">${tm12(s.start)} - ${tm12(s.end)}</span></div></div>`).join('')}</div>
+    <p class="muted small" style="margin-top:10px">الربط من صفحة «مواعيد العمل» (تعديل موعد العمل واختيار السياسة).</p><div class="actions"><button class="btn alt" data-close>إغلاق</button></div>`);
+  return o;
+}
+
+/* --- قائمة السياسات --- */
+function policySpec(kind) {
+  const isPen = kind === 'penalty_policy', keys = POL_KEYS[kind], api_ = cfgApi(kind), idKey = isPen ? 'penalty_id' : 'overtime_id';
+  const pick = (it) => Object.fromEntries(keys.map((k) => [k, clone(k === 'name' ? it.name : it[k])]));
+  const snap = (it) => ({ at: stamp(), ...pick(it) });
+  const brief = isPen
+    ? (it) => [Number(it.grace) > 0 ? `سماحية ${it.grace} دقيقة` : 'بدون سماحية', it.late_on ? plural((it.tiers || []).length, 'شريحة تأخير واحدة', 'شرائح تأخير') : 'التأخير غير مفعّل', it.early_on ? `انصراف مبكر ×${it.early_factor}` : 'انصراف مبكر غير مفعّل'].join(' · ')
+    : (it) => (it.calc_on ? [Number(it.after_min) > 0 ? `يبدأ بعد ${it.after_min} دقيقة من الانصراف` : 'يبدأ من أول دقيقة إضافية', Number(it.cap_hours) > 0 ? `حد يومي ${it.cap_hours} س` : 'بدون حد يومي', `×${it.factor}`].join(' · ') : 'لا تُحتسب الساعات بعد الانصراف');
+  const spec = { kind, keys, snap, brief };
+  spec.saveWith = (it, d, over = {}) => {
+    const body = { ...clone(d), name: d.name.trim(), active: over.active ?? (it ? (it.active ? '1' : '0') : '1'), archived: over.archived ?? (it ? !!it.archived : false) };
+    if (isPen) { body.deduct_from = 'salary'; body.tiers = (d.tiers || []).map((t) => ({ from: Number(t.from), to: t.to === null || t.to === '' ? null : Number(t.to), kind: t.kind, value: Number(t.value) })); }
+    else { body.calc_on = d.calc_on === true || d.calc_on === 'true'; }
+    const changed = it && keys.some((k) => JSON.stringify(clone(k === 'name' ? it.name : it[k]) ?? null) !== JSON.stringify(clone(k === 'name' ? body.name : body[k]) ?? null));
+    body.versions = it ? (changed ? [snap(it), ...(it.versions || [])].slice(0, 30) : (it.versions || [])) : [];
+    return api_.save(it, body);
+  };
+  const flip = (it, over) => spec.saveWith(it, { ...pick(it), name: it.name }, over);
+  const roundOf = (it) => (!it.calc_on ? 'x' : it.rounding === 'up' ? 'up' : it.rounding === 'down' ? 'down' : 'none');
+  return Object.assign(spec, {
+    ...api_, newLabel: isPen ? 'إضافة سياسة جزاءات' : 'إضافة سياسة وقت إضافي', searchPh: isPen ? 'ابحث في سياسات الجزاءات' : 'ابحث في سياسات العمل الإضافي', counts: true,
+    tabs: POL_TABS, actHead: 'الإصدارات والإجراءات',
+    chips: isPen ? null : [['all', 'الكل', () => true], ['up', 'تقريب للأعلى', (it) => roundOf(it) === 'up'], ['down', 'تقريب للأسفل', (it) => roundOf(it) === 'down'], ['none', 'الدقائق الفعلية', (it) => roundOf(it) === 'none']], chipLabel: 'التقريب',
+    text: (it) => `${it.name} ${brief(it)}`,
+    load: async () => {
+      const [rows, sch] = await Promise.all([api_.load(), api('/config/schedule')]);
+      POL[isPen ? 'pen' : 'ot'] = rows;
+      return rows.map((p) => ({ ...p, _sch: sch.filter((s) => String(s[idKey] ?? '') === String(p.id)) }));
+    },
+    cols: isPen ? [
+      ['السياسة', (it) => `<b>${esc(it.name)}</b><div class="muted small">${esc(brief(it))}</div>`],
+      ['المجالات', (it) => `<div class="pcs"><span class="pc ${it.late_on ? '' : 'off'}">متأخر</span><span class="pc ${it.early_on ? '' : 'off'}">مبكر</span><span class="pc">غياب</span><span class="pc ${it.partial_on ? '' : 'off'}">الانصراف ناقص</span></div>`],
+      ['مرتبط بـ', linkedCell], ['حالة', polBadge],
+    ] : [
+      ['السياسة', (it) => `<b>${esc(it.name)}</b>`],
+      ['وقت إضافي', (it) => `<span class="badge ${it.calc_on ? 'b-ok' : 'b-warn'}">${it.calc_on ? 'يُحتسب' : 'لا يُحتسب'}</span><div class="muted small">${esc(brief(it))}</div>`],
+      ['التقريب', (it) => (!it.calc_on ? '<span class="muted">—</span>' : `<span class="badge b-info">${it.rounding === 'up' ? `تقريب للأعلى · ${it.round_unit} د` : it.rounding === 'down' ? `تقريب للأسفل · ${it.round_unit} د` : 'الدقائق الفعلية'}</span>`)],
+      ['مرتبط بـ', linkedCell], ['حالة', polBadge],
+    ],
+    rowActs: (it) => `<div class="racts"><button class="vchip" data-a="ver" data-id="${it.id}" ${(it.versions || []).length ? '' : 'disabled'}>${(it.versions || []).length ? `إصدارات ${it.versions.length}` : 'لا توجد إصدارات سابقة'}</button>
+      <button class="sqb" data-a="edit" data-id="${it.id}" title="تعديل">${ico('edit')}</button><button class="sqb" data-a="dup" data-id="${it.id}" title="نسخ">${ico('copy')}</button>
+      <button class="sqb" data-a="arch" data-id="${it.id}" title="${it.archived ? 'استرجاع' : 'أرشفة'}">${ico('archive')}</button><button class="sqb" data-more="${it.id}" title="المزيد">${ico('dots')}</button></div>`,
+    more: (it) => [['tog', it.active ? 'تعطيل' : 'تفعيل'], ['del', 'حذف', 1]],
+    delMsg: (it) => (it._sch && it._sch.length ? `السياسة دي مربوطة بـ ${it._sch.length} مواعيد عمل، ولو اتحذفت الموظفين دول هيرجعوا للإعدادات العامة. متأكدة؟` : 'حذف السياسة دي؟'),
+    form: (it, reload) => openPolicyWizard(spec, it, reload),
+    act: async (a, it, reload) => {
+      if (a === 'ver') return polVersions(it, spec, reload);
+      if (a === 'links') return linksModal(it);
+      if (a === 'dup') { await spec.saveWith(null, { ...pick(it), name: `${it.name} (نسخة)` }, { active: '1', archived: false }); toast('تم النسخ'); return reload(); }
+      if (a === 'arch') { await flip(it, { archived: !it.archived }); toast(it.archived ? 'تم الاسترجاع' : 'تمت الأرشفة'); return reload(); }
+      if (a === 'tog') { await flip(it, { active: it.active ? '0' : '1' }); toast(it.active ? 'تم التعطيل' : 'تم التفعيل'); return reload(); }
+    },
+    extraBtn: '<button class="btn alt sm" id="sglob">الإعدادات العامة</button>',
+    bindExtra: (box) => { $('#sglob', box).onclick = () => globalPolicyModal(kind); },
+  });
+}
+function polVersions(it, spec, reload) {
+  const o = modal(`<h3>إصدارات ${esc(it.name)}</h3><div class="vlist">${(it.versions || []).map((v, i) => `<div class="vrow"><div><b>${esc(v.name)}</b> <span class="muted small">${esc(v.at)}</span><div class="muted small">${esc(spec.brief(v))}</div></div><button class="btn alt sm" data-rv="${i}">استرجاع</button></div>`).join('')}</div><div class="actions"><button class="btn alt" data-close>إغلاق</button></div>`);
+  o.querySelectorAll('[data-rv]').forEach((b) => (b.onclick = () => run(b, async () => {
+    const i = Number(b.dataset.rv), v = it.versions[i];
+    const body = { ...Object.fromEntries(spec.keys.map((k) => [k, clone(v[k])])), active: it.active ? '1' : '0', archived: !!it.archived, ...(spec.kind === 'penalty_policy' ? { deduct_from: 'salary' } : {}) };
+    body.versions = [spec.snap(it), ...it.versions.filter((_, j) => j !== i)].slice(0, 30);
+    await cfgApi(spec.kind).save(it, body); o.close(); toast('تم استرجاع الإصدار'); reload();
+  })));
+}
+/* الإعدادات العامة (بتتطبق على الموظفين اللي موعد عملهم مش مربوط بسياسة) */
+async function globalPolicyModal(kind) {
+  const isPen = kind === 'penalty_policy';
+  const o = modal(`<h3>الإعدادات العامة ${isPen ? 'للجزاءات' : 'للوقت الإضافي'}</h3><p class="muted small" style="margin-bottom:10px">بتتطبق على الموظفين اللي موعد عملهم مش مربوط بسياسة ${isPen ? 'جزاءات' : 'وقت إضافي'}.</p><div id="gset"></div>${isPen ? '<div id="gtier" style="margin-top:12px"></div>' : ''}<div class="actions"><button class="btn alt" data-close>إغلاق</button></div>`);
+  o.classList.add('wide');
+  try {
+    if (isPen) {
+      await settingsForm($('#gset', o), { title: 'فترة السماح ومعاملات الخصم', fields: [
+        { k: 'grace_minutes', l: 'سماح التأخير (دقيقة)', t: 'number', attrs: 'min="0"' }, { k: 'late_factor', l: 'معامل خصم التأخير', t: 'number', attrs: 'step="0.25" min="0"' }, { k: 'absence_factor', l: 'معامل خصم الغياب (يوم)', t: 'number', attrs: 'step="0.25" min="0"' }] });
+      await tiersUI($('#gtier', o), true);
+    } else await settingsForm($('#gset', o), { title: 'معامل الوقت الإضافي', fields: [{ k: 'overtime_factor', l: 'معامل الوقت الإضافي', t: 'number', attrs: 'step="0.25" min="0"' }] });
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ===== العطلات الرسمية + قواعد التعويض + قواعد الحد من الإجازات + ملفات الإجازة والاستراحة =====
+   نفس منطق سياسات الجزاءات: إصدارات / نسخ / أرشفة / تفعيل / معالج بخطوات، والسيرفر بيطبقها فعلياً
+   (حساب المرتبات + طلبات الإجازة). */
+Object.assign(POL_KEYS, {
+  holiday: ['name', 'date', 'to', 'yearly'],
+  compensation_rule: ['name', 'applies', 'mode', 'factor', 'days', 'min_hours'],
+  holiday_limit: ['name', 'rule', 'value', 'from', 'to', 'scope', 'types'],
+  leave_profile: ['name', 'annual', 'sick', 'emergency', 'carry', 'break_min', 'break_paid'],
+});
+const LV_LIST = [['annual_leave', 'سنوية', 'الإجازة اللي بتتخصم من الرصيد السنوي'], ['emergency_leave', 'طارئة', 'إجازة عارضة بدون ترتيب مسبق'], ['sick_leave', 'مرضية', 'إجازة بتقرير طبي']];
+const LV_NAME = Object.fromEntries(LV_LIST.map(([k, l]) => [k, l]));
+const APPLIES = { holiday: 'العطلات الرسمية', weekend: 'الإجازة الأسبوعية', both: 'العطلات والإجازة الأسبوعية' };
+const LIM_RULE = { max_consecutive: 'أقصى مدة للطلب', max_concurrent: 'أقصى عدد في نفس اليوم', blackout: 'فترة منع' };
+const dayCount = (a, b) => (a && b && b >= a ? Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5) + 1 : 0);
+const attOnChange = (k, dd) => {
+  if (['yearly', 'carry', 'break_paid'].includes(k) && typeof dd[k] === 'string') { dd[k] = dd[k] === 'true'; return true; }
+  if (k === 'rule') { dd.value = dd.rule === 'max_consecutive' ? 5 : dd.rule === 'max_concurrent' ? 2 : 0; return true; }
+  return ['mode', 'applies', 'scope'].includes(k);
+};
+const nameFld = (d, ph) => `<div class="pwfld" data-help="details"><label class="lbl">الاسم</label><input data-k="name" value="${esc(d.name)}" placeholder="${ph}" maxlength="80"></div>`;
+const nameChk = (d) => (String(d.name || '').trim() ? null : 'اكتبي الاسم');
+
+HELP.holiday = {
+  details: ['العطلة الرسمية', 'يوم أو فترة بتتعامل معاها الشركة كإجازة رسمية. الموظفين مش بيتحسبلهم غياب ولا تأخير في الأيام دي، وبتظهر في لوحة المعلومات كيوم عطلة.', 'لو موظف اشتغل في العطلة، بتتطبق عليه «قاعدة التعويض» المناسبة (لو فيه).'],
+  yearly: ['التكرار', 'تتكرر كل سنة: نفس اليوم والشهر كل سنة (مناسبة للأعياد الثابتة). مرة واحدة: بتتطبق في السنة اللي اخترتيها بس (مناسبة للأعياد المتحركة).', null],
+  dates: ['فترة العطلة', 'اختاري أول يوم وآخر يوم. لو العطلة يوم واحد سيبي «إلى» فاضية.', 'الحد الأقصى للعطلة الواحدة 60 يوم.'],
+};
+HELP.compensation_rule = {
+  details: ['قاعدة التعويض', 'بتحدد إيه اللي الموظف بياخده لو اشتغل في يوم المفروض يكون إجازة. بتتطبق في حساب المرتب الشهري.', 'أول قاعدة مفعّلة مطابقة هي اللي بتتطبق: المحددة (عطلة/أسبوعية) قبل «الاثنين».'],
+  applies: ['بتنطبق على', 'العطلات الرسمية: الأيام المسجّلة في «العطلات الرسمية». الإجازة الأسبوعية: أيام الويك إند من الإعدادات المتنوعة. الاثنين: أي يوم من النوعين.', null],
+  ckind: ['شكل التعويض', 'أجر إضافي: بيتضاف للمرتب (أجر اليوم × المعامل). يوم إجازة بدل: بيتسجل للموظف رصيد أيام بدل بتظهر في كشف المرتب.', null],
+  cfactor: ['معامل أجر اليوم', 'أجر اليوم = المرتب الأساسي ÷ 30. المعامل 2 يعني الموظف بياخد أجر يومين عن اليوم اللي اشتغله.', null],
+  csim: ['جرّبي حساب', 'اكتبي مرتب وشوفي قيمة التعويض عن يوم عمل واحد.', null],
+  cdays: ['أيام الإجازة البدل', 'عدد أيام الإجازة اللي الموظف يكسبها عن كل يوم اشتغله في العطلة.', null],
+  cmin: ['الحد الأدنى لساعات العمل', 'التعويض مش بيتطبق إلا لو الموظف سجّل حضور وانصراف وساعاته وصلت للحد ده. 0 = أي يوم فيه تسجيل حضور.', null],
+};
+HELP.holiday_limit = {
+  details: ['قاعدة الحد من الإجازات', 'بتمنع طلبات الإجازة اللي بتخالف الحدود اللي بتحطيها. بتتفحص أوتوماتيك لحظة تقديم الموظف للطلب ولو خالف بيظهرله سبب الرفض.', null],
+  rule: ['نوع القاعدة', 'أقصى مدة: عدد الأيام في الطلب الواحد. أقصى عدد في نفس اليوم: كام موظف يقدروا يكونوا في إجازة في نفس اليوم. فترة منع: تواريخ مش بيتقبل فيها أي طلب.', null],
+  value: ['القيمة', 'الحد الأقصى المسموح بيه. الطلبات المعتمدة والمنتظرة بتتحسب.', null],
+  scope: ['النطاق', 'كل الشركة: العدد بيتحسب على كل الموظفين. نفس القسم: بيتحسب على موظفين نفس قسم مقدّم الطلب.', null],
+  block: ['فترة المنع', 'أي طلب بيتقاطع مع الفترة دي بيترفض.', null],
+  types: ['أنواع الإجازات', 'القاعدة بتتطبق على الأنواع المختارة فقط.', null],
+};
+HELP.leave_profile = {
+  details: ['ملف الإجازة والاستراحة', 'مجموعة أرصدة إجازات وقواعد استراحة بتتربط بالموظف من صفحة بياناته. الموظف اللي ليه ملف بيتفحص رصيده عند تقديم أي طلب إجازة.', 'الموظف اللي مالوش ملف بيستخدم «الإجازة السنوية» من بياناته.'],
+  annual: ['الإجازة السنوية', 'عدد أيام الإجازة السنوية في السنة. لو الطلب هيعدي الرصيد بيترفض.', null],
+  sick: ['المرضية والطارئة', 'أقصى أيام في السنة لكل نوع. اكتبي 0 لو مفيش حد.', null],
+  carry: ['ترحيل الرصيد', 'لو مفعّل، الرصيد المتبقي بيتنقل للسنة اللي بعدها.', null],
+  brk: ['الاستراحة', 'مدة الاستراحة اليومية. لو غير مدفوعة بتتشال من ساعات الوردية المدفوعة (فبيزيد أجر الساعة المستخدم في الخصومات والوقت الإضافي).', 'مدفوعة: مفيش أي تأثير على الحساب.'],
+};
+
+const ATT_DEF = {
+  holiday: {
+    title: 'عطلة رسمية', newLabel: 'إضافة عطلة رسمية', search: 'ابحث في العطلات الرسمية',
+    nw: () => ({ name: '', date: '', to: '', yearly: true }),
+    groups: [{ title: 'العطلة', idx: [0] }, { title: 'المدة', idx: [1] }],
+    subtitle: 'يوم أو فترة عطلة رسمية بدون خصم غياب',
+    brief: (it) => { const n = dayCount(it.date, it.to || it.date); return `${dmy(it.date)}${n > 1 ? ` ← ${dmy(it.to)}` : ''} · ${plural(n, 'يوم واحد', 'أيام')}${truthy2(it.yearly) ? ' · كل سنة' : ''}`; },
+    chipLabel: 'التكرار', chips: [['all', 'الكل', () => true], ['y', 'سنوياً', (it) => truthy2(it.yearly)], ['o', 'مرة واحدة', (it) => !truthy2(it.yearly)]],
+    cols: [
+      ['العطلة', (it) => `<b>${esc(it.name)}</b>`],
+      ['الفترة', (it) => { const n = dayCount(it.date, it.to || it.date); return `<span dir="ltr">${dmy(it.date)}${n > 1 ? ` ← ${dmy(it.to)}` : ''}</span>`; }],
+      ['المدة', (it) => `<span class="badge b-info">${plural(dayCount(it.date, it.to || it.date), 'يوم واحد', 'أيام')}</span>`],
+      ['التكرار', (it) => `<span class="badge ${truthy2(it.yearly) ? 'b-ok' : ''}">${truthy2(it.yearly) ? 'كل سنة' : 'مرة واحدة'}</span>`],
+    ],
+    steps: () => [
+      { title: 'تفاصيل العطلة', sub: 'اسم العطلة وهل بتتكرر', icon: 'gift', help: 'details',
+        body: (d) => `${nameFld(d, 'مثلاً: عيد الفطر')}<div class="pwfld" data-help="yearly"><label class="lbl">التكرار</label>${pwRadio('yearly', d.yearly ? 'true' : 'false', [['true', 'تتكرر كل سنة', 'نفس اليوم والشهر كل سنة'], ['false', 'مرة واحدة', 'السنة المحددة فقط']], 'two')}</div>`,
+        check: nameChk },
+      { title: 'فترة العطلة', sub: 'أول يوم وآخر يوم', icon: 'calendar', help: 'dates',
+        body: (d) => `<div class="pwfld" data-help="dates"><label class="lbl">من تاريخ</label><input type="date" data-k="date" value="${esc(d.date)}"></div>
+          <div class="pwfld" data-help="dates"><label class="lbl">إلى تاريخ <span class="muted small">(سيبيه فاضي لو يوم واحد)</span></label><input type="date" data-k="to" value="${esc(d.to && d.to !== d.date ? d.to : '')}"></div>
+          <div class="pwcalc"><b id="hsum"></b></div>`,
+        on: (root, d) => { const s = root.querySelector('#hsum'); const c = () => { const n = dayCount(d.date, d.to || d.date); s.textContent = d.date && n ? `${plural(n, 'يوم واحد', 'أيام')} · ${dmy(d.date)}${n > 1 ? ' ← ' + dmy(d.to) : ''}` : ''; }; root.querySelectorAll('[data-k]').forEach((i) => i.addEventListener('input', c)); c(); },
+        check: (d) => (!d.date ? 'اختاري تاريخ بداية العطلة' : d.to && d.to < d.date ? 'نهاية العطلة قبل بدايتها' : dayCount(d.date, d.to || d.date) > 60 ? 'العطلة الواحدة حد أقصى 60 يوم' : null) },
+    ],
+  },
+  compensation_rule: {
+    title: 'قاعدة تعويض', newLabel: 'إضافة قاعدة تعويض', search: 'ابحث في قواعد التعويض',
+    nw: () => ({ name: '', applies: 'both', mode: 'pay', factor: 2, days: 1, min_hours: 0 }),
+    groups: [{ title: 'القاعدة', idx: [0] }, { title: 'التعويض', idx: [1] }],
+    subtitle: 'تعويض الموظف اللي بيشتغل في عطلة رسمية أو إجازة أسبوعية',
+    brief: (it) => `${APPLIES[it.applies] || ''} · ${it.mode === 'time_off' ? `${plural(Number(it.days), 'يوم إجازة بدل', 'أيام إجازة بدل')}` : `أجر يوم × ${it.factor}`}${Number(it.min_hours) > 0 ? ` · من ${it.min_hours} س` : ''}`,
+    chipLabel: 'التعويض', chips: [['all', 'الكل', () => true], ['pay', 'أجر إضافي', (it) => it.mode !== 'time_off'], ['off', 'إجازة بدل', (it) => it.mode === 'time_off']],
+    cols: [
+      ['القاعدة', (it) => `<b>${esc(it.name)}</b>`],
+      ['تنطبق على', (it) => `<span class="badge b-info">${APPLIES[it.applies] || '—'}</span>`],
+      ['التعويض', (it) => (it.mode === 'time_off' ? `<span class="badge b-warn">${plural(Number(it.days), 'يوم إجازة بدل', 'أيام إجازة بدل')}</span>` : `<span class="badge b-ok">أجر يوم × ${esc(it.factor)}</span>`)],
+      ['الحد الأدنى', (it) => (Number(it.min_hours) > 0 ? `${it.min_hours} ساعة` : '<span class="muted small">أي حضور</span>')],
+    ],
+    steps: () => [
+      { title: 'تفاصيل القاعدة', sub: 'الاسم وبتنطبق على إيه', icon: 'shield', help: 'details',
+        body: (d) => `${nameFld(d, 'مثلاً: العمل في العطلات')}<div class="pwfld" data-help="applies"><label class="lbl">بتنطبق على</label>${pwRadio('applies', d.applies, [['holiday', 'العطلات الرسمية', 'الأيام المسجلة في العطلات الرسمية'], ['weekend', 'الإجازة الأسبوعية', 'أيام الويك إند'], ['both', 'الاثنين', 'أي يوم من النوعين']])}</div>`,
+        check: nameChk },
+      { title: 'التعويض', sub: 'أجر إضافي أو يوم إجازة بدل', icon: 'dollar', help: 'ckind',
+        body: (d) => `<div class="pwfld" data-help="ckind"><label class="lbl">شكل التعويض</label>${pwRadio('mode', d.mode, [['pay', 'أجر إضافي', 'بيتضاف للمرتب'], ['time_off', 'يوم إجازة بدل', 'رصيد أيام بدل']], 'two')}</div>
+          ${d.mode === 'time_off'
+    ? `<div class="pwfld" data-help="cdays"><label class="lbl">أيام الإجازة البدل عن كل يوم عمل</label>${pwStep('data-k="days"', d.days, 0.5, 0.5, 5)}</div>`
+    : `<div class="pwfld" data-help="cfactor"><label class="lbl">معامل أجر اليوم</label>${pwStep('data-k="factor"', d.factor, 0.25, 0.25, 10)}</div>
+          <div class="pwcalc" data-help="csim"><b>جرّبي حساب</b><div class="ufld"><input type="number" id="csal" min="0" step="100" value="6000"><span>مرتب</span></div><div id="cres" class="pwres"></div></div>`}
+          <div class="pwfld" data-help="cmin"><label class="lbl">الحد الأدنى لساعات العمل</label>${pwNum('min="0" max="24" step="0.5" data-k="min_hours"', d.min_hours, 'ساعة')}</div>`,
+        on: (root, d) => { const s = root.querySelector('#csal'), r = root.querySelector('#cres'); if (!s) return; const c = () => { const day = (Number(s.value) || 0) / 30; r.innerHTML = `أجر اليوم ${money(day)} ← تعويض اليوم الواحد <b>${money(day * (Number(d.factor) || 0))}</b>`; }; s.addEventListener('input', c); root.querySelectorAll('[data-k="factor"],[data-sp]').forEach((i) => i.addEventListener(i.dataset.sp ? 'click' : 'input', () => setTimeout(c, 0))); c(); },
+        check: (d) => (d.mode === 'time_off' ? (!(Number(d.days) > 0) || Number(d.days) > 5 ? 'أيام الإجازة البدل بين 0.5 و 5' : null) : (!(Number(d.factor) > 0) || Number(d.factor) > 10 ? 'معامل أجر اليوم بين 0.25 و 10' : null)) || (Number(d.min_hours) < 0 || Number(d.min_hours) > 24 ? 'ساعات العمل بين 0 و 24' : null) },
+    ],
+  },
+  holiday_limit: {
+    title: 'قاعدة حد من الإجازات', newLabel: 'إضافة قاعدة', search: 'ابحث في قواعد الحد من الإجازات',
+    nw: () => ({ name: '', rule: 'max_consecutive', value: 5, from: '', to: '', scope: 'all', types: ['annual_leave'] }),
+    groups: [{ title: 'القاعدة', idx: [0] }, { title: 'الحد', idx: [1] }, { title: 'الإجازات', idx: [2] }],
+    subtitle: 'تُفحص تلقائياً عند تقديم طلب الإجازة',
+    brief: (it) => (it.rule === 'blackout' ? `ممنوع من ${dmy(it.from)} إلى ${dmy(it.to)}` : it.rule === 'max_concurrent' ? `حد أقصى ${plural(Number(it.value), 'موظف واحد', 'موظفين')} في نفس اليوم · ${it.scope === 'department' ? 'نفس القسم' : 'كل الشركة'}` : `حد أقصى ${plural(Number(it.value), 'يوم واحد', 'أيام')} في الطلب الواحد`),
+    chipLabel: 'النوع', chips: [['all', 'الكل', () => true], ...Object.entries(LIM_RULE).map(([k, l]) => [k, l, (it) => it.rule === k])],
+    cols: [
+      ['القاعدة', (it) => `<b>${esc(it.name)}</b>`],
+      ['النوع', (it) => `<span class="badge b-info">${LIM_RULE[it.rule] || '—'}</span>`],
+      ['الحد', (it) => `<span class="small">${esc(ATT_DEF.holiday_limit.brief(it))}</span>`],
+      ['تشمل', (it) => `<div class="pcs">${(it.types || []).map((t) => `<span class="pc">${LV_NAME[t] || t}</span>`).join('')}</div>`],
+    ],
+    steps: () => [
+      { title: 'تفاصيل القاعدة', sub: 'الاسم ونوع الحد', icon: 'shield', help: 'details',
+        body: (d) => `${nameFld(d, 'مثلاً: حد الإجازة المتواصلة')}<div class="pwfld" data-help="rule"><label class="lbl">نوع القاعدة</label>${pwRadio('rule', d.rule, [['max_consecutive', 'أقصى مدة للطلب', 'عدد أيام الطلب الواحد'], ['max_concurrent', 'أقصى عدد في نفس اليوم', 'كام موظف في إجازة مع بعض'], ['blackout', 'فترة منع', 'تواريخ ممنوع فيها الإجازات']])}</div>`,
+        check: nameChk },
+      { title: 'الحد', sub: 'القيمة اللي القاعدة بتفرضها', icon: 'sliders', help: 'value',
+        body: (d) => (d.rule === 'blackout'
+          ? `<div class="pwfld" data-help="block"><label class="lbl">ممنوع من</label><input type="date" data-k="from" value="${esc(d.from)}"></div><div class="pwfld" data-help="block"><label class="lbl">إلى</label><input type="date" data-k="to" value="${esc(d.to)}"></div>`
+          : `<div class="pwfld" data-help="value"><label class="lbl">${d.rule === 'max_concurrent' ? 'أقصى عدد موظفين في إجازة في نفس اليوم' : 'أقصى عدد أيام في الطلب الواحد'}</label>${pwStep('data-k="value"', d.value, 1, 1, 365)}</div>
+            ${d.rule === 'max_concurrent' ? `<div class="pwfld" data-help="scope"><label class="lbl">النطاق</label>${pwRadio('scope', d.scope, [['all', 'كل الشركة', 'كل الموظفين'], ['department', 'نفس القسم', 'موظفين نفس قسم مقدم الطلب']], 'two')}</div>` : ''}`),
+        check: (d) => (d.rule === 'blackout' ? (!d.from || !d.to ? 'حددي فترة المنع (من وإلى)' : d.to < d.from ? 'نهاية الفترة قبل بدايتها' : null) : (!(Number(d.value) >= 1) ? 'القيمة لازم تكون 1 أو أكتر' : null)) },
+      { title: 'أنواع الإجازات', sub: 'القاعدة بتتطبق على أنهي إجازات', icon: 'calendar', help: 'types',
+        body: (d) => `<div class="pwfld" data-help="types"><label class="lbl">تُطبق على</label>${LV_LIST.map(([k, l, s]) => `<label class="cc ${d.types.includes(k) ? 'on' : ''}"><input type="checkbox" data-ty="${k}" ${d.types.includes(k) ? 'checked' : ''}><span><b>إجازة ${l}</b><small>${s}</small></span></label>`).join('')}</div>`,
+        on: (root, d) => root.querySelectorAll('[data-ty]').forEach((el) => (el.onchange = () => { const s = new Set(d.types); if (el.checked) s.add(el.dataset.ty); else s.delete(el.dataset.ty); d.types = [...s]; el.closest('.cc').classList.toggle('on', el.checked); })),
+        check: (d) => (d.types.length ? null : 'اختاري نوع إجازة واحد على الأقل') },
+    ],
+  },
+  leave_profile: {
+    title: 'ملف إجازة واستراحة', newLabel: 'إضافة ملف', search: 'ابحث في ملفات الإجازة والاستراحة',
+    nw: () => ({ name: '', annual: 21, sick: 0, emergency: 0, carry: false, break_min: 60, break_paid: true }),
+    groups: [{ title: 'الملف', idx: [0] }, { title: 'بنود الملف', idx: [1, 2] }],
+    subtitle: 'أرصدة الإجازات وقواعد الاستراحة للموظفين المربوطين بيه',
+    brief: (it) => `سنوية ${it.annual} · مرضية ${Number(it.sick) > 0 ? it.sick : 'بدون حد'} · طارئة ${Number(it.emergency) > 0 ? it.emergency : 'بدون حد'}`,
+    chipLabel: 'الاستراحة', chips: [['all', 'الكل', () => true], ['p', 'مدفوعة', (it) => it.break_paid !== false], ['u', 'غير مدفوعة', (it) => it.break_paid === false]],
+    cols: [
+      ['الملف', (it) => `<b>${esc(it.name)}</b>`],
+      ['الأرصدة', (it) => `<span class="small">${esc(ATT_DEF.leave_profile.brief(it))}${it.carry ? ' · يُرحَّل' : ''}</span>`],
+      ['الاستراحة', (it) => (Number(it.break_min) > 0 ? `<span class="badge ${it.break_paid === false ? 'b-warn' : 'b-ok'}">${it.break_min} د ${it.break_paid === false ? 'غير مدفوعة' : 'مدفوعة'}</span>` : '<span class="muted small">بدون</span>')],
+      ['الموظفون', (it) => (it._n ? `<span class="badge b-info">${plural(it._n, 'موظف واحد', 'موظفين')}</span>` : '<span class="muted small">غير مربوط بعد</span>')],
+    ],
+    async load(rows) { const emps = await api('/employees').catch(() => []); rows.forEach((r) => { r._n = emps.filter((e) => String(e.leave_profile_id || '') === String(r.id)).length; }); },
+    delMsg: (it) => (it._n ? `الملف ده مربوط بـ ${it._n} موظف، ولو اتحذف هيرجعوا لرصيد «الإجازة السنوية» من بياناتهم. متأكدة؟` : 'حذف الملف ده؟'),
+    steps: () => [
+      { title: 'تفاصيل الملف', sub: 'اسم الملف', icon: 'file', help: 'details', body: (d) => nameFld(d, 'مثلاً: موظفين بدوام كامل'), check: nameChk },
+      { title: 'أرصدة الإجازات', sub: 'أيام كل نوع في السنة', icon: 'calendar', help: 'annual',
+        body: (d) => `<div class="pwfld" data-help="annual"><label class="lbl">الإجازة السنوية</label>${pwNum('min="0" max="365" data-k="annual"', d.annual, 'يوم')}</div>
+          <div class="pwfld" data-help="sick"><label class="lbl">الإجازة المرضية <span class="muted small">(0 = بدون حد)</span></label>${pwNum('min="0" max="365" data-k="sick"', d.sick, 'يوم')}</div>
+          <div class="pwfld" data-help="sick"><label class="lbl">الإجازة الطارئة <span class="muted small">(0 = بدون حد)</span></label>${pwNum('min="0" max="365" data-k="emergency"', d.emergency, 'يوم')}</div>
+          <div class="pwfld" data-help="carry"><label class="lbl">ترحيل الرصيد المتبقي</label>${pwRadio('carry', d.carry ? 'true' : 'false', [['false', 'لا يُرحَّل', 'الرصيد بيتصفّر كل سنة'], ['true', 'يُرحَّل', 'الباقي بيتنقل للسنة اللي بعدها']], 'two')}</div>`,
+        check: (d) => (['annual', 'sick', 'emergency'].some((k) => Number(d[k]) < 0 || Number(d[k]) > 365) ? 'الأرصدة بين 0 و 365 يوم' : null) },
+      { title: 'الاستراحة', sub: 'مدتها وهل هي مدفوعة', icon: 'pause', help: 'brk',
+        body: (d) => `<div class="pwfld" data-help="brk"><label class="lbl">مدة الاستراحة اليومية</label>${pwNum('min="0" max="240" data-k="break_min"', d.break_min, 'دقيقة')}</div>
+          <div class="pwfld" data-help="brk"><label class="lbl">الاستراحة</label>${pwRadio('break_paid', d.break_paid !== false ? 'true' : 'false', [['true', 'مدفوعة', 'بدون تأثير على الحساب'], ['false', 'غير مدفوعة', 'بتتشال من ساعات الوردية المدفوعة']], 'two')}</div>`,
+        check: (d) => (Number(d.break_min) < 0 || Number(d.break_min) > 240 ? 'الاستراحة بين 0 و 240 دقيقة' : null) },
+    ],
+  },
+};
+const truthy2 = (v) => v === true || v === 'true' || v === 1 || v === '1';
+
+function attSpec(kind) {
+  const def = ATT_DEF[kind], keys = POL_KEYS[kind], api_ = cfgApi(kind);
+  const pick = (it) => Object.fromEntries(keys.map((k) => [k, clone(k === 'name' ? it.name : it[k])]));
+  const snap = (it) => ({ at: stamp(), ...pick(it) });
+  const brief = def.brief;
+  const spec = { kind, keys, snap, brief };
+  spec.saveWith = (it, d, over = {}) => {
+    const body = { ...clone(d), name: String(d.name || '').trim(), active: over.active ?? (it ? (it.active ? '1' : '0') : '1'), archived: over.archived ?? (it ? !!it.archived : false) };
+    const changed = it && keys.some((k) => JSON.stringify(clone(k === 'name' ? it.name : it[k]) ?? null) !== JSON.stringify(clone(k === 'name' ? body.name : body[k]) ?? null));
+    body.versions = it ? (changed ? [snap(it), ...(it.versions || [])].slice(0, 30) : (it.versions || [])) : [];
+    return api_.save(it, body);
+  };
+  const flip = (it, over) => spec.saveWith(it, { ...pick(it), name: it.name }, over);
+  return Object.assign(spec, {
+    ...api_, newLabel: def.newLabel, searchPh: def.search, counts: true, tabs: POL_TABS, actHead: 'الإصدارات والإجراءات',
+    chips: def.chips, chipLabel: def.chipLabel, text: (it) => `${it.name} ${brief(it)}`,
+    load: async () => { const rows = await api_.load(); if (def.load) await def.load(rows); return rows; },
+    cols: [...def.cols, ['حالة', polBadge]],
+    rowActs: (it) => `<div class="racts"><button class="vchip" data-a="ver" data-id="${it.id}" ${(it.versions || []).length ? '' : 'disabled'}>${(it.versions || []).length ? `إصدارات ${it.versions.length}` : 'لا توجد إصدارات سابقة'}</button>
+      <button class="sqb" data-a="edit" data-id="${it.id}" title="تعديل">${ico('edit')}</button><button class="sqb" data-a="dup" data-id="${it.id}" title="نسخ">${ico('copy')}</button>
+      <button class="sqb" data-a="arch" data-id="${it.id}" title="${it.archived ? 'استرجاع' : 'أرشفة'}">${ico('archive')}</button><button class="sqb" data-more="${it.id}" title="المزيد">${ico('dots')}</button></div>`,
+    more: (it) => [['tog', it.active ? 'تعطيل' : 'تفعيل'], ['del', 'حذف', 1]],
+    delMsg: def.delMsg || (() => 'حذف السجل ده؟'),
+    form: (it, reload) => {
+      const base = def.nw();
+      const d = it ? { ...base, ...Object.fromEntries(keys.map((k) => [k, clone(k === 'name' ? it.name : it[k])]).filter(([, v]) => v !== null && v !== undefined)) } : base;
+      policyWizard({ d, guided: !it, groups: def.groups, steps: def.steps(), help: HELP[kind], title: `${it ? 'تعديل' : 'إضافة'} ${def.title}`, subtitle: def.subtitle, progressLabel: def.title, onChange: attOnChange, onSave: (dd) => spec.saveWith(it, dd), done: reload });
+    },
+    act: async (a, it, reload) => {
+      if (a === 'ver') return polVersions(it, spec, reload);
+      if (a === 'dup') { await spec.saveWith(null, { ...pick(it), name: `${it.name} (نسخة)` }, { active: '1', archived: false }); toast('تم النسخ'); return reload(); }
+      if (a === 'arch') { await flip(it, { archived: !it.archived }); toast(it.archived ? 'تم الاسترجاع' : 'تمت الأرشفة'); return reload(); }
+      if (a === 'tog') { await flip(it, { active: it.active ? '0' : '1' }); toast(it.active ? 'تم التعطيل' : 'تم التفعيل'); return reload(); }
+    },
+  });
+}
+
+/* --- أنواع الإجازات --- */
+const PAY = { paid: ['مدفوع', 'b-ok'], partial: ['جزئي', 'b-info'], unpaid: ['غير مدفوع', 'b-warn'] };
+const payOf = (it) => it.pay || (it.paid === false || it.paid === 'false' ? 'unpaid' : 'paid');
+const leaveTypeSpec = () => {
+  const api_ = cfgApi('leave_type');
+  return {
+    ...api_, newLabel: 'إنشاء نوع إجازة', searchPh: 'البحث عن أنواع الإجازات...', tpl: 'leave_template', chipsFirst: true, chipLabel: '',
+    fields: [
+      { k: 'pay', l: 'نوع الدفع', t: 'select', o: [['paid', 'مدفوع'], ['partial', 'مدفوع جزئياً'], ['unpaid', 'غير مدفوع']], d: 'paid' },
+      { k: 'pay_pct', l: 'نسبة الدفع % (للمدفوع جزئياً)', t: 'number', d: 50, attrs: 'min="1" max="99"' },
+      { k: 'days', l: 'الحد الأقصى سنوياً (يوم)', t: 'number', attrs: 'min="0"' }, { k: 'description', l: 'الوصف', full: true },
+    ],
+    nameLabel: 'اسم الإجازة',
+    tabs: [['all', 'الكل', () => true], ['1', 'نشط', (it) => it.active], ['0', 'غير نشط', (it) => !it.active]],
+    chips: [['all', 'الكل', () => true], ['paid', 'مدفوع', (it) => payOf(it) === 'paid'], ['unpaid', 'غير مدفوع', (it) => payOf(it) === 'unpaid'], ['partial', 'مدفوع جزئياً', (it) => payOf(it) === 'partial']],
+    text: (it) => `${it.name} ${it.description || ''}`,
+    cols: [['اسم الإجازة', (it) => `<b>${esc(it.name)}</b>`], ['نوع الدفع', (it) => `<span class="badge ${PAY[payOf(it)][1]}">${PAY[payOf(it)][0]}</span>`], ['حالة', statusBadge]],
+    expand: (it) => `<div class="xgrid"><div><span class="muted small">الحد الأقصى سنوياً</span><b>${it.days ? `${esc(it.days)} يوم` : 'غير محدد'}</b></div><div><span class="muted small">نسبة الدفع</span><b>${payOf(it) === 'paid' ? '100%' : payOf(it) === 'unpaid' ? '0%' : `${esc(it.pay_pct || 50)}%`}</b></div><div><span class="muted small">الوصف</span><b>${esc(it.description || '—')}</b></div></div>`,
+    pre: (it, b) => { b.paid = b.pay === 'paid'; if (b.pay !== 'partial') b.pay_pct = b.pay === 'paid' ? 100 : 0; },
+    rowActs: (it) => `<div class="racts"><button class="sqb" data-a="del" data-id="${it.id}" title="حذف">${ico('trash')}</button><button class="sqb" data-a="arch" data-id="${it.id}" title="${it.active ? 'تعطيل' : 'تفعيل'}">${ico('archive')}</button><button class="sqb" data-a="edit" data-id="${it.id}" title="تعديل">${ico('edit')}</button><button class="sqb" data-a="dup" data-id="${it.id}" title="نسخ">${ico('copy')}</button></div>`,
+    act: async (a, it, reload) => {
+      const body = { name: it.name, pay: payOf(it), pay_pct: it.pay_pct, days: it.days, description: it.description, paid: payOf(it) === 'paid' };
+      if (a === 'dup') { await api_.save(null, { ...body, name: `${it.name} (نسخة)`, active: '1' }); toast('تم النسخ'); reload(); }
+      else if (a === 'arch') { await api_.save(it, { ...body, active: it.active ? '0' : '1' }); toast(it.active ? 'تم التعطيل' : 'تم التفعيل'); reload(); }
+    },
+  };
+};
+
 /* --- الإطار العام لصفحات الإعدادات --- */
 async function renderSettings(view, top) {
   S.sub = S.sub || {};
@@ -1858,17 +2191,11 @@ async function renderSettings(view, top) {
     if (cur === 'offices') await catalog(body, officesSpec());
     else if (cur === 'schedule') await catalog(body, schedSpec());
     else if (cur === 'payroll_preset') await catalog(body, presetSpec());
-    else if (cur === 'penalty') {
-      body.innerHTML = '<div id="pset"></div><div id="ptier" style="margin-top:12px"></div>';
-      await settingsForm($('#pset', body), { title: 'فترة السماح ومعاملات الخصم', intro: 'فترة السماح بتتحسب من بداية وردية الموظف، وبعدها بيبدأ احتساب التأخير حسب الشرائح تحت.', fields: [
-        { k: 'grace_minutes', l: 'سماح التأخير (دقيقة)', t: 'number', attrs: 'min="0"' }, { k: 'late_factor', l: 'معامل خصم التأخير', t: 'number', attrs: 'step="0.25" min="0"' }, { k: 'absence_factor', l: 'معامل خصم الغياب (يوم)', t: 'number', attrs: 'step="0.25" min="0"' }] });
-      await tiersUI($('#ptier', body), true);
-    } else if (cur === 'overtime') {
-      await settingsForm(body, { title: 'سياسة الوقت الإضافي', intro: 'لو الموظف سجّل انصراف بعد معاد نهاية شفته، الدقايق الزيادة بتتحسب إضافي تلقائياً. مثال: الشفت بينتهي 5:00 والانصراف 5:05 = 5 دقايق × قيمة الدقيقة.', fields: [
-        { k: 'overtime_minute_rate', l: 'قيمة الدقيقة الإضافية (جنيه)', t: 'number', attrs: 'step="0.1" min="0"', help: 'الافتراضي 2 جنيه للدقيقة. لو صفر بيتحسب بأجر الساعة × المعامل' },
-        { k: 'overtime_factor', l: 'معامل الإضافي (يُستخدم لما تكون قيمة الدقيقة صفر)', t: 'number', attrs: 'step="0.25" min="0"' },
-        { k: 'overtime_auto_approve', l: 'اعتماد الوقت الإضافي التلقائي فوراً (لو مقفول بيستنى موافقة المدير)', t: 'check' }] });
-    } else if (cur === 'misc') {
+    else if (cur === 'penalty') await catalog(body, policySpec('penalty_policy'));
+    else if (cur === 'overtime') await catalog(body, policySpec('overtime_policy'));
+    else if (['holiday', 'compensation_rule', 'holiday_limit', 'leave_profile'].includes(cur)) await catalog(body, attSpec(cur));
+    else if (cur === 'leave_type') await catalog(body, leaveTypeSpec());
+    else if (cur === 'misc') {
       await settingsForm(body, { title: 'إعدادات متنوعة', refresh: true, fields: [
         { sec: 'بيانات الشركة' },
         { k: 'company_name', l: 'اسم الشركة', full: true }, { k: 'country', l: 'الدولة' }, { k: 'currency', l: 'العملة', t: 'select', o: Object.keys(CUR).map((c) => [c, `${c} - ${CUR[c]}`]) },
@@ -1923,9 +2250,9 @@ PAGES.adjustments = async (view) => {
     const rows = data.rows.filter((r) => !kind || r.kind === kind);
     const sum = (k) => data.rows.filter((r) => r.kind === k).reduce((s, r) => s + r.amount, 0);
     $('#at').innerHTML = `<div class="grid g3" style="margin-bottom:12px">
-      <div class="card"><div class="muted small">إجمالي المكافآت</div><b class="pos" style="font-size:20px">${money(sum('bonus'))}</b></div>
-      <div class="card"><div class="muted small">إجمالي الجزاءات</div><b class="neg" style="font-size:20px">${money(sum('penalty'))}</b></div>
-      <div class="card"><div class="muted small">إجمالي الخصومات</div><b class="neg" style="font-size:20px">${money(sum('deduction'))}</b></div></div>
+      <div class="card"><div class="muted small">إجمالي المكافآت</div><b class="pos" style="font-size:22px">${money(sum('bonus'))}</b></div>
+      <div class="card"><div class="muted small">إجمالي الجزاءات</div><b class="neg" style="font-size:22px">${money(sum('penalty'))}</b></div>
+      <div class="card"><div class="muted small">إجمالي الخصومات</div><b class="neg" style="font-size:22px">${money(sum('deduction'))}</b></div></div>
       <div class="tablewrap"><table><tr><th>التاريخ</th><th>الموظف</th><th>النوع</th><th class="num">المبلغ</th><th>السبب</th><th>بواسطة</th><th class="noprint"></th></tr>
       ${rows.map((r) => { const t = ADJ[r.kind] || ADJ.deduction; return `<tr><td>${esc(String(r.created_at || '').slice(0, 10))}</td><td><b>${esc(r.user_name)}</b></td><td><span class="badge ${r.kind === 'bonus' ? 'b-ok' : 'b-bad'}">${t[0]}</span></td><td class="num ${t[1]}">${money(r.amount)}</td><td style="white-space:normal">${esc(r.reason || '—')}</td><td class="muted small">${esc(r.created_by_name || '—')}</td><td class="noprint">${has('payroll.manage') ? `<button class="btn alt sm" data-rm="${r.id}">حذف</button>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="7" class="empty">لا توجد بنود في هذا الشهر</td></tr>'}</table></div>
       <p class="muted small">أي بند هنا بيتحسب تلقائياً في مرتب الموظف عن الشهر المحدد (صفحة المرتبات وكشف حساب الموظف): المكافآت بتزيد المرتب، والجزاءات والخصومات بتنقصه.</p>`;
