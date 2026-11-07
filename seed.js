@@ -1,5 +1,10 @@
 // بيانات تجريبية فقط (أسماء وهمية). شغّليه محلياً للتجربة: npm run seed
 // لازم DATABASE_URL يكون متحدد (قاعدة تجريبية، مش قاعدة الإنتاج!)
+// حماية: السكريبت ده بيضيف حسابات كلمة مرورها 123456، فمايشتغلش إلا لو أنتِ صرّحتي بكده صراحةً
+if (process.env.NODE_ENV === 'production' || process.env.ALLOW_SEED !== '1') {
+  console.error('رفض التشغيل: ده سكريبت تجريبي. على قاعدة تجريبية فقط شغّليه هكذا: ALLOW_SEED=1 npm run seed');
+  process.exit(1);
+}
 const bcrypt = require('bcryptjs');
 const { db, pool, ready } = require('./server');
 

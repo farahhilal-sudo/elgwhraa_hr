@@ -362,14 +362,14 @@ function forcePassword() {
     <p class="muted" style="margin:0 0 14px">لازم تغيّري كلمة المرور المؤقتة قبل ما تكملي.</p>
     <div class="grid"><label class="f">كلمة المرور الجديدة (6 أحرف على الأقل)<input name="n" type="password" minlength="6" required autocomplete="new-password"></label>
     <button class="btn big" style="font-size:16px;padding:12px">حفظ ومتابعة</button></div></form></div>`;
-  $('#pf').onsubmit = (e) => { e.preventDefault(); run($('button', e.target), async () => { await api('/me/password', 'POST', { new_password: e.target.n.value }); await boot(); }); };
+  $('#pf').onsubmit = (e) => { e.preventDefault(); run($('button', e.target), async () => { const r = await api('/me/password', 'POST', { new_password: e.target.n.value }); if (r.token) { S.token = r.token; localStorage.setItem('tk', r.token); } await boot(); }); };
 }
 function changePassword() {
   const o = modal(`<h3>تغيير كلمة المرور</h3><form class="grid" id="cp">
     <label class="f">الحالية<input name="o" type="password" required></label>
     <label class="f">الجديدة<input name="n" type="password" minlength="6" required></label>
     <div class="actions"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
-  $('#cp', o).onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', e.target), async () => { await api('/me/password', 'POST', { old_password: e.target.o.value, new_password: e.target.n.value }); o.close(); toast('تم تغيير كلمة المرور'); }); };
+  $('#cp', o).onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', e.target), async () => { const r = await api('/me/password', 'POST', { old_password: e.target.o.value, new_password: e.target.n.value }); if (r.token) { S.token = r.token; localStorage.setItem('tk', r.token); } o.close(); toast('تم تغيير كلمة المرور'); }); };
 }
 async function showNotes() {
   const rows = await api('/notifications');

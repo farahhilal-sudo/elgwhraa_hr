@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { isDate, isMonth, isHHMM, toMin, shiftMinutes, isLatLng, haversine, eachDay, daysBetween, monthRange, zonedToUtc, hoursBetween } = require('./lib/utils');
 
 const PORT = process.env.PORT || 3000;
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -181,6 +182,21 @@ CREATE TABLE IF NOT EXISTS notifications (
   read INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT (${NOW})
 );
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER,
+  user_name TEXT DEFAULT '',
+  action TEXT NOT NULL,
+  target TEXT DEFAULT '',
+  details TEXT DEFAULT '',
+  ip TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_requests_user ON requests(user_id, from_date);
+CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, read);
+CREATE INDEX IF NOT EXISTS idx_adjustments_user_month ON adjustments(user_id, month);
 `;
 
 const DEFAULT_SETTINGS = {
@@ -277,13 +293,6 @@ function tzParts(date = new Date()) {
     minutes: parseInt(hh, 10) * 60 + parseInt(parts.minute, 10),
   };
 }
-const toMin = (hhmm) => { const [h, m] = String(hhmm || '0:0').split(':').map(Number); return h * 60 + (m || 0); };
-function haversine(lat1, lon1, lat2, lon2) {
-  const R = 6371000, rad = (d) => (d * Math.PI) / 180;
-  const dLat = rad(lat2 - lat1), dLon = rad(lon2 - lon1);
-  const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return 2 * R * Math.asin(Math.sqrt(a));
-}
 function faceDistance(a, b) {
   let s = 0;
   for (let i = 0; i < a.length; i++) s += (a[i] - b[i]) ** 2;
@@ -291,9 +300,6 @@ function faceDistance(a, b) {
 }
 const validDescriptor = (d) => Array.isArray(d) && d.length === 128 && d.every((x) => typeof x === 'number' && isFinite(x));
 const round2 = (n) => Math.round(n * 100) / 100;
-const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '');
-const isMonth = (s) => /^\d{4}-\d{2}$/.test(s || '');
-const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
 // رقم صحيح موجب صالح كـ id، أو null
 const toId = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 && n < 2147483647 ? n : null; };
 function userPerms(u) {
@@ -325,6 +331,22 @@ async function notifyManagers(text, exceptId, perm = 'requests.approve', adminsO
   const rows = await db.all('SELECT * FROM users WHERE active=1');
   await Promise.all(rows.filter((u) => u.id !== exceptId && (adminsOnly ? u.is_admin : can(u, perm))).map((u) => notify(u.id, text)));
 }
+// سجل تدقيق: مين عمل إيه ومتى (من غير كلمات مرور ولا بيانات حساسة)
+async function audit(req, action, target = '', details = '') {
+  try {
+    await db.run('INSERT INTO audit_logs(user_id,user_name,action,target,details,ip) VALUES(?,?,?,?,?,?)',
+      req.user ? req.user.id : null, req.user ? req.user.name : '', action, String(target).slice(0, 120), String(details).slice(0, 500), req.ip || '');
+  } catch (e) { console.error('audit failed:', e.message); }
+}
+// مدير الموارد (غير المدير العام) ما يتحكمش في حساب صلاحياته أعلى من صلاحياته (يمنع تصعيد الصلاحيات بتغيير كلمة مرور حساب أقوى)
+function outranks(actor, target) {
+  if (actor.is_admin) return true;
+  if (target.is_admin) return false;
+  const mine = new Set(userPerms(actor));
+  return userPerms(target).every((p) => mine.has(p));
+}
+// بصمة قصيرة من كلمة المرور داخل التوكن: لما كلمة المرور تتغيّر كل التوكنات القديمة تبطل
+const pwVersion = (u) => crypto.createHash('sha256').update(String(u.password_hash)).digest('hex').slice(0, 16);
 const USERNAME_RE = /^[\p{L}\p{N}._-]{3,30}$/u;
 // تحديد معدل الطلبات المفتوحة (تسجيل / نسيت كلمة المرور) لكل IP
 const hits = new Map();
@@ -336,15 +358,6 @@ const limited = (req, bucket, max, windowMs) => {
   h.push(now); hits.set(k, h);
   if (hits.size > 5000) hits.clear();
   return false;
-};
-function* eachDay(from, to) {
-  const d = new Date(from + 'T00:00:00Z'), end = new Date(to + 'T00:00:00Z');
-  for (; d <= end; d.setUTCDate(d.getUTCDate() + 1)) yield d.toISOString().slice(0, 10);
-}
-const monthRange = (m) => {
-  const [y, mo] = m.split('-').map(Number);
-  const last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-  return [`${m}-01`, `${m}-${String(last).padStart(2, '0')}`];
 };
 
 /* ---------- شرائح خصم التأخير ---------- */
@@ -457,7 +470,7 @@ async function computeMonth(user, month, st, tiers = []) {
   // ملف الإجازة والاستراحة: لو الاستراحة غير مدفوعة بتتشال من ساعات الوردية المدفوعة (بيرتفع أجر الساعة)
   const prof = profileOf(user, pctx);
   const unpaidBreak = prof && prof.break_paid === false ? Math.max(0, Number(prof.break_min) || 0) : 0;
-  const shiftHours = Math.max(1, (toMin(user.shift_end) - toMin(user.shift_start) - unpaidBreak) / 60);
+  const shiftHours = Math.max(1, (shiftMinutes(user.shift_start, user.shift_end) - unpaidBreak) / 60);
   const dailyRate = user.base_salary / 30;
   const hourlyRate = dailyRate / shiftHours;
   const hmap = holidayMap(pctx, first, last);
@@ -474,7 +487,7 @@ async function computeMonth(user, month, st, tiers = []) {
         const a0 = attByDate[d];
         if (a0 && a0.check_in) {
           const rule = compRuleFor(pctx, [...(hol ? ['holiday'] : []), ...(isWeekend ? ['weekend'] : [])]);
-          const hrs = a0.check_out ? Math.max(0, (toMin(a0.check_out) - toMin(a0.check_in)) / 60) : 0;
+          const hrs = hoursBetween(a0.check_in, a0.check_out); // (كانت بتستخدم toMin على تاريخ ISO فبترجع NaN وقاعدة التعويض ما بتتطبقش أبداً)
           if (rule && hrs >= (Number(rule.min_hours) || 0) && (Number(rule.min_hours) > 0 ? !!a0.check_out : true)) {
             offDaysWorked++;
             if (rule.mode === 'time_off') compDays += Number(rule.days) || 1;
@@ -537,6 +550,16 @@ async function computeMonth(user, month, st, tiers = []) {
 /* ---------------- Express ---------------- */
 const app = express();
 app.set('trust proxy', 1); // وراء بروكسي الاستضافة، عشان IP الحقيقي يتحسب صح
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('Permissions-Policy', 'camera=(self), geolocation=(self), microphone=()');
+  if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=15552000');
+  if (req.path.startsWith('/api/')) res.setHeader('Cache-Control', 'no-store');
+  next();
+});
 app.use(express.json({ limit: '200kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -556,14 +579,18 @@ const wrap = (fn) => (req, res) => {
     res.status(500).json({ error: 'خطأ في الخادم' });
   });
 };
+// المستخدم اللي عليه كلمة مرور مؤقتة ما يقدرش يستخدم غير شاشة تغيير كلمة المرور
+const MUST_CHANGE_OK = new Set(['GET /api/me', 'POST /api/me/password']);
 async function auth(req, res, next) {
-  let id;
+  let id, pv;
   try {
-    ({ id } = jwt.verify((req.headers.authorization || '').replace('Bearer ', ''), jwtSecret));
+    ({ id, pv } = jwt.verify((req.headers.authorization || '').replace('Bearer ', ''), jwtSecret));
   } catch { return res.status(401).json({ error: 'سجّلي الدخول من جديد' }); }
   try {
     const u = await db.get('SELECT * FROM users WHERE id=?', id);
     if (!u || !u.active || u.pending) return res.status(401).json({ error: 'الحساب غير متاح' });
+    if (pv !== pwVersion(u)) return res.status(401).json({ error: 'سجّلي الدخول من جديد' });
+    if (u.must_change && !MUST_CHANGE_OK.has(req.method + ' ' + req.originalUrl.split('?')[0])) return res.status(403).json({ error: 'لازم تغيّري كلمة المرور المؤقتة أولاً' });
     req.user = u;
     next();
   } catch (e) {
@@ -577,22 +604,30 @@ const need = (perm) => (req, res, next) =>
 const adminOnly = (req, res, next) => (req.user.is_admin ? next() : res.status(403).json({ error: 'للمدير فقط' }));
 
 // محاولات الدخول الفاشلة
-const fails = new Map();
+// سجل المحاولات الفاشلة (في الذاكرة): 5 محاولات لكل (IP + مستخدم) في 5 دقائق، و50 لكل IP في 15 دقيقة
+// المفتاح فيه الـ IP عشان حد من بره ما يقفلش حساب موظف بالتخمين عليه
+const failLog = new Map();
+const recentFails = (k, windowMs) => { const now = Date.now(); const a = (failLog.get(k) || []).filter((t) => now - t < windowMs); failLog.set(k, a); return a.length; };
+const addFail = (k) => { const a = failLog.get(k) || []; a.push(Date.now()); failLog.set(k, a); if (failLog.size > 5000) failLog.clear(); };
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10); // عشان وقت الرد يبقى واحد سواء المستخدم موجود أو لأ
 app.post('/api/login', wrap(async (req, res) => {
   const { username = '', password = '' } = req.body || {};
-  const key = String(username).toLowerCase();
-  const f = fails.get(key) || { n: 0, until: 0 };
-  if (f.until > Date.now()) return res.status(429).json({ error: 'محاولات كثيرة، جرّبي بعد دقائق' });
-  const u = await db.get('SELECT * FROM users WHERE lower(username)=?', key);
-  if (u && u.pending && bcrypt.compareSync(String(password), u.password_hash))
+  if (typeof username !== 'string' || typeof password !== 'string' || username.length > 100 || password.length > 200)
+    return res.status(400).json({ error: 'بيانات غير صحيحة' });
+  const lname = username.trim().toLowerCase();
+  const ip = req.ip || '', userKey = ip + '|' + lname;
+  if (recentFails(userKey, 5 * 60 * 1000) >= 5 || recentFails(ip + '|*', 15 * 60 * 1000) >= 50)
+    return res.status(429).json({ error: 'محاولات كثيرة، جرّبي بعد دقائق' });
+  const u = await db.get('SELECT * FROM users WHERE lower(username)=?', lname);
+  const pwOk = bcrypt.compareSync(password, u ? u.password_hash : DUMMY_HASH) && !!u;
+  if (u && u.pending && pwOk)
     return res.status(403).json({ error: 'حسابك بانتظار موافقة المدير. هيوصلك الدخول بعد المراجعة.' });
-  if (!u || !u.active || u.pending || !bcrypt.compareSync(String(password), u.password_hash)) {
-    f.n++; if (f.n >= 5) { f.until = Date.now() + 5 * 60 * 1000; f.n = 0; }
-    fails.set(key, f);
+  if (!u || !u.active || u.pending || !pwOk) {
+    addFail(userKey); addFail(ip + '|*');
     return res.status(401).json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' });
   }
-  fails.delete(key);
-  const token = jwt.sign({ id: u.id }, jwtSecret, { expiresIn: '30d' });
+  failLog.delete(userKey);
+  const token = jwt.sign({ id: u.id, pv: pwVersion(u) }, jwtSecret, { expiresIn: '30d' });
   res.json({ token, user: publicUser(u) });
 }));
 
@@ -658,10 +693,14 @@ app.get('/api/me', auth, wrap(async (req, res) => {
 app.post('/api/me/password', auth, wrap(async (req, res) => {
   const { old_password = '', new_password = '' } = req.body || {};
   if (String(new_password).length < 6) return res.status(400).json({ error: 'كلمة المرور لازم تكون 6 أحرف على الأقل' });
+  if (String(new_password).length > 200) return res.status(400).json({ error: 'كلمة المرور طويلة جداً' });
   if (!req.user.must_change && !bcrypt.compareSync(String(old_password), req.user.password_hash))
     return res.status(400).json({ error: 'كلمة المرور الحالية غير صحيحة' });
-  await db.run('UPDATE users SET password_hash=?, must_change=0 WHERE id=?', bcrypt.hashSync(String(new_password), 10), req.user.id);
-  res.json({ ok: true });
+  const newHash = bcrypt.hashSync(String(new_password), 10);
+  await db.run('UPDATE users SET password_hash=?, must_change=0 WHERE id=?', newHash, req.user.id);
+  await audit(req, 'password.change', req.user.username);
+  // توكن جديد: التوكنات القديمة بتبطل بعد تغيير كلمة المرور
+  res.json({ ok: true, token: jwt.sign({ id: req.user.id, pv: pwVersion({ password_hash: newHash }) }, jwtSecret, { expiresIn: '30d' }) });
 }));
 
 app.post('/api/me/face', auth, wrap(async (req, res) => {
@@ -689,13 +728,13 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
   let where = null;
   const locs = await allowedLocations(u);
   if (locs.length) {
-    if (typeof lat !== 'number' || typeof lng !== 'number') return res.status(400).json({ error: 'فعّلي خدمة الموقع (GPS)' });
+    if (!isLatLng(lat, lng)) return res.status(400).json({ error: 'فعّلي خدمة الموقع (GPS)' });
     const scored = locs.map((l) => ({ l, d: haversine(lat, lng, l.lat, l.lng) })).sort((a, b) => (a.d - a.l.radius_m) - (b.d - b.l.radius_m));
     const best = scored[0];
     if (best.d > best.l.radius_m) return res.status(403).json({ error: `أنتِ خارج نطاق العمل (على بعد ${Math.round(best.d)} متر من ${best.l.name})` });
     where = best.l.name;
   }
-  const la = num(lat), ln = num(lng);
+  const okLL = isLatLng(lat, lng), la = okLL ? lat : null, ln = okLL ? lng : null;
   const now = tzParts();
   const rec = await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date);
   const iso = new Date().toISOString();
@@ -704,7 +743,10 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
     const start = toMin(u.shift_start), grace = graceOf(u, st, await getPolicyCtx());
     const late = now.minutes > start + grace ? now.minutes - start : 0;
     try {
-      if (rec) await db.run('UPDATE attendance SET check_in=?,in_lat=?,in_lng=?,in_face=?,late_minutes=?,in_loc=? WHERE id=?', iso, la, ln, score, late, where, rec.id);
+      if (rec) {
+        const up = await db.run('UPDATE attendance SET check_in=?,in_lat=?,in_lng=?,in_face=?,late_minutes=?,in_loc=? WHERE id=? AND check_in IS NULL', iso, la, ln, score, late, where, rec.id);
+        if (!up.rowCount) return res.status(409).json({ error: 'تم تسجيل الحضور اليوم بالفعل' });
+      }
       else await db.run('INSERT INTO attendance(user_id,date,check_in,in_lat,in_lng,in_face,late_minutes,in_loc) VALUES(?,?,?,?,?,?,?,?)', u.id, now.date, iso, la, ln, score, late, where);
     } catch (e) {
       if (e.code === '23505') return res.status(409).json({ error: 'تم تسجيل الحضور اليوم بالفعل' });
@@ -714,7 +756,8 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
     if (!rec || !rec.check_in) return res.status(409).json({ error: 'سجّلي الحضور أولاً' });
     if (rec.check_out) return res.status(409).json({ error: 'تم تسجيل الانصراف اليوم بالفعل' });
     const early = Math.max(0, toMin(u.shift_end) - now.minutes);
-    await db.run('UPDATE attendance SET check_out=?,out_lat=?,out_lng=?,out_face=?,early_minutes=?,out_loc=? WHERE id=?', iso, la, ln, score, early, where, rec.id);
+    const up = await db.run('UPDATE attendance SET check_out=?,out_lat=?,out_lng=?,out_face=?,early_minutes=?,out_loc=? WHERE id=? AND check_out IS NULL', iso, la, ln, score, early, where, rec.id);
+    if (!up.rowCount) return res.status(409).json({ error: 'تم تسجيل الانصراف اليوم بالفعل' });
   }
   res.json({ ok: true, record: await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date) });
 }));
@@ -753,6 +796,13 @@ async function checkLeaveRules(user, type, from, to) {
   const days = [...eachDay(from, to)];
   const pctx = await getPolicyCtx();
   const prof = profileOf(user, pctx);
+  // من غير ملف إجازة: رصيد الإجازة السنوية من بيانات الموظف نفسه (قبل كده كان من غير حد)
+  if (!prof && type === 'annual_leave') {
+    const cap = Number(user.annual_leave_days) || 0;
+    const rows = await db.all("SELECT from_date,to_date FROM requests WHERE user_id=? AND type='annual_leave' AND status IN ('approved','pending') AND from_date LIKE ?", user.id, from.slice(0, 4) + '%');
+    const used = rows.reduce((t, r) => t + daysBetween(r.from_date, r.to_date), 0);
+    if (used + days.length > cap) return `رصيد الإجازة السنوية ${cap} يوم، المستخدم والمحجوز ${used} والمطلوب ${days.length}`;
+  }
   if (prof) {
     const key = { annual_leave: 'annual', sick_leave: 'sick', emergency_leave: 'emergency' }[type];
     const cap = Number(prof[key]) || 0;
@@ -783,6 +833,7 @@ app.post('/api/requests', auth, wrap(async (req, res) => {
   const { type, from_date, to_date, hours = 0, reason = '' } = req.body || {};
   if (!REQUEST_TYPES[type]) return res.status(400).json({ error: 'نوع الطلب غير صالح' });
   if (!isDate(from_date) || !isDate(to_date) || to_date < from_date) return res.status(400).json({ error: 'التواريخ غير صحيحة' });
+  if (daysBetween(from_date, to_date) > 366) return res.status(400).json({ error: 'مدة الطلب لا تزيد عن 366 يوم' });
   const ruleErr = await checkLeaveRules(req.user, type, from_date, to_date);
   if (ruleErr) return res.status(400).json({ error: ruleErr });
   if (['overtime', 'permission'].includes(type) && !(Number(hours) > 0 && Number(hours) <= 24)) return res.status(400).json({ error: 'حددي عدد الساعات' });
@@ -817,6 +868,7 @@ app.post('/api/requests/:id/decide', auth, need('requests.approve'), wrap(async 
   if (r.user_id === req.user.id && !req.user.is_admin) return res.status(403).json({ error: 'لا يمكنك البت في طلبك الشخصي' });
   await db.run(`UPDATE requests SET status=?, decided_by=?, decided_at=${NOW}, decision_note=? WHERE id=?`,
     decision, req.user.id, String(note).slice(0, 300), r.id);
+  await audit(req, 'request.' + decision, `#${r.id} ${REQUEST_TYPES[r.type]}`, `user_id=${r.user_id}`);
   await notify(r.user_id, `تم ${decision === 'approved' ? 'قبول' : 'رفض'} طلبك (${REQUEST_TYPES[r.type]})`);
   res.json({ ok: true });
 }));
@@ -918,7 +970,7 @@ app.get('/api/dash/agg', auth, need('dashboard.view'), wrap(async (req, res) => 
   const list = users.map((u) => {
     const { pen, ot } = policiesFor(u, pctx), polGrace = pen && Number.isFinite(Number(pen.grace)) ? Number(pen.grace) : null;
     const prof = profileOf(u, pctx), unpaidBreak = prof && prof.break_paid === false ? Math.max(0, Number(prof.break_min) || 0) : 0;
-    const shiftHours = Math.max(1, (toMin(u.shift_end) - toMin(u.shift_start) - unpaidBreak) / 60), dailyRate = u.base_salary / 30, hourlyRate = dailyRate / shiftHours;
+    const shiftHours = Math.max(1, (shiftMinutes(u.shift_start, u.shift_end) - unpaidBreak) / 60), dailyRate = u.base_salary / 30, hourlyRate = dailyRate / shiftHours;
     let absentDays = 0, lateMinutes = 0, earlyMinutes = 0, tierTotal = 0, partialTotal = 0, worked = 0;
     if (from <= upto) for (const d of eachDay(from, upto)) {
       if (d < u.hire_date || isWeekendDay(st, d) || hmap.has(d)) continue;
@@ -1019,6 +1071,7 @@ app.get('/api/employees', auth, need('employees.view'), wrap(async (req, res) =>
 // مدير الموارد (غير المدير العام) ما يقدرش يلمس حسابات المديرين
 const guardAdminTarget = (req, res, u) => {
   if (u.is_admin && !req.user.is_admin) { res.status(403).json({ error: 'حسابات المديرين يعدّلها المدير فقط' }); return false; }
+  if (u.id !== req.user.id && !outranks(req.user, u)) { res.status(403).json({ error: 'لا يمكنك التحكم في حساب صلاحياته أعلى من صلاحياتك' }); return false; }
   return true;
 };
 app.post('/api/employees', auth, need('employees.manage'), wrap(async (req, res) => {
@@ -1030,9 +1083,10 @@ app.post('/api/employees', auth, need('employees.manage'), wrap(async (req, res)
   if (await db.get('SELECT 1 FROM users WHERE lower(username)=?', String(b.username).toLowerCase())) return res.status(409).json({ error: 'اسم المستخدم مستخدم من قبل' });
   const locIds = b.location_ids === undefined ? [] : parseIds(JSON.stringify(b.location_ids));
   const id = await db.insert(`INSERT INTO users(name,username,password_hash,job_title,department,phone,base_salary,allowances,shift_start,shift_end,hire_date,annual_leave_days,is_admin,location_ids)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, b.name, String(b.username).trim(), bcrypt.hashSync(String(b.password), 10), b.job_title || '', b.department || '', b.phone || '',
-    Number(b.base_salary) || 0, Number(b.allowances) || 0, b.shift_start || '09:00', b.shift_end || '17:00', b.hire_date || tzParts().date, parseInt(b.annual_leave_days ?? 21, 10), b.role === 'admin' ? 1 : 0, JSON.stringify(locIds));
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, String(b.name).trim().slice(0, 80), String(b.username).trim(), bcrypt.hashSync(String(b.password), 10), String(b.job_title || '').slice(0, 80), String(b.department || '').slice(0, 80), String(b.phone || '').slice(0, 30),
+    Number(b.base_salary) || 0, Number(b.allowances) || 0, b.shift_start || '09:00', b.shift_end || '17:00', b.hire_date || tzParts().date, (Number.isInteger(parseInt(b.annual_leave_days, 10)) ? parseInt(b.annual_leave_days, 10) : 21), b.role === 'admin' ? 1 : 0, JSON.stringify(locIds));
   if (b.nationality || toId(b.manager_id)) await db.run('UPDATE users SET nationality=?, manager_id=? WHERE id=?', String(b.nationality || '').slice(0, 40), toId(b.manager_id), id);
+  await audit(req, 'employee.create', String(b.username).trim(), b.role === 'admin' ? 'role=admin' : '');
   res.json({ id });
 }));
 app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, res) => {
@@ -1062,6 +1116,7 @@ app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, r
     if (b.role === 'admin') { sets.push('active=1'); }
   }
   if (sets.length) await db.run(`UPDATE users SET ${sets.join(',')} WHERE id=?`, ...vals, u.id);
+  if (sets.length) await audit(req, 'employee.update', u.username, 'fields: ' + sets.map((x) => x.split('=')[0]).join(','));
   res.json({ ok: true });
 }));
 app.delete('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, res) => {
@@ -1070,8 +1125,12 @@ app.delete('/api/employees/:id', auth, need('employees.manage'), wrap(async (req
   if (!u) return res.status(404).json({ error: 'غير موجود' });
   if (u.is_admin) return res.status(403).json({ error: 'لا يمكن إزالة حساب مدير' });
   if (u.id === req.user.id) return res.status(403).json({ error: 'لا يمكنك إزالة حسابك' });
+  if (!outranks(req.user, u)) return res.status(403).json({ error: 'لا يمكنك إزالة حساب صلاحياته أعلى من صلاحياتك' });
+  if (await db.get('SELECT 1 FROM payslips WHERE user_id=?', id))
+    return res.status(409).json({ error: 'للموظف مرتبات مصروفة، والإزالة النهائية هتمسح سجله المالي. استخدمي «إيقاف» بدل الإزالة.' });
   await db.run('UPDATE users SET manager_id=NULL WHERE manager_id=?', id);
   await db.run('DELETE FROM users WHERE id=?', id); // باقي بياناته بتتمسح تلقائياً (ON DELETE CASCADE)
+  await audit(req, 'employee.delete', u.username, u.name);
   res.json({ ok: true });
 }));
 app.post('/api/employees/:id/reset-face', auth, need('employees.manage'), wrap(async (req, res) => {
@@ -1080,6 +1139,7 @@ app.post('/api/employees/:id/reset-face', auth, need('employees.manage'), wrap(a
   if (!tu) return res.status(404).json({ error: 'غير موجود' });
   if (!guardAdminTarget(req, res, tu)) return;
   await db.run('UPDATE users SET face_descriptor=NULL WHERE id=?', id);
+  await audit(req, 'employee.reset_face', tu.username);
   await notify(id, 'تمت إعادة ضبط بصمة الوجه، سجّليها من جديد');
   res.json({ ok: true });
 }));
@@ -1108,14 +1168,16 @@ app.get('/api/password-resets', auth, need('employees.manage'), wrap(async (req,
 }));
 app.post('/api/password-resets/:id/resolve', auth, need('employees.manage'), wrap(async (req, res) => {
   const id = toId(req.params.id);
-  const p = id && await db.get("SELECT p.*, u.is_admin FROM password_resets p JOIN users u ON u.id=p.user_id WHERE p.id=? AND p.status='pending'", id);
+  const p = id && await db.get("SELECT p.*, u.is_admin, u.permissions, u.username FROM password_resets p JOIN users u ON u.id=p.user_id WHERE p.id=? AND p.status='pending'", id);
   if (!p) return res.status(404).json({ error: 'الطلب غير موجود' });
   if (p.is_admin && !req.user.is_admin) return res.status(403).json({ error: 'حسابات المديرين يعدّلها المدير فقط' });
+  if (p.user_id !== req.user.id && !outranks(req.user, { is_admin: p.is_admin, permissions: p.permissions })) return res.status(403).json({ error: 'لا يمكنك التحكم في حساب صلاحياته أعلى من صلاحياتك' });
   // كلمة مؤقتة عشوائية (من غير حروف متشابهة)، بتظهر مرة واحدة للمدير وبيتغيّرها الموظف عند أول دخول
   const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const temp = Array.from(crypto.randomBytes(8), (b) => alphabet[b % alphabet.length]).join('');
   await db.run('UPDATE users SET password_hash=?, must_change=1 WHERE id=?', bcrypt.hashSync(temp, 10), p.user_id);
   await db.run(`UPDATE password_resets SET status='done', handled_by=?, handled_at=${NOW} WHERE id=?`, req.user.id, p.id);
+  await audit(req, 'password.reset_by_admin', p.username);
   res.json({ ok: true, temp_password: temp });
 }));
 app.post('/api/password-resets/:id/dismiss', auth, need('employees.manage'), wrap(async (req, res) => {
@@ -1130,8 +1192,9 @@ app.put('/api/users/:id/permissions', auth, adminOnly, wrap(async (req, res) => 
   const u = id && await db.get('SELECT * FROM users WHERE id=?', id);
   if (!u) return res.status(404).json({ error: 'غير موجود' });
   if (u.is_admin) return res.status(400).json({ error: 'المدير لديه كل الصلاحيات' });
-  const perms = (req.body.permissions || []).filter((p) => PERMISSIONS[p]);
+  const perms = (Array.isArray(req.body.permissions) ? req.body.permissions : []).filter((p) => PERMISSIONS[p]);
   await db.run('UPDATE users SET permissions=? WHERE id=?', JSON.stringify(perms), u.id);
+  await audit(req, 'permissions.update', u.username, perms.join(','));
   await notify(u.id, 'تم تحديث صلاحياتك');
   res.json({ ok: true });
 }));
@@ -1150,7 +1213,9 @@ app.post('/api/attendance', auth, need('attendance.edit'), wrap(async (req, res)
   const uid = toId(user_id);
   const u = uid && await db.get('SELECT * FROM users WHERE id=?', uid);
   if (!u || !isDate(date)) return res.status(400).json({ error: 'بيانات غير صحيحة' });
-  const mk = (t) => (t ? new Date(`${date}T${t}:00+03:00`).toISOString() : null);
+  for (const t of [check_in, check_out]) if (t && !isHHMM(t)) return res.status(400).json({ error: 'صيغة الوقت غير صحيحة' });
+  const tz = (await settings()).timezone || 'Africa/Cairo'; // (كانت +03:00 ثابتة، فكانت بتغلط ساعة شتاءً)
+  const mk = (t) => (t ? zonedToUtc(date, t, tz).toISOString() : null);
   const ci = mk(check_in), co = mk(check_out);
   const grace = graceOf(u, await settings(), await getPolicyCtx());
   const late = check_in &&toMin(check_in) > toMin(u.shift_start) + grace ? toMin(check_in) - toMin(u.shift_start) : 0;
@@ -1158,11 +1223,15 @@ app.post('/api/attendance', auth, need('attendance.edit'), wrap(async (req, res)
   await db.run(`INSERT INTO attendance(user_id,date,check_in,check_out,late_minutes,early_minutes,note) VALUES(?,?,?,?,?,?,?)
     ON CONFLICT(user_id,date) DO UPDATE SET check_in=excluded.check_in, check_out=excluded.check_out, late_minutes=excluded.late_minutes, early_minutes=excluded.early_minutes, note=excluded.note`,
     u.id, date, ci, co, late, early, String(note).slice(0, 200));
+  await audit(req, 'attendance.edit', `${u.name} ${date}`, `in=${check_in || '-'} out=${check_out || '-'}`);
   res.json({ ok: true });
 }));
 app.delete('/api/attendance/:id', auth, need('attendance.edit'), wrap(async (req, res) => {
   const id = toId(req.params.id);
-  if (id) await db.run('DELETE FROM attendance WHERE id=?', id);
+  if (id) {
+    const a = await db.get('SELECT a.date, u.name AS user_name FROM attendance a JOIN users u ON u.id=a.user_id WHERE a.id=?', id);
+    if (a) { await db.run('DELETE FROM attendance WHERE id=?', id); await audit(req, 'attendance.delete', `${a.user_name} ${a.date}`); }
+  }
   res.json({ ok: true });
 }));
 
@@ -1209,6 +1278,7 @@ app.post('/api/payroll/pay', auth, need('payroll.manage'), wrap(async (req, res)
     const r = await db.run('INSERT INTO payslips(user_id,month,data,net,paid_by) VALUES(?,?,?,?,?) ON CONFLICT(user_id,month) DO NOTHING', id, month, JSON.stringify(row), row.net, req.user.id);
     if (r.rowCount) { n++; await notify(id, `تم صرف مرتب شهر ${month} (الصافي ${row.net})`); }
   }
+  await audit(req, 'payroll.pay', month, `${n} موظف`);
   res.json({ ok: true, paid: n });
 }));
 // إلغاء الصرف (المدير فقط) لو حصل خطأ، فبيتحسب الشهر لحظياً تاني
@@ -1216,6 +1286,7 @@ app.post('/api/payroll/unpay', auth, adminOnly, wrap(async (req, res) => {
   const { month } = req.body || {}, uid = toId(req.body.user_id);
   if (!isMonth(month) || !uid) return res.status(400).json({ error: 'بيانات غير صحيحة' });
   await db.run('DELETE FROM payslips WHERE user_id=? AND month=?', uid, month);
+  await audit(req, 'payroll.unpay', month, `user_id=${uid}`);
   res.json({ ok: true });
 }));
 app.get('/api/adjustments', auth, need('payroll.view'), wrap(async (req, res) => {
@@ -1234,6 +1305,7 @@ app.post('/api/adjustments', auth, need('payroll.manage'), wrap(async (req, res)
     return res.status(400).json({ error: 'بيانات غير صحيحة' });
   if (await db.get('SELECT 1 FROM payslips WHERE user_id=? AND month=?', uid, month)) return res.status(400).json({ error: 'تم صرف مرتب هذا الشهر، لا يمكن إضافة بنود عليه' });
   await db.run('INSERT INTO adjustments(user_id,month,kind,amount,reason,created_by) VALUES(?,?,?,?,?,?)', uid, month, kind, Number(amount), String(reason).slice(0, 200), req.user.id);
+  await audit(req, 'adjustment.add', `user_id=${uid} ${month}`, `${kind} ${Number(amount)}`);
   await notify(uid, `تمت إضافة ${{ bonus: 'مكافأة', penalty: 'جزاء', deduction: 'خصم' }[kind]} بقيمة ${Number(amount)} عن شهر ${month}`);
   res.json({ ok: true });
 }));
@@ -1241,7 +1313,7 @@ app.delete('/api/adjustments/:id', auth, need('payroll.manage'), wrap(async (req
   const id = toId(req.params.id);
   const a = id && await db.get('SELECT * FROM adjustments WHERE id=?', id);
   if (a && (await db.get('SELECT 1 FROM payslips WHERE user_id=? AND month=?', a.user_id, a.month))) return res.status(400).json({ error: 'تم صرف مرتب هذا الشهر، لا يمكن حذف بنوده' });
-  if (id) await db.run('DELETE FROM adjustments WHERE id=?', id);
+  if (id) { await db.run('DELETE FROM adjustments WHERE id=?', id); if (a) await audit(req, 'adjustment.delete', `user_id=${a.user_id} ${a.month}`, `${a.kind} ${a.amount}`); }
   res.json({ ok: true });
 }));
 
@@ -1461,6 +1533,11 @@ app.delete('/api/config/:kind/:id', auth, cfgKind, cfgAuth, wrap(async (req, res
   res.json({ ok: true });
 }));
 
+/* ----- سجل التدقيق (للمدير فقط) ----- */
+app.get('/api/audit', auth, adminOnly, wrap(async (req, res) => {
+  res.json(await db.all('SELECT * FROM audit_logs ORDER BY id DESC LIMIT 300'));
+}));
+
 /* ----- الإعدادات ----- */
 app.get('/api/settings', auth, need('settings.manage'), wrap(async (req, res) => {
   const s = await settings(); delete s.jwt_secret; res.json(s);
@@ -1481,13 +1558,27 @@ app.put('/api/settings', auth, need('settings.manage'), wrap(async (req, res) =>
   }
   settingsCache = null; // نحمّل الإعدادات الجديدة فوراً
   await settings();
+  await audit(req, 'settings.update', Object.keys(b).filter((k) => k in DEFAULT_SETTINGS).join(','));
   res.json({ ok: true });
 }));
 
+app.use('/api', (req, res) => res.status(404).json({ error: 'المسار غير موجود' }));
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+// معالج أخطاء عام: JSON غير صالح أو طلب كبير بيرجع رسالة نظيفة بدل صفحة خطأ فيها تفاصيل
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'الطلب كبير جداً' });
+  if (err && (err.type === 'entity.parse.failed' || err instanceof SyntaxError)) return res.status(400).json({ error: 'بيانات غير صالحة' });
+  console.error(err);
+  res.status(500).json({ error: 'خطأ في الخادم' });
+});
 
 module.exports = { app, db, pool, computeMonth, settings, ready };
 if (require.main === module) {
   ready.catch((e) => { console.error('فشل تجهيز قاعدة البيانات:', e); process.exit(1); });
-  app.listen(PORT, () => console.log(`الخادم يعمل على المنفذ ${PORT}`));
+  process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e));
+  const server = app.listen(PORT, () => console.log(`الخادم يعمل على المنفذ ${PORT}`));
+  // إيقاف نظيف عند إعادة تشغيل الاستضافة: نكمّل الطلبات الجارية ونقفل الاتصال بالقاعدة
+  const stop = () => { server.close(() => pool.end().finally(() => process.exit(0))); setTimeout(() => process.exit(0), 8000).unref(); };
+  process.on('SIGTERM', stop); process.on('SIGINT', stop);
 }
