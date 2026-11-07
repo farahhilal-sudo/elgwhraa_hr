@@ -1,6 +1,6 @@
 {
   "name": "attendance-hr-app",
-  "version": "3.8.0",
+  "version": "3.9.0",
   "private": true,
   "description": "نظام حضور وانصراف وموارد بشرية (بصمة وجه + موقع) على PostgreSQL",
   "main": "server.js",
@@ -9,7 +9,9 @@
     "seed": "node seed.js",
     "test": "node --test"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "express": "^4.19.2",

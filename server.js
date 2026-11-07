@@ -13,18 +13,18 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-/* ---------------- الاتصال بقاعدة البيانات (PostgreSQL) ---------------- */
+
 const isLocal = /@(localhost|127\.0\.0\.1)(:|\/|$)/.test(DATABASE_URL);
 const pool = new Pool({
   connectionString: DATABASE_URL,
-  // Neon/Supabase بيحطوا sslmode في الرابط نفسه؛ لو مش موجود وده مش localhost نفعّل SSL
+
   ssl: isLocal || /sslmode=/.test(DATABASE_URL) ? undefined : true,
   max: 5,
   idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 20000, // أول اتصال بعد خمول ممكن ياخد ثواني
   keepAlive: true,
 });
-// الاتصالات الخاملة ممكن تتقفل من طرف الاستضافة؛ من غير السطر ده التطبيق كله ممكن يقع
+
 pool.on('error', (e) => console.error('pg idle client error:', e.message));
 
 // "?" في الـ SQL بتتحول تلقائياً لـ $1,$2,...

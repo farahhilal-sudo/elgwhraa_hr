@@ -51,6 +51,25 @@ function csv(filename, rows) {
   a.download = filename; a.click();
 }
 const monthRange = (m) => { const [y, mo] = m.split('-').map(Number); return [`${m}-01`, `${m}-${String(new Date(Date.UTC(y, mo, 0)).getUTCDate()).padStart(2, '0')}`]; };
+/* ====== صور ومواقع الحضور (تظهر للمدير) ====== */
+const photoCache = new Map();
+function loadPhoto(id, kind) { // الصورة بتتحمّل عند الطلب فقط (والمتصفح بيحفظها)، وبتتخزّن في الذاكرة طول الجلسة
+  const k = id + ':' + kind;
+  if (!photoCache.has(k)) {
+    photoCache.set(k, fetch(`/api/attendance/${Number(id)}/photo/${kind === 'out' ? 'out' : 'in'}`, { headers: { Authorization: 'Bearer ' + S.token } })
+      .then((r) => (r.ok ? r.blob() : null)).then((b) => (b ? URL.createObjectURL(b) : null)).catch(() => null)
+      .then((u) => { if (!u) photoCache.delete(k); return u; }));
+  }
+  return photoCache.get(k);
+}
+function fillPhotos(root) { // أي <img data-aid data-kind> بتتملي بالصورة
+  root.querySelectorAll('img[data-aid]').forEach((img) => loadPhoto(img.dataset.aid, img.dataset.kind).then((u) => { if (u) { img.src = u; img.hidden = false; } else img.closest('.phwrap')?.classList.add('noph'); }));
+}
+const mapSrc = (lat, lng) => `https://www.google.com/maps?q=${Number(lat)},${Number(lng)}&z=17&hl=ar&output=embed`;
+const mapFrame = (lat, lng) => `<iframe loading="lazy" referrerpolicy="no-referrer" title="الموقع" src="${mapSrc(lat, lng)}"></iframe>`;
+const hasLL = (a, k) => a && a[k + '_lat'] != null && a[k + '_lng'] != null;
+const ICO_EYE = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+const ICO_PIN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
 const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('');
 
 /* ====== الوجه والموقع ====== */
@@ -77,7 +96,13 @@ function loadFace() {
 }
 const dist = (a, b) => Math.sqrt(a.reduce((s, x, i) => s + (x - b[i]) ** 2, 0));
 /** يفتح الكاميرا ويرجّع بصمة الوجه (متوسط 3 لقطات). */
-function captureFace(title) {
+function snapPhoto(v) { // صورة صغيرة (360px JPEG) من الكاميرا: حوالي 15-20KB فقط
+  const w = 360, h = Math.round((v.videoHeight / v.videoWidth) * w) || 270;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  c.getContext('2d').drawImage(v, 0, 0, w, h);
+  return c.toDataURL('image/jpeg', 0.62);
+}
+function captureFace(title, opts = {}) {
   return new Promise((resolve, reject) => {
     let stream, done = false;
     const o = modal(`<h3>${esc(title)}</h3>
@@ -99,21 +124,21 @@ function captureFace(title) {
         $('#fgo', o).onclick = async () => {
           const btn = $('#fgo', o); btn.disabled = true;
           try {
-            const ds = [];
-            for (let i = 0; i < 3; i++) {
-              st(`<span class="spin"></span> جارٍ التقاط الوجه (${i + 1}/3)... ثبّتي وجهك`);
+            const ds = [], N = opts.quick ? 1 : 3; let photo = null;
+            for (let i = 0; i < N; i++) {
+              st(`<span class="spin"></span> جارٍ التقاط الوجه (${i + 1}/${N})... ثبّتي وجهك`);
               let d = null;
               for (let tries = 0; tries < 6 && !d; tries++) {
                 d = await faceapi.detectSingleFace(v, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor();
                 if (!d) await new Promise((r) => setTimeout(r, 300));
               }
               if (!d) throw new Error('مش لاقي وجه واضح، قرّبي وزوّدي الإضاءة');
-              ds.push(Array.from(d.descriptor));
-              await new Promise((r) => setTimeout(r, 350));
+              ds.push(Array.from(d.descriptor)); if (opts.photo && !photo) photo = snapPhoto(v);
+              if (N > 1) await new Promise((r) => setTimeout(r, 350));
             }
-            if (dist(ds[0], ds[1]) > 0.45 || dist(ds[0], ds[2]) > 0.45) throw new Error('الوجه اتحرك كتير، حاولي تاني وانتِ ثابتة');
-            const avg = ds[0].map((_, i) => (ds[0][i] + ds[1][i] + ds[2][i]) / 3);
-            done = true; stop(); o.remove(); resolve(avg);
+            if (N === 3 && (dist(ds[0], ds[1]) > 0.45 || dist(ds[0], ds[2]) > 0.45)) throw new Error('الوجه اتحرك كتير، حاولي تاني وانتِ ثابتة');
+            const avg = N === 1 ? ds[0] : ds[0].map((_, i) => (ds[0][i] + ds[1][i] + ds[2][i]) / 3);
+            done = true; stop(); o.remove(); resolve(opts.photo ? { descriptor: avg, photo } : avg);
           } catch (e) { st(`<span class="neg">${esc(e.message)}</span>`); btn.disabled = false; }
         };
       } catch (e) {
@@ -346,6 +371,7 @@ function renderShell() {
     $('#cdate span').textContent = n.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: TZ }).replace(/,/g, '');
   };
   tick(); clearInterval(renderShell.t); renderShell.t = setInterval(tick, 1000);
+  if (!S.me.user.is_admin && !window.__faceWarm) { window.__faceWarm = 1; setTimeout(() => loadFace().catch(() => {}), 2500); }
   (PAGES[S.page] || PAGES.home)($('#view'));
 }
 async function boot() {
@@ -387,6 +413,11 @@ const addDays = (d, n) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x
 const timeAr = (iso) => (iso ? new Date(iso).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: TZ }) : '');
 PAGES.home = async (view) => {
   const u = S.me.user, today = S.me.today_date;
+  if (u.is_admin) { // البصمة للموظفين فقط، المدير بيتابع بس
+    view.innerHTML = `<div class="narrow"><div class="card prof"><div class="avatar big">${esc(initials(u.name))}</div><div class="info"><b>${esc(u.name)}</b><span class="muted">${esc(u.job_title || 'مدير النظام')}</span></div></div>
+      <div class="card" style="margin-top:12px;text-align:center"><p style="margin:0;font-weight:700">تسجيل الحضور والانصراف بالبصمة للموظفين فقط</p><p class="muted small" style="margin:6px 0 0">تابعي حضورهم بالصورة والموقع من «الموظفون» أو «سجل الحضور».</p></div></div>`;
+    return;
+  }
   const weekend = String(S.me.settings.weekend_days || '').split(',').filter(Boolean).map(Number);
   const days = IS_APP ? Array.from({ length: 48 }, (_, i) => addDays(today, i - 40)) : Array.from({ length: 7 }, (_, i) => addDays(today, i - 4));
   let sel = today, recs = {};
@@ -452,8 +483,8 @@ PAGES.home = async (view) => {
     await run(btn, async () => {
       let pos = null;
       if (S.me.settings.needs_geo) { btn.textContent = 'جارٍ تحديد موقعك...'; pos = await getPos(); }
-      const d = u.face_exempt ? null : await captureFace(type === 'in' ? 'تأكيد الوجه للحضور' : 'تأكيد الوجه للانصراف');
-      await api('/attendance/punch', 'POST', { type, lat: pos?.lat, lng: pos?.lng, descriptor: d });
+      const d = await captureFace(type === 'in' ? 'تأكيد الوجه للحضور' : 'تأكيد الوجه للانصراف', { photo: true, quick: true });
+      await api('/attendance/punch', 'POST', { type, lat: pos?.lat, lng: pos?.lng, descriptor: d.descriptor, photo: d.photo });
       toast(type === 'in' ? 'تم تسجيل الحضور ✔' : 'تم تسجيل الانصراف ✔');
       S.me = await api('/me'); await loadRecs(); draw();
     });
@@ -1285,17 +1316,65 @@ PAGES.attendance = async (view) => {
   $('#exp').onclick = () => csv('attendance.csv', [['التاريخ', 'الموظف', 'حضور', 'انصراف', 'تأخير (د)', 'انصراف مبكر (د)'], ...rows.map((a) => [a.date, a.user_name, fmtTime(a.check_in), fmtTime(a.check_out), a.late_minutes, a.early_minutes])]);
   load();
 };
+const locBox = (a, kind) => {
+  const has = hasLL(a, kind), ph = !!a[kind + '_photo'];
+  return `<div class="locbox"><h4>${kind === 'in' ? 'موقع تسجيل الحضور' : 'موقع تسجيل الانصراف'}</h4>
+    <div class="locmap phwrap">${has ? mapFrame(a[kind + '_lat'], a[kind + '_lng']) : '<div class="locnone">لا يوجد موقع مسجل</div>'}${ph ? `<img class="locphoto" alt="صورة البصمة" data-aid="${a.id}" data-kind="${kind}" hidden>` : ''}</div>
+    ${a['check_' + kind] ? `<div class="muted small" style="margin-top:6px">${fmtTime(a['check_' + kind])}${a[kind + '_loc'] ? ' · ' + esc(a[kind + '_loc']) : ''}</div>` : ''}</div>`;
+};
+// نافذة الموبايل لعرض موقع/صورة حضور موظف (للمدير)
+function attViewModal(u, rec, day, kind0) {
+  let kind = kind0 === 'out' && rec.check_out ? 'out' : 'in', photoView = false;
+  const dt = new Date(day + 'T00:00:00').toLocaleDateString('ar-EG-u-nu-latn', { day: '2-digit', month: 'long', year: 'numeric' });
+  const o = modal('<div class="avm"></div>');
+  const draw = () => {
+    const iso = rec['check_' + kind], place = rec[kind + '_loc'] || '', hasPh = !!rec[kind + '_photo'];
+    const tm = iso ? new Date(iso).toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: TZ }) : '—';
+    $('.avm', o).innerHTML = `<div class="avm-top"><span class="avm-name">${esc(u.name)}</span><span class="avm-date">${esc(dt)}</span></div>
+      <div class="avm-tabs"><button data-k="in" class="${kind === 'in' ? 'on' : ''}">تسجيل الدخول</button><button data-k="out" class="${kind === 'out' ? 'on' : ''}" ${rec.check_out ? '' : 'disabled'}>تسجيل الخروج</button></div>
+      ${photoView
+        ? `<div class="avm-photo phwrap">${hasPh ? `<img alt="صورة البصمة" data-aid="${rec.id}" data-kind="${kind}" hidden>` : ''}<div class="avm-none">${hasPh ? 'جارٍ تحميل الصورة...' : 'لا توجد صورة لهذا التسجيل'}</div></div>`
+        : `${place ? `<div class="avm-place">${esc(place)}</div>` : ''}<div class="avm-map">${hasLL(rec, kind) ? mapFrame(rec[kind + '_lat'], rec[kind + '_lng']) : '<div class="avm-none">لا يوجد موقع مسجل</div>'}</div>`}
+      <div class="avm-btns"><span class="avm-pill">${esc(tm)}<span class="avm-ic ${kind}">${kind === 'in' ? '⇥' : '⇤'}</span></span>
+        <button class="avm-pill tog" id="avtog">${photoView ? `${esc(place || 'الموقع')} ${ICO_PIN}` : `صورة ${ICO_EYE}`}</button></div>
+      <button class="avm-back" data-close>عودة</button>`;
+    o.querySelectorAll('[data-close]').forEach((b) => (b.onclick = o.close));
+    o.querySelectorAll('.avm-tabs [data-k]').forEach((b) => (b.onclick = () => { kind = b.dataset.k; draw(); }));
+    $('#avtog', o).onclick = () => { photoView = !photoView; draw(); };
+    fillPhotos(o);
+    o.querySelectorAll('.avm-photo img').forEach((img) => (img.onload = () => { const n = img.parentElement.querySelector('.avm-none'); if (n) n.remove(); }));
+  };
+  draw();
+}
 function manualAtt(emps, a, done) {
   const hm = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: TZ }) : '');
   const isEdit = a && !a.manual_new;
-  const o = modal(`<h3>${isEdit ? 'تعديل سجل' : 'تسجيل حضور يدوي'}</h3><form class="form" id="mf">
+  const emp = a && emps.find((e) => e.id === a.user_id);
+  const head = isEdit
+    ? `<div class="ehead"><div><h3 style="margin:0">تعديل بيانات الحضور</h3><div class="muted small">${esc((emp && emp.name) || a.user_name || '')} · ${esc(fmtDate(a.date))}${emp ? ` · (${esc(fmt12(emp.shift_start))} - ${esc(fmt12(emp.shift_end))})` : ''}</div></div><span class="badge-admin">تعديل المدير</span></div>`
+    : '<h3>تسجيل حضور يدوي</h3>';
+  const o = modal(`${head}<form class="form" id="mf">
     <label class="f full">الموظف<select name="user_id" ${a ? 'disabled' : ''}>${emps.filter((e) => !e.is_admin).map((e) => `<option value="${e.id}" ${a && a.user_id === e.id ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></label>
     <label class="f">التاريخ<input type="date" name="date" value="${a?.date || todayStr()}" ${a ? 'readonly' : ''} required></label>
     <label class="f">ملاحظة<input name="note" value="${esc(a?.note)}" placeholder="سبب التعديل"></label>
     <label class="f">الحضور<input type="time" name="check_in" value="${hm(a?.check_in)}"></label>
     <label class="f">الانصراف<input type="time" name="check_out" value="${hm(a?.check_out)}"></label>
-    <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
+    ${isEdit && !IS_APP && a.id ? `<div class="locsec full"><h4>مواقع تسجيل الحضور والانصراف</h4><div class="locgrid">${locBox(a, 'in')}${locBox(a, 'out')}</div></div>` : ''}
+    <div class="actions full efoot"><span class="chg"><b id="chgn">0 التغييرات</b> <span class="muted" id="chgt">لا توجد تغييرات بعد</span></span><span class="grow"></span><button type="button" class="btn alt" data-close>${isEdit ? 'إلغاء' : 'إلغاء'}</button><button class="btn" id="msave">${isEdit ? 'حفظ التغييرات' : 'حفظ'}</button></div></form>`);
+  if (isEdit) o.classList.add('att');
   const f = $('#mf', o);
+  if (isEdit) fillPhotos(o);
+  // عدّاد التغييرات: الحفظ مايتفعّلش إلا لو فيه تعديل فعلاً
+  const FIELDS = { check_in: 'الحضور', check_out: 'الانصراف', note: 'الملاحظة' }, init = {};
+  Object.keys(FIELDS).forEach((k) => (init[k] = f[k].value));
+  const upd = () => {
+    const ch = Object.keys(FIELDS).filter((k) => f[k].value !== init[k]);
+    $('#chgn', o).textContent = `${ch.length} التغييرات`;
+    $('#chgt', o).textContent = ch.length ? ch.map((k) => FIELDS[k]).join('، ') : 'لا توجد تغييرات بعد';
+    if (isEdit) $('#msave', o).disabled = !ch.length;
+  };
+  if (!isEdit) $('.chg', o).hidden = true;
+  f.addEventListener('input', upd); upd();
   f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
     await api('/attendance', 'POST', { user_id: a ? a.user_id : f.user_id.value, date: f.date.value, check_in: f.check_in.value, check_out: f.check_out.value, note: f.note.value || 'تعديل يدوي' });
     o.close(); toast('تم الحفظ'); done();
@@ -2777,7 +2856,7 @@ function empMobileUI(c) {
     const tag = canEdit ? 'button' : 'span';
     const sq = hasIn && !hasOut ? `<${tag} class="msq out" data-sq="${u.id}" aria-label="تعديل الانصراف">${fi('sq_out')}</${tag}>`
       : !hasIn && E.day <= today && !['off', 'leave'].includes(s.status) ? `<${tag} class="msq in" data-sq="${u.id}" aria-label="تسجيل حضور">${fi('sq_in')}</${tag}>` : '';
-    const line = (kind, iso, loc) => `<div class="mline"><span class="mi ${kind}">${fi(kind === 'in' ? 'in_m' : 'out_m')}</span><b>${timeAr(iso)}</b>${loc ? `<span class="mloc">${fi('pin')}<span>${esc(loc)}</span></span>` : ''}</div>`;
+    const line = (kind, iso, loc) => `<div class="mline" ${s.rec && s.rec.id ? `data-view="${u.id}" data-k="${kind}"` : ''}><span class="mi ${kind}">${fi(kind === 'in' ? 'in_m' : 'out_m')}</span><b>${timeAr(iso)}</b>${loc ? `<span class="mloc">${fi('pin')}<span>${esc(loc)}</span></span>` : ''}</div>`;
     const shift = `<div class="mshift"><span class="mclk">${fi('clock_c')}</span><span dir="auto">${esc(shiftTxt(u))}</span></div>`;
     const chev = `<button class="mchev" data-ex="${u.id}" aria-label="المزيد">${fi('chev_dn')}</button>`;
     const info = `<button class="minfo" data-info="${u.id}" aria-label="بيانات">${fi('info_fill')}</button>`;
@@ -2795,6 +2874,7 @@ function empMobileUI(c) {
     $('#mlist', body).innerHTML = rs.map(card).join('') || '<div class="card empty">لا يوجد موظفون</div>';
     $('#mcount', body).textContent = `${rs.length} من ${people.filter((u) => u.active).length}`;
     const L = $('#mlist', body);
+    L.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => { const u = byId(b.dataset.view), s = dayInfo(u); if (s.rec && s.rec.id) attViewModal(u, s.rec, E.day, b.dataset.k); }));
     L.querySelectorAll('[data-info]').forEach((b) => (b.onclick = () => infoModal(byId(b.dataset.info))));
     L.querySelectorAll('[data-ex]').forEach((b) => (b.onclick = () => { const p = b.closest('.mcard'), x = $('.mexp', p); x.hidden = !x.hidden; b.innerHTML = fi(x.hidden ? 'chev_dn' : 'chev_up'); }));
     L.querySelectorAll('[data-e]').forEach((b) => (b.onclick = () => empForm(byId(b.dataset.e), again)));
