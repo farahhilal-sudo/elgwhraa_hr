@@ -1,5 +1,7 @@
 const express = require('express');
 const path = require('path');
+const fs = require('fs');
+const zlib = require('zlib');
 const crypto = require('crypto');
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
@@ -13,18 +15,18 @@ if (!DATABASE_URL) {
   process.exit(1);
 }
 
-
+/* ---------------- الاتصال بقاعدة البيانات (PostgreSQL) ---------------- */
 const isLocal = /@(localhost|127\.0\.0\.1)(:|\/|$)/.test(DATABASE_URL);
 const pool = new Pool({
   connectionString: DATABASE_URL,
-
+  // Neon/Supabase بيحطوا sslmode في الرابط نفسه؛ لو مش موجود وده مش localhost نفعّل SSL
   ssl: isLocal || /sslmode=/.test(DATABASE_URL) ? undefined : true,
   max: 5,
   idleTimeoutMillis: 10000,
   connectionTimeoutMillis: 20000, // أول اتصال بعد خمول ممكن ياخد ثواني
   keepAlive: true,
 });
-
+// الاتصالات الخاملة ممكن تتقفل من طرف الاستضافة؛ من غير السطر ده التطبيق كله ممكن يقع
 pool.on('error', (e) => console.error('pg idle client error:', e.message));
 
 // "?" في الـ SQL بتتحول تلقائياً لـ $1,$2,...
@@ -192,6 +194,14 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   ip TEXT DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (${NOW})
 );
+CREATE TABLE IF NOT EXISTS attendance_photos (
+  attendance_id INTEGER NOT NULL REFERENCES attendance(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('in','out')),
+  photo BYTEA NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (${NOW}),
+  PRIMARY KEY (attendance_id, kind)
+);
+CREATE INDEX IF NOT EXISTS idx_photos_created ON attendance_photos(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_requests_user ON requests(user_id, from_date);
 CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status);
@@ -247,6 +257,9 @@ async function init() {
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality TEXT DEFAULT ''");
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS manager_id INTEGER');
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS leave_profile_id INTEGER');
+  // بيانات الملف الشخصي: كود الموظف وتاريخ الميلاد والنوع والحالة الاجتماعية والهوية الوطنية
+  for (const c of ['employee_code', 'birth_date', 'gender', 'marital_status', 'national_id']) await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${c} TEXT DEFAULT ''`);
+  await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_code ON users(employee_code) WHERE employee_code <> ''");
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS in_loc TEXT');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS out_loc TEXT');
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
@@ -322,6 +335,7 @@ function publicUser(u) {
     phone: u.phone, location_ids: parseIds(u.location_ids), shift_start: u.shift_start, shift_end: u.shift_end, hire_date: u.hire_date,
     nationality: u.nationality || '', manager_id: u.manager_id || null, leave_profile_id: u.leave_profile_id || null,
     annual_leave_days: u.annual_leave_days, face_enrolled: !!u.face_descriptor, face_exempt: !!u.is_admin, active: !!u.active, pending: !!u.pending, email: u.email || '',
+    employee_code: u.employee_code || '', birth_date: u.birth_date || '', gender: u.gender || '', marital_status: u.marital_status || '',
   };
 }
 function notify(userId, text) {
@@ -337,6 +351,24 @@ async function audit(req, action, target = '', details = '') {
     await db.run('INSERT INTO audit_logs(user_id,user_name,action,target,details,ip) VALUES(?,?,?,?,?,?)',
       req.user ? req.user.id : null, req.user ? req.user.name : '', action, String(target).slice(0, 120), String(details).slice(0, 500), req.ip || '');
   } catch (e) { console.error('audit failed:', e.message); }
+}
+// صورة البصمة: JPEG صغيرة جاية من الكاميرا (data URL). بنتأكد إنها فعلاً JPEG وبحجم معقول
+function parsePhoto(s) {
+  if (typeof s !== 'string' || s.length > 160000) return null;
+  const m = /^data:image\/jpeg;base64,([A-Za-z0-9+/]+={0,2})$/.exec(s);
+  if (!m) return null;
+  const buf = Buffer.from(m[1], 'base64');
+  if (buf.length < 500 || buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff) return null;
+  return buf;
+}
+// الصور بتتمسح تلقائياً بعد فترة (خصوصية + توفير مساحة). الافتراضي 60 يوم، وتتغيّر من PHOTO_RETENTION_DAYS
+const PHOTO_DAYS = Math.max(7, parseInt(process.env.PHOTO_RETENTION_DAYS, 10) || 60);
+async function cleanupPhotos() {
+  try {
+    const cutoff = new Date(Date.now() - PHOTO_DAYS * 86400000).toISOString().slice(0, 19).replace('T', ' ');
+    const r = await db.run('DELETE FROM attendance_photos WHERE created_at < ?', cutoff);
+    if (r.rowCount) console.log(`تم حذف ${r.rowCount} صورة أقدم من ${PHOTO_DAYS} يوم`);
+  } catch (e) { console.error('photo cleanup failed:', e.message); }
 }
 // مدير الموارد (غير المدير العام) ما يتحكمش في حساب صلاحياته أعلى من صلاحياته (يمنع تصعيد الصلاحيات بتغيير كلمة مرور حساب أقوى)
 function outranks(actor, target) {
@@ -561,6 +593,30 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: '200kb' }));
+// الملفات الرئيسية بتتضغط مرة واحدة عند التشغيل (Brotli/Gzip) وبتتبعت بـ ETag: app.js بيتحمّل أسرع بكتير (302KB ← حوالي 60KB)
+const STATIC_MIME = { '.js': 'application/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.json': 'application/json; charset=utf-8' };
+const staticCache = new Map();
+for (const f of ['/index.html', '/app.js', '/style.css', '/manifest.json']) {
+  try {
+    const raw = fs.readFileSync(path.join(__dirname, 'public', f));
+    staticCache.set(f, {
+      raw, etag: '"' + crypto.createHash('sha1').update(raw).digest('hex').slice(0, 20) + '"',
+      br: zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 9 } }), gz: zlib.gzipSync(raw, { level: 9 }),
+    });
+  } catch (e) { console.error('static precompress skipped:', f, e.message); }
+}
+app.use((req, res, next) => {
+  if (req.method !== 'GET') return next();
+  const key = req.path === '/' ? '/index.html' : req.path, e = staticCache.get(key);
+  if (!e) return next();
+  res.setHeader('ETag', e.etag); res.setHeader('Cache-Control', 'no-cache'); res.setHeader('Vary', 'Accept-Encoding');
+  res.setHeader('Content-Type', STATIC_MIME[path.extname(key)]);
+  if (req.headers['if-none-match'] === e.etag) return res.status(304).end();
+  const ae = String(req.headers['accept-encoding'] || '');
+  if (/\bbr\b/.test(ae)) { res.setHeader('Content-Encoding', 'br'); return res.end(e.br); }
+  if (/\bgzip\b/.test(ae)) { res.setHeader('Content-Encoding', 'gzip'); return res.end(e.gz); }
+  res.end(e.raw);
+});
 app.use(express.static(path.join(__dirname, 'public')));
 
 // للاستضافات اللي بتفحص الصحة أو أدوات "إبقاء السيرفر صاحي" — مبتلمسش قاعدة البيانات
@@ -713,17 +769,17 @@ app.post('/api/me/face', auth, wrap(async (req, res) => {
 
 /* ----- تسجيل الحضور والانصراف ----- */
 app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
-  const { type, lat, lng, descriptor } = req.body || {};
+  const { type, lat, lng, descriptor, photo } = req.body || {};
   if (!['in', 'out'].includes(type)) return res.status(400).json({ error: 'نوع غير صالح' });
   const u = req.user, st = await settings();
-  // حسابات المديرين مش بتحتاج بصمة وجه خالص
-  let score = null;
-  if (!u.is_admin) {
-    if (!u.face_descriptor) return res.status(403).json({ error: 'سجّلي بصمة الوجه أولاً' });
-    if (!validDescriptor(descriptor)) return res.status(400).json({ error: 'لم يتم التقاط الوجه' });
-    score = faceDistance(descriptor, JSON.parse(u.face_descriptor));
-  }
-  if (!u.is_admin && score > parseFloat(st.face_threshold)) return res.status(403).json({ error: 'الوجه غير مطابق، حاولي مرة أخرى في إضاءة أفضل' });
+  // البصمة للموظفين فقط: حساب المدير مش بيسجّل حضور ولا انصراف
+  if (u.is_admin) return res.status(403).json({ error: 'حسابات المديرين لا تسجّل حضور وانصراف' });
+  if (!u.face_descriptor) return res.status(403).json({ error: 'سجّلي بصمة الوجه أولاً' });
+  if (!validDescriptor(descriptor)) return res.status(400).json({ error: 'لم يتم التقاط الوجه' });
+  const photoBuf = parsePhoto(photo);
+  if (!photoBuf) return res.status(400).json({ error: 'لم يتم التقاط الصورة، حاولي مرة أخرى' });
+  const score = faceDistance(descriptor, JSON.parse(u.face_descriptor));
+  if (score > parseFloat(st.face_threshold)) return res.status(403).json({ error: 'الوجه غير مطابق، حاولي مرة أخرى في إضاءة أفضل' });
   // الموقع إجباري لو فيه مواقع معرّفة: لازم يكون الموظف داخل نطاق واحد من مواقعه المسموحة
   let where = null;
   const locs = await allowedLocations(u);
@@ -759,34 +815,59 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
     const up = await db.run('UPDATE attendance SET check_out=?,out_lat=?,out_lng=?,out_face=?,early_minutes=?,out_loc=? WHERE id=? AND check_out IS NULL', iso, la, ln, score, early, where, rec.id);
     if (!up.rowCount) return res.status(409).json({ error: 'تم تسجيل الانصراف اليوم بالفعل' });
   }
-  res.json({ ok: true, record: await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date) });
+  const saved = await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date);
+  try { // الصورة دليل إضافي، فلو فشل حفظها ما نفشّلش التسجيل نفسه
+    await db.run('INSERT INTO attendance_photos(attendance_id,kind,photo) VALUES(?,?,?) ON CONFLICT(attendance_id,kind) DO UPDATE SET photo=EXCLUDED.photo, created_at=EXCLUDED.created_at', saved.id, type, photoBuf);
+  } catch (e) { console.error('photo save failed:', e.message); }
+  res.json({ ok: true, record: saved });
+}));
+
+// صورة الحضور/الانصراف: للموظفة نفسها أو لمن عنده صلاحية عرض الحضور للجميع
+app.get('/api/attendance/:id/photo/:kind', auth, wrap(async (req, res) => {
+  const id = toId(req.params.id), kind = req.params.kind;
+  if (!id || !['in', 'out'].includes(kind)) return res.status(404).end();
+  const a = await db.get('SELECT user_id FROM attendance WHERE id=?', id);
+  if (!a) return res.status(404).end();
+  if (a.user_id !== req.user.id && !can(req.user, 'attendance.view_all')) return res.status(403).end();
+  const ph = await db.get('SELECT photo FROM attendance_photos WHERE attendance_id=? AND kind=?', id, kind);
+  if (!ph) return res.status(404).end();
+  res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400' });
+  res.send(ph.photo);
 }));
 
 app.get('/api/attendance/mine', auth, wrap(async (req, res) => {
   const month = isMonth(req.query.month) ? req.query.month : tzParts().date.slice(0, 7);
   const [a, b] = monthRange(month);
-  res.json(await db.all('SELECT * FROM attendance WHERE user_id=? AND date BETWEEN ? AND ? ORDER BY date DESC', req.user.id, a, b));
+  res.json(await db.all(`SELECT a.*, EXISTS(SELECT 1 FROM attendance_photos p WHERE p.attendance_id=a.id AND p.kind='in') AS in_photo, EXISTS(SELECT 1 FROM attendance_photos p WHERE p.attendance_id=a.id AND p.kind='out') AS out_photo FROM attendance a WHERE a.user_id=? AND a.date BETWEEN ? AND ? ORDER BY a.date DESC`, req.user.id, a, b));
 }));
 
 /* ----- الطلبات ----- */
-app.get('/api/requests/mine', auth, wrap(async (req, res) => {
+// طلبات وأرصدة إجازات موظف (للموظف نفسه، وللمدير في صفحة بروفايل الموظف)
+async function leaveSummary(user) {
   const year = tzParts().date.slice(0, 4);
-  const typeSum = async (t) => (await db.all("SELECT from_date,to_date FROM requests WHERE user_id=? AND type=? AND status='approved' AND from_date LIKE ?", req.user.id, t, year + '%'))
+  const typeSum = async (t) => (await db.all("SELECT from_date,to_date FROM requests WHERE user_id=? AND type=? AND status='approved' AND from_date LIKE ?", user.id, t, year + '%'))
     .reduce((s, r) => s + [...eachDay(r.from_date, r.to_date)].length, 0);
   const [rows, used, sick, emergency, perm] = await Promise.all([
-    db.all('SELECT * FROM requests WHERE user_id=? ORDER BY id DESC LIMIT 100', req.user.id),
+    db.all('SELECT * FROM requests WHERE user_id=? ORDER BY id DESC LIMIT 100', user.id),
     typeSum('annual_leave'), typeSum('sick_leave'), typeSum('emergency_leave'),
-    db.get("SELECT COALESCE(SUM(hours),0) AS h FROM requests WHERE user_id=? AND type='permission' AND status='approved' AND from_date LIKE ?", req.user.id, tzParts().date.slice(0, 7) + '%'),
+    db.get("SELECT COALESCE(SUM(hours),0) AS h FROM requests WHERE user_id=? AND type='permission' AND status='approved' AND from_date LIKE ?", user.id, tzParts().date.slice(0, 7) + '%'),
   ]);
-  const prof = profileOf(req.user, await getPolicyCtx());
-  res.json({
+  const prof = profileOf(user, await getPolicyCtx());
+  return {
     requests: rows,
     balances: {
-      annual_total: prof ? Number(prof.annual) : req.user.annual_leave_days, annual_used: used,
+      annual_total: prof ? Number(prof.annual) : user.annual_leave_days, annual_used: used,
       sick_total: prof ? Number(prof.sick) || 0 : 0, emergency_total: prof ? Number(prof.emergency) || 0 : 0,
       sick_used: sick, emergency_used: emergency, permission_hours_month: Number(perm.h),
     },
-  });
+  };
+}
+app.get('/api/requests/mine', auth, wrap(async (req, res) => { res.json(await leaveSummary(req.user)); }));
+app.get('/api/employees/:id/summary', auth, need('employees.view'), wrap(async (req, res) => {
+  const id = toId(req.params.id);
+  const u = id && await db.get('SELECT * FROM users WHERE id=?', id);
+  if (!u) return res.status(404).json({ error: 'غير موجود' });
+  res.json(await leaveSummary(u));
 }));
 
 // قواعد الإجازات: رصيد «ملف الإجازة» المربوط بالموظف + «قواعد الحد من أيام العطلات» (أقصى مدة / أقصى عدد في نفس اليوم / فترات منع)
@@ -1030,13 +1111,17 @@ app.get('/api/dashboard', auth, need('dashboard.view'), wrap(async (req, res) =>
 }));
 
 /* ----- الموظفون ----- */
-const EMP_FIELDS = ['name', 'job_title', 'department', 'phone', 'base_salary', 'allowances', 'shift_start', 'shift_end', 'hire_date', 'annual_leave_days', 'nationality', 'manager_id', 'leave_profile_id'];
+const EMP_FIELDS = ['name', 'job_title', 'department', 'phone', 'base_salary', 'allowances', 'shift_start', 'shift_end', 'hire_date', 'annual_leave_days', 'nationality', 'manager_id', 'leave_profile_id', 'employee_code', 'birth_date', 'gender', 'marital_status', 'national_id', 'email'];
 function validateEmp(b, partial) {
   if (!partial && (!b.name || !b.username || !b.password)) return 'الاسم واسم المستخدم وكلمة المرور مطلوبين';
   if (b.password !== undefined && String(b.password).length < 6) return 'كلمة المرور 6 أحرف على الأقل';
   for (const f of ['shift_start', 'shift_end']) if (b[f] !== undefined && !/^\d{1,2}:\d{2}$/.test(b[f])) return 'صيغة الوقت غير صحيحة';
   if (b.hire_date !== undefined && !isDate(b.hire_date)) return 'تاريخ التعيين غير صحيح';
   for (const f of ['base_salary', 'allowances', 'annual_leave_days']) if (b[f] !== undefined && !(Number(b[f]) >= 0)) return 'قيمة رقمية غير صحيحة';
+  if (b.birth_date !== undefined && b.birth_date !== '' && !isDate(b.birth_date)) return 'تاريخ الميلاد غير صحيح';
+  if (b.gender !== undefined && !['', 'male', 'female'].includes(b.gender)) return 'قيمة النوع غير صحيحة';
+  if (b.marital_status !== undefined && !['', 'single', 'married', 'divorced', 'widowed'].includes(b.marital_status)) return 'الحالة الاجتماعية غير صحيحة';
+  if (b.email !== undefined && b.email !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(b.email))) return 'البريد الإلكتروني غير صحيح';
   return null;
 }
 // حالة كل موظف النهارده (حاضر / متأخر / غائب / إجازة / عطلة / لسه ما سجّلش)
@@ -1066,6 +1151,7 @@ app.get('/api/employees', auth, need('employees.view'), wrap(async (req, res) =>
   res.json(rows.map((u) => ({
     ...publicUser(u), today: tmap[u.id] || null,
     ...(can(req.user, 'payroll.view') ? { base_salary: u.base_salary, allowances: u.allowances } : {}),
+    ...(can(req.user, 'employees.manage') ? { national_id: u.national_id || '' } : {}),
   })));
 }));
 // مدير الموارد (غير المدير العام) ما يقدرش يلمس حسابات المديرين
@@ -1081,11 +1167,14 @@ app.post('/api/employees', auth, need('employees.manage'), wrap(async (req, res)
   if (!USERNAME_RE.test(String(b.username).trim())) return res.status(400).json({ error: 'اسم المستخدم من 3 إلى 30 حرف/رقم بدون مسافات' });
   if (b.role === 'admin' && !req.user.is_admin) return res.status(403).json({ error: 'إنشاء حساب مدير للمدير فقط' });
   if (await db.get('SELECT 1 FROM users WHERE lower(username)=?', String(b.username).toLowerCase())) return res.status(409).json({ error: 'اسم المستخدم مستخدم من قبل' });
+  const code = String(b.employee_code || '').trim().slice(0, 30);
+  if (code && await db.get('SELECT 1 FROM users WHERE employee_code=?', code)) return res.status(409).json({ error: 'كود الموظف مستخدم من قبل' });
   const locIds = b.location_ids === undefined ? [] : parseIds(JSON.stringify(b.location_ids));
   const id = await db.insert(`INSERT INTO users(name,username,password_hash,job_title,department,phone,base_salary,allowances,shift_start,shift_end,hire_date,annual_leave_days,is_admin,location_ids)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, String(b.name).trim().slice(0, 80), String(b.username).trim(), bcrypt.hashSync(String(b.password), 10), String(b.job_title || '').slice(0, 80), String(b.department || '').slice(0, 80), String(b.phone || '').slice(0, 30),
     Number(b.base_salary) || 0, Number(b.allowances) || 0, b.shift_start || '09:00', b.shift_end || '17:00', b.hire_date || tzParts().date, (Number.isInteger(parseInt(b.annual_leave_days, 10)) ? parseInt(b.annual_leave_days, 10) : 21), b.role === 'admin' ? 1 : 0, JSON.stringify(locIds));
-  if (b.nationality || toId(b.manager_id)) await db.run('UPDATE users SET nationality=?, manager_id=? WHERE id=?', String(b.nationality || '').slice(0, 40), toId(b.manager_id), id);
+  await db.run('UPDATE users SET nationality=?, manager_id=?, employee_code=?, birth_date=?, gender=?, marital_status=?, national_id=?, email=? WHERE id=?',
+    String(b.nationality || '').slice(0, 40), toId(b.manager_id), code, b.birth_date || '', b.gender || '', b.marital_status || '', String(b.national_id || '').trim().slice(0, 30), String(b.email || '').trim().slice(0, 100), id);
   await audit(req, 'employee.create', String(b.username).trim(), b.role === 'admin' ? 'role=admin' : '');
   res.json({ id });
 }));
@@ -1097,11 +1186,12 @@ app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, r
   const b = req.body || {};
   const err = validateEmp(b, true);
   if (err) return res.status(400).json({ error: err });
+  if (b.employee_code !== undefined && String(b.employee_code).trim() && await db.get('SELECT 1 FROM users WHERE employee_code=? AND id<>?', String(b.employee_code).trim().slice(0, 30), u.id)) return res.status(409).json({ error: 'كود الموظف مستخدم من قبل' });
   const sets = [], vals = [];
   for (const f of EMP_FIELDS) {
     if (b[f] === undefined) continue;
     sets.push(`${f}=?`);
-    vals.push(['base_salary', 'allowances'].includes(f) ? Number(b[f]) : f === 'annual_leave_days' ? parseInt(b[f], 10) : f === 'manager_id' ? (toId(b[f]) === u.id ? null : toId(b[f])) : f === 'leave_profile_id' ? toId(b[f]) : f === 'nationality' ? String(b[f]).slice(0, 40) : b[f]);
+    vals.push(['base_salary', 'allowances'].includes(f) ? Number(b[f]) : f === 'annual_leave_days' ? parseInt(b[f], 10) : f === 'manager_id' ? (toId(b[f]) === u.id ? null : toId(b[f])) : f === 'leave_profile_id' ? toId(b[f]) : f === 'nationality' ? String(b[f]).slice(0, 40) : f === 'employee_code' ? String(b[f]).trim().slice(0, 30) : f === 'national_id' ? String(b[f]).trim().slice(0, 30) : f === 'email' ? String(b[f]).trim().slice(0, 100) : (typeof b[f] === 'string' ? b[f].trim().slice(0, 100) : b[f]));
   }
   if (b.location_ids !== undefined) {
     const ids = parseIds(JSON.stringify(b.location_ids));
@@ -1205,7 +1295,7 @@ app.get('/api/attendance', auth, need('attendance.view_all'), wrap(async (req, r
   const from = isDate(req.query.from) ? req.query.from : now.slice(0, 7) + '-01';
   const to = isDate(req.query.to) ? req.query.to : now;
   const uid = toId(req.query.user_id);
-  res.json(await db.all(`SELECT a.*, u.name AS user_name FROM attendance a JOIN users u ON u.id=a.user_id
+  res.json(await db.all(`SELECT a.*, EXISTS(SELECT 1 FROM attendance_photos p WHERE p.attendance_id=a.id AND p.kind='in') AS in_photo, EXISTS(SELECT 1 FROM attendance_photos p WHERE p.attendance_id=a.id AND p.kind='out') AS out_photo, u.name AS user_name FROM attendance a JOIN users u ON u.id=a.user_id
     WHERE a.date BETWEEN ? AND ? ${uid ? 'AND a.user_id=?' : ''} ORDER BY a.date DESC, u.name LIMIT 1000`, ...(uid ? [from, to, uid] : [from, to])));
 }));
 app.post('/api/attendance', auth, need('attendance.edit'), wrap(async (req, res) => {
@@ -1577,6 +1667,7 @@ module.exports = { app, db, pool, computeMonth, settings, ready };
 if (require.main === module) {
   ready.catch((e) => { console.error('فشل تجهيز قاعدة البيانات:', e); process.exit(1); });
   process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e));
+  ready.then(cleanupPhotos); setInterval(cleanupPhotos, 24 * 3600 * 1000).unref();
   const server = app.listen(PORT, () => console.log(`الخادم يعمل على المنفذ ${PORT}`));
   // إيقاف نظيف عند إعادة تشغيل الاستضافة: نكمّل الطلبات الجارية ونقفل الاتصال بالقاعدة
   const stop = () => { server.close(() => pool.end().finally(() => process.exit(0))); setTimeout(() => process.exit(0), 8000).unref(); };

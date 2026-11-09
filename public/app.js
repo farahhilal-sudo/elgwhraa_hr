@@ -301,7 +301,7 @@ const MENU = [
 ];
 const menuVisible = () => MENU.map((m) => (m.g ? { ...m, items: m.items.filter((i) => i[2]()) } : m)).filter((m) => (m.g ? m.items.length : m.ok()));
 const allPages = () => menuVisible().flatMap((m) => (m.g ? m.items.map((i) => i[0]) : [m.id]));
-function go(page, opts = {}) { S.page = page; if (opts.tab) S.metab = opts.tab; S.q = opts.q || ''; renderShell(); window.scrollTo(0, 0); }
+function go(page, opts = {}) { S.empProfileId = null; S.page = page; if (opts.tab) S.metab = opts.tab; S.q = opts.q || ''; renderShell(); window.scrollTo(0, 0); }
 function menuHtml(sheet) {
   return menuVisible().map((m) => {
     if (!m.g) return `<button class="navi ${m.id === S.page ? 'on' : ''}" data-p="${m.id}">${ico(m.ic)}<span>${m.t}</span></button>`;
@@ -1133,10 +1133,10 @@ PAGES.employees = async (view) => {
     return st ? [st[1], st[0] === 'لم يسجّل الحضور' ? 'لم يسجل الحضور' : st[0], ['absent', 'not_yet'].includes(t.status) ? 'clockoff' : 'clock'] : ['', '—', 'clock'];
   };
   const punchBtn = (u) => (has('attendance.edit') && u.active && u.today && ['absent', 'not_yet'].includes(u.today.status) ? `<button class="btn alt sm" data-in="${u.id}">${ico('clock')} تسجيل الحضور</button>` : '');
-  const card = (u) => { const l = lineOf(u); return `<div class="card ecard"><div class="ehead"><div class="avatar lg">${esc(initials(u.name))}</div>
+  const card = (u) => { const l = lineOf(u); return `<div class="card ecard"><div class="ehead" data-prof="${u.id}" title="فتح الملف الشخصي"><div class="avatar lg">${esc(initials(u.name))}</div>
     <div class="einfo"><b>${esc(u.name)}</b><span>${esc(u.job_title || '—')}</span><span>${esc(u.department || '')}</span></div>${u.is_admin ? '<span class="badge b-info">مدير</span>' : ''}</div>
     <div class="estat"><span class="sline ${l[0]}">${ico(l[2])}${esc(l[1])}</span>${punchBtn(u)}</div><div class="eact">${btns(u)}</div></div>`; };
-  const trow = (u) => { const l = lineOf(u); return `<tr><td><div class="emp"><div class="avatar sm">${esc(initials(u.name))}</div><b>${esc(u.name)}</b>${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}</div></td>
+  const trow = (u) => { const l = lineOf(u); return `<tr><td><div class="emp" data-prof="${u.id}" title="فتح الملف الشخصي"><div class="avatar sm">${esc(initials(u.name))}</div><b>${esc(u.name)}</b>${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}</div></td>
     <td>${esc(u.job_title || '—')}</td><td>${esc(u.department || '—')}</td><td dir="ltr">${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}</td><td><span class="sline ${l[0]}">${ico(l[2])}${esc(l[1])}</span></td><td class="actcol"><div class="racts">${punchBtn(u)}${btns(u)}</div></td></tr>`; };
 
   const render = () => {
@@ -1196,16 +1196,27 @@ PAGES.employees = async (view) => {
     }
     body.querySelectorAll('[data-in]').forEach((b) => (b.onclick = () => manualAtt(people, { user_id: Number(b.dataset.in), date: S.me.today_date, manual_new: true }, again)));
     body.querySelectorAll('[data-info]').forEach((b) => (b.onclick = () => infoModal(byId(b.dataset.info))));
+    body.querySelectorAll('[data-prof]').forEach((b) => (b.onclick = () => openProfile(b.dataset.prof)));
     body.querySelectorAll('[data-more]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); popMenu(b, menuFor(byId(b.dataset.more))); }));
   };
+  const officesOf = (u) => (u.location_ids || []).map((i) => (locs.find((l) => l.id === i) || {}).name).filter(Boolean).join('، ');
+  const openProfile = (id) => { S.empProfileId = Number(id); S.proftab = 'data'; again(); window.scrollTo(0, 0); };
   const infoModal = (u) => {
-    const mg = byId(u.manager_id);
-    const kv = [['اسم المستخدم', u.username], ['الهاتف', u.phone || '—'], ['المسمى الوظيفي', u.job_title || '—'], ['القسم', u.department || '—'], ['الجنسية', u.nationality || '—'], ['المدير المباشر', mg ? mg.name : '—'], ['تاريخ التعيين', u.hire_date], ['الوردية', `${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}`],
-      ['رصيد الإجازة السنوية', u.annual_leave_days + ' يوم'], ['بصمة الوجه', u.face_exempt ? 'غير مطلوبة' : u.face_enrolled ? 'مسجلة' : 'غير مسجلة'],
-      ['أماكن الحضور', u.location_ids.length ? u.location_ids.map((i) => (locs.find((l) => l.id === i) || {}).name).filter(Boolean).join('، ') : 'أي موقع'],
-      ...(u.base_salary !== undefined && !u.is_admin ? [['المرتب الأساسي', money(u.base_salary)], ['البدلات', money(u.allowances)]] : [])];
-    modal(`<div class="emp" style="margin-bottom:12px"><div class="avatar lg">${esc(initials(u.name))}</div><div class="info"><b>${esc(u.name)}</b><span class="muted small">${u.is_admin ? 'مدير' : 'موظف'}</span></div></div>
-      <div class="kv">${kv.map(([k, v]) => `<div><span class="muted">${k}</span><b>${esc(v)}</b></div>`).join('')}</div><div class="actions"><button class="btn" data-close>إغلاق</button></div>`);
+    const mg = byId(u.manager_id), canEdit = manage && (!u.is_admin || S.me.user.is_admin);
+    const rows = (arr) => arr.map(([k, v]) => `<div class="im-kv"><span>${k}</span><b>${esc(v || '—')}</b></div>`).join('');
+    const perm = u.is_admin ? 'مدير (كل الصلاحيات)' : (u.permissions || []).length ? `موظف بصلاحيات إضافية (${u.permissions.length})` : 'الموظف';
+    const o = modal(`<div class="im-head"><button class="im-x" data-close aria-label="إغلاق">×</button><div class="im-id"><div class="avatar lg">${esc(initials(u.name))}</div><div><b>${esc(u.name)}</b><span class="muted small">${esc([u.job_title, u.department].filter(Boolean).join(' · ') || '—')}</span></div></div></div>
+      <div class="im-body">
+        <div class="im-col"><div class="im-sec"><h5>التوظيف</h5>${rows([['المنصب', u.job_title], ['القسم', u.department], ['انضم من', u.hire_date ? new Date(u.hire_date + 'T00:00:00').toLocaleDateString('ar-EG-u-nu-latn', { month: 'short', year: 'numeric' }) : ''], ['المكتب', officesOf(u) || 'أي موقع'], ['الوردية', `${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}`], ['الهاتف', u.phone]])}</div>
+          <div class="im-sec"><h5>الهوية</h5>${rows([['اسم المستخدم', u.username], ['تاريخ الميلاد', u.birth_date ? dmy(u.birth_date) : ''], ['النوع', GENDER_AR[u.gender]], ['الحالة الاجتماعية', MARITAL_AR[u.marital_status]], ['بصمة الوجه', u.face_exempt ? 'غير مطلوبة' : u.face_enrolled ? 'مسجلة' : 'غير مسجلة']])}</div></div>
+        <div class="im-col"><div class="im-sec"><h5>خط الإبلاغ</h5>${mg ? `<div class="im-mgr"><span class="avatar sm">${esc(initials(mg.name))}</span><div><b>${esc(mg.name)}</b><span class="muted small">المدير المباشر</span></div></div>` : '<div class="muted small">لا يوجد مدير مباشر</div>'}</div>
+          <div class="im-sec"><h5>مستوى الصلاحيات</h5><div class="im-perm">${esc(perm)}</div></div>
+          ${u.base_salary !== undefined && !u.is_admin ? `<div class="im-sec"><h5>المرتب</h5>${rows([['المرتب الأساسي', money(u.base_salary)], ['البدلات', money(u.allowances)]])}</div>` : ''}</div>
+      </div>
+      <div class="im-foot">${canEdit ? '<button class="btn alt" id="imEdit">تعديل الموظف</button>' : ''}<button class="btn alt" id="imProf">عرض الملف الشخصي</button></div>`);
+    o.classList.add('infom');
+    $('#imProf', o).onclick = () => { o.close(); openProfile(u.id); };
+    if (canEdit) $('#imEdit', o).onclick = () => { o.close(); empForm(u, again); };
   };
   const transferForm = (u) => {
     const o = modal(`<h3>تحويل ${esc(u.name)}</h3><form class="form" id="tf">
@@ -1247,9 +1258,69 @@ PAGES.employees = async (view) => {
     if (!it.length) it.push({ ic: 'info', t: 'بيانات الموظف', fn: () => infoModal(u) });
     return it;
   };
+  // ===== صفحة الملف الشخصي للموظف (بتفتح بالضغط على الموظف) =====
+  const renderProfile = async (u) => {
+    const tab = S.proftab || 'data';
+    const canEdit = manage && (!u.is_admin || S.me.user.is_admin), showSal = u.base_salary !== undefined && !u.is_admin;
+    const items = menuFor(u).filter((x) => x.t !== 'بيانات الموظف');
+    const TABS = [['data', 'بيانات الموظف'], ['att', 'سجل الحضور'], ['req', 'الطلبات والإجازات'], ['shift', 'الوردية والمكتب'], ...(showSal ? [['sal', 'المرتب']] : [])];
+    const mg = byId(u.manager_id);
+    const dataRows = [['كود الموظف', u.employee_code], ['اسم المستخدم', u.username], ['الهاتف', u.phone], ['البريد الإلكتروني', u.email], ['المنصب', u.job_title], ['القسم', u.department], ['المكتب', officesOf(u) || 'أي موقع'], ['المدير المباشر', mg && mg.name],
+      ['تاريخ التعيين', u.hire_date ? dmy(u.hire_date) : ''], ['تاريخ الميلاد', u.birth_date ? dmy(u.birth_date) : ''], ['النوع', GENDER_AR[u.gender]], ['الحالة الاجتماعية', MARITAL_AR[u.marital_status]], ['الجنسية', u.nationality],
+      ...(u.national_id !== undefined ? [['الهوية الوطنية', u.national_id]] : [])];
+    view.innerHTML = `<div class="epf"><div class="epf-back"><button class="btn alt sm" id="pfBack">${ico('chev')} كل الموظفين</button></div>
+      <div class="card epf-head"><div class="epf-id"><div class="epf-av">${esc(initials(u.name))}</div><div class="epf-info"><h2>${esc(u.name)}${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}${u.active ? '' : ' <span class="badge b-bad">موقوف</span>'}</h2>
+          <div class="epf-ln">${ico('user')}<span>${esc(u.job_title || '—')}</span></div><div class="epf-ln">${ico('building')}<span>${esc(u.department || '—')}</span></div></div></div>
+        <div class="epf-side"><span class="epf-chip">${esc(officesOf(u) || 'أي موقع')} · من ${esc(fmt12(u.shift_start))} حتى ${esc(fmt12(u.shift_end))}</span>
+          <div class="epf-acts"><button class="btn alt sm" id="pfExp">تصدير</button><div class="epf-icons">
+            ${u.phone ? `<a class="sqbtn blue" href="tel:${esc(u.phone)}" title="اتصال">${ico('phone')}</a>` : ''}${canEdit ? `<button class="sqbtn blue" id="pfEdit" title="تعديل">${ico('edit')}</button>` : ''}<button class="sqbtn" id="pfInfo" title="بيانات">${ico('info')}</button>
+            ${items.map((x, i) => `<button class="sqbtn ${x.cls === 'bad' ? 'bad' : ''}" data-mi="${i}" title="${esc(x.t)}">${ico(x.ic)}</button>`).join('')}</div></div></div></div>
+      <div class="epf-stats" id="pfStats">${'<div class="card epf-stat"><div class="sk"></div></div>'.repeat(4)}</div>
+      <div class="card epf-tabs">${TABS.map(([k, l]) => `<button class="epf-tab ${k === tab ? 'on' : ''}" data-pt="${k}">${l}</button>`).join('')}</div>
+      <div class="card epf-body" id="pfBody"><div class="empty">جارٍ التحميل...</div></div></div>`;
+    $('#pfBack').onclick = () => { S.empProfileId = null; again(); };
+    $('#pfInfo').onclick = () => infoModal(u);
+    if ($('#pfEdit')) $('#pfEdit').onclick = () => empForm(u, again);
+    $('#pfExp').onclick = () => csv('employee-' + u.username + '.csv', [dataRows.map((r) => r[0]), dataRows.map((r) => r[1] || '')]);
+    view.querySelectorAll('[data-mi]').forEach((b) => (b.onclick = () => items[Number(b.dataset.mi)].fn()));
+    view.querySelectorAll('[data-pt]').forEach((b) => (b.onclick = () => { S.proftab = b.dataset.pt; renderProfile(u); }));
+    let sumP = null; const getSum = () => (sumP = sumP || api(`/employees/${u.id}/summary`));
+    getSum().then((sm) => {
+      const b = sm.balances, left = (t, used) => Math.max(0, t - used);
+      const card = (lbl, n, unit, sub) => `<div class="card epf-stat"><div class="epf-sn"><b>${n}</b><span>${unit}</span></div><div class="epf-sl">${lbl}</div><div class="epf-ss">${sub}</div></div>`;
+      const el = $('#pfStats'); if (!el) return;
+      el.innerHTML = card('إجازة سنوية', b.annual_used, 'الأيام', `المتبقي ${left(b.annual_total, b.annual_used)} من ${b.annual_total}`)
+        + card('إجازة طارئة', b.emergency_used, 'الأيام', b.emergency_total ? `المتبقي ${left(b.emergency_total, b.emergency_used)} من ${b.emergency_total}` : 'بدون رصيد محدد')
+        + card('إجازة مرضية', b.sick_used, 'الأيام', b.sick_total ? `المتبقي ${left(b.sick_total, b.sick_used)} من ${b.sick_total}` : 'بدون رصيد محدد')
+        + card('أذونات', Number(b.permission_hours_month).toFixed(2), 'ساعات', 'هذا الشهر');
+    }).catch(() => { const el = $('#pfStats'); if (el) el.remove(); });
+    const kv = (arr) => `<div class="epf-kv">${arr.map(([k, v]) => `<div><span>${k}</span><b>${esc(v || '—')}</b></div>`).join('')}</div>`;
+    const sec = (t, ic) => `<div class="epf-sec"><span class="epf-sic">${ico(ic)}</span><b>${t}</b></div>`;
+    const body = $('#pfBody');
+    if (tab === 'data') body.innerHTML = sec('بيانات الموظف العامة', 'user') + kv(dataRows);
+    else if (tab === 'shift') body.innerHTML = sec('الوردية والمكتب', 'clock') + kv([['بداية الوردية', fmt12(u.shift_start)], ['نهاية الوردية', fmt12(u.shift_end)], ['أماكن الحضور المسموحة', officesOf(u) || 'أي موقع'], ['رصيد الإجازة السنوية', u.annual_leave_days + ' يوم'], ['بصمة الوجه', u.face_exempt ? 'غير مطلوبة' : u.face_enrolled ? 'مسجلة' : 'غير مسجلة']]);
+    else if (tab === 'sal') body.innerHTML = sec('المرتب', 'shield') + kv([['المرتب الأساسي', money(u.base_salary)], ['البدلات', money(u.allowances)], ['الإجمالي', money(Number(u.base_salary || 0) + Number(u.allowances || 0))]]);
+    else if (tab === 'req') {
+      try {
+        const sm = await getSum();
+        body.innerHTML = sec('الطلبات والإجازات', 'audit') + (sm.requests.length ? `<div class="tablewrap"><table><tr><th>النوع</th><th>من</th><th>إلى</th><th>الحالة</th><th>السبب</th></tr>${sm.requests.map((r) => { const st = STATUS_AR[r.status] || [r.status, '']; return `<tr><td>${esc(TYPES()[r.type] || r.type)}</td><td>${dmy(r.from_date)}</td><td>${dmy(r.to_date)}</td><td><span class="badge ${st[1]}">${st[0]}</span></td><td>${esc((r.reason || '—').slice(0, 80))}</td></tr>`; }).join('')}</table></div>` : '<div class="empty">لا توجد طلبات</div>');
+      } catch (e) { body.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    } else if (tab === 'att') {
+      const to = todayStr(), from = addDays(to, -60);
+      let rows = [];
+      try { rows = await api(`/attendance?user_id=${u.id}&from=${from}&to=${to}`); } catch (e) { body.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+      body.innerHTML = sec('سجل الحضور (آخر 60 يوم)', 'clock') + (rows.length ? `<div class="tablewrap"><table><tr><th>اليوم</th><th>حضور</th><th>انصراف</th><th>تأخير</th><th>مبكر</th><th>تطابق الوجه</th><th>الصورة</th><th></th></tr>${rows.map((a) => `<tr><td>${fmtDate(a.date)}</td><td>${fmtTime(a.check_in)}</td><td>${fmtTime(a.check_out)}</td><td class="${a.late_minutes ? 'neg' : ''}">${a.late_minutes} د</td><td class="${a.early_minutes ? 'neg' : ''}">${a.early_minutes} د</td><td>${a.in_face != null ? (100 - Math.round(a.in_face * 100)) + '%' : (a.note ? 'يدوي' : '—')}</td><td>${a.in_photo || a.out_photo ? '📷' : '—'}</td><td>${has('attendance.edit') ? `<button class="btn alt sm" data-ed="${a.id}">عرض / تعديل</button>` : ''}</td></tr>`).join('')}</table></div>` : '<div class="empty">لا توجد سجلات</div>');
+      body.querySelectorAll('[data-ed]').forEach((b) => (b.onclick = () => manualAtt(people, rows.find((r) => r.id == b.dataset.ed), () => renderProfile(u))));
+    }
+  };
+  if (S.empProfileId) { const pu = byId(S.empProfileId); if (pu && !pu.pending) return renderProfile(pu); S.empProfileId = null; }
   render();
 };
 
+const GENDER_AR = { male: 'ذكر', female: 'أنثى' };
+const MARITAL_AR = { single: 'أعزب / عزباء', married: 'متزوج / متزوجة', divorced: 'مطلق / مطلقة', widowed: 'أرمل / أرملة' };
+
+// ===== نموذج بيانات الموظف: خطوات بقائمة أقسام جانبية =====
 async function empForm(u, done) {
   let locs = [];
   try { locs = await api('/locations'); } catch { /* مفيش صلاحية: نكمل من غير */ }
@@ -1259,39 +1330,83 @@ async function empForm(u, done) {
   try { scheds = (await api('/config/schedule')).filter((x) => x.active); } catch { /* مفيش صلاحية إعدادات */ }
   let lprofs = [];
   try { lprofs = (await api('/config/leave_profile')).filter((x) => x.active && !x.archived); } catch { /* مفيش صلاحية إعدادات */ }
-  const isNew = !u, canSal = isNew || u.base_salary !== undefined;
-  const o = modal(`<h3>${isNew ? 'موظف جديد' : 'تعديل ' + esc(u.name)}</h3><form class="form" id="ef">
-    <label class="f full">الاسم<input name="name" value="${esc(u?.name)}" required></label>
-    ${isNew ? '<label class="f">اسم المستخدم (للدخول)<input name="username" autocapitalize="none" required></label>' : ''}
-    <label class="f">${isNew ? 'كلمة مرور مؤقتة' : 'كلمة مرور جديدة (اختياري)'}<input name="password" minlength="6" ${isNew ? 'required' : ''}></label>
-    <label class="f">المسمى الوظيفي<input name="job_title" value="${esc(u?.job_title)}"></label>
-    <label class="f">القسم<input name="department" value="${esc(u?.department)}"></label>
-    <label class="f">الجنسية<input name="nationality" value="${esc(u?.nationality)}"></label>
-    <label class="f">المدير المباشر<select name="manager_id"><option value="">—</option>${ppl.map((x) => `<option value="${x.id}" ${u?.manager_id === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
-    <label class="f">الهاتف<input name="phone" value="${esc(u?.phone)}"></label>
-    <label class="f">تاريخ التعيين<input type="date" name="hire_date" value="${esc(u?.hire_date || todayStr())}"></label>
-    ${canSal ? `<label class="f">المرتب الأساسي<input type="number" step="0.01" min="0" name="base_salary" value="${u?.base_salary ?? 0}"></label>
-    <label class="f">البدلات<input type="number" step="0.01" min="0" name="allowances" value="${u?.allowances ?? 0}"></label>` : ''}
-    ${scheds.length ? `<label class="f full">موعد العمل (بيملأ بداية ونهاية الوردية)<select id="schsel"><option value="">— يدوي —</option>${scheds.map((x) => `<option value="${esc(x.start)}|${esc(x.end)}">${esc(x.name)} (${esc(x.start)} - ${esc(x.end)})</option>`).join('')}</select></label>` : ''}
-    <label class="f">بداية الوردية<input type="time" name="shift_start" value="${esc(u?.shift_start || '09:00')}"></label>
-    <label class="f">نهاية الوردية<input type="time" name="shift_end" value="${esc(u?.shift_end || '17:00')}"></label>
-    ${locs.length ? `<div class="full"><div class="muted small" style="margin-bottom:4px;font-weight:600">مواقع الحضور المسموحة (لو ماحددتيش، يسجّل من أي موقع)</div><div class="row">${locs.map((l) => `<label class="perm"><input type="checkbox" data-loc="${l.id}" ${u?.location_ids?.includes(l.id) ? 'checked' : ''}>${esc(l.name)}</label>`).join('')}</div></div>` : ''}
-    <label class="f">رصيد الإجازة السنوية (يوم)<input type="number" min="0" name="annual_leave_days" value="${u?.annual_leave_days ?? 21}"></label>
-    ${lprofs.length ? `<label class="f">ملف الإجازة والاستراحة<select name="leave_profile_id"><option value="">— بدون (يستخدم الرصيد السنوي) —</option>${lprofs.map((x) => `<option value="${x.id}" ${String(u?.leave_profile_id || '') === String(x.id) ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>` : ''}
-    ${S.me.user.is_admin && (isNew || u.id !== S.me.user.id) ? `<label class="f">نوع الحساب<select name="role"><option value="employee" ${u?.is_admin ? '' : 'selected'}>موظف (بصلاحيات يحددها المدير)</option><option value="admin" ${u?.is_admin ? 'selected' : ''}>مدير (كل الصلاحيات)</option></select></label>` : ''}
-    ${!isNew && !u.is_admin ? `<label class="f">الحالة<select name="active"><option value="1" ${u.active ? 'selected' : ''}>نشط</option><option value="0" ${u.active ? '' : 'selected'}>موقوف</option></select></label>` : ''}
-    <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
-  const f = $('#ef', o);
+  const isNew = !u, canSal = isNew || u.base_salary !== undefined, meAdmin = S.me.user.is_admin;
+  const v = (k, d = '') => esc(u && u[k] != null && u[k] !== '' ? u[k] : d);
+  const uniqOf = (k) => [...new Set(ppl.map((x) => x[k]).filter(Boolean))];
+  const faceTxt = isNew ? 'هتسجّلها الموظفة من جهازها عند أول تسجيل حضور' : u.face_exempt ? 'غير مطلوبة (حساب مدير)' : u.face_enrolled ? 'مسجلة' : 'غير مسجلة (بتسجّلها الموظفة من جهازها)';
+  const steps = [
+    { t: 'الهوية وتسجيل الدخول', s: 'البيانات والصورة والحساب', h: 'من هو هذا الموظف وكيف يسجّل دخوله', html: `
+      <label class="f full"><span>الاسم <b class="req">*</b></span><input name="name" value="${v('name')}" required maxlength="80"></label>
+      ${isNew ? '<label class="f"><span>اسم المستخدم (للدخول) <b class="req">*</b></span><input name="username" autocapitalize="none" required></label>' : ''}
+      <label class="f"><span>${isNew ? 'كلمة مرور مؤقتة <b class="req">*</b>' : 'كلمة مرور جديدة (اختياري)'}</span><input name="password" minlength="6" autocomplete="new-password" ${isNew ? 'required' : ''}></label>
+      <label class="f">تاريخ الميلاد<input type="date" name="birth_date" value="${v('birth_date')}"></label>
+      <div class="f"><span>النوع</span><div class="ew-radios">${Object.entries(GENDER_AR).map(([k, l]) => `<label class="ew-rad"><input type="radio" name="gender" value="${k}" ${u && u.gender === k ? 'checked' : ''}><i></i>${l}</label>`).join('')}</div></div>
+      <label class="f">الحالة الاجتماعية<select name="marital_status"><option value="">—</option>${Object.entries(MARITAL_AR).map(([k, l]) => `<option value="${k}" ${u && u.marital_status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="f">الهاتف<input name="phone" value="${v('phone')}" maxlength="30"></label>
+      <label class="f full">البريد الإلكتروني<input type="email" name="email" value="${v('email')}" maxlength="100"></label>
+      <div class="f full"><span>بصمة الوجه</span><div class="ew-face">${ico('user')}<b id="ewFaceTxt">${faceTxt}</b>${!isNew && u.face_enrolled && !u.is_admin ? '<button type="button" class="btn alt sm" id="ewResetFace">إعادة ضبط</button>' : ''}</div></div>
+      ${!isNew && !u.is_admin ? `<label class="ew-chk full"><input type="checkbox" name="active_cb" ${u.active ? 'checked' : ''}> السماح لهذا الموظف بتسجيل الدخول</label>` : ''}` },
+    { t: 'التوظيف', s: 'الكود والتواريخ والدور', h: 'بيانات التوظيف والإجازات', html: `
+      <label class="f">كود الموظف<input name="employee_code" value="${v('employee_code')}" maxlength="30"></label>
+      <label class="f">تاريخ التعيين<input type="date" name="hire_date" value="${esc((u && u.hire_date) || todayStr())}"></label>
+      ${meAdmin && (isNew || u.id !== S.me.user.id) ? `<label class="f">نوع الحساب<select name="role"><option value="employee" ${u && u.is_admin ? '' : 'selected'}>موظف (بصلاحيات يحددها المدير)</option><option value="admin" ${u && u.is_admin ? 'selected' : ''}>مدير (كل الصلاحيات)</option></select></label>` : ''}
+      <label class="f">رصيد الإجازة السنوية (يوم)<input type="number" min="0" name="annual_leave_days" value="${u ? u.annual_leave_days : 21}"></label>
+      ${lprofs.length ? `<label class="f">ملف الإجازة والاستراحة<select name="leave_profile_id"><option value="">— بدون (يستخدم الرصيد السنوي) —</option>${lprofs.map((x) => `<option value="${x.id}" ${String((u && u.leave_profile_id) || '') === String(x.id) ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>` : ''}` },
+    { t: 'مكان العمل', s: 'المكتب والقسم والمنصب', h: 'أين يعمل وبأي وردية', html: `
+      ${locs.length ? `<div class="full"><div class="muted small" style="margin-bottom:6px;font-weight:600">مواقع الحضور المسموحة (لو ماحددتيش، يسجّل من أي موقع)</div><div class="row">${locs.map((l) => `<label class="perm"><input type="checkbox" data-loc="${l.id}" ${u && u.location_ids && u.location_ids.includes(l.id) ? 'checked' : ''}>${esc(l.name)}</label>`).join('')}</div></div>` : ''}
+      <label class="f">القسم<input name="department" value="${v('department')}" list="ewdl-d" maxlength="80"></label>
+      <label class="f">المنصب<input name="job_title" value="${v('job_title')}" list="ewdl-j" maxlength="80"></label>
+      <datalist id="ewdl-d">${uniqOf('department').map((x) => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="ewdl-j">${uniqOf('job_title').map((x) => `<option value="${esc(x)}">`).join('')}</datalist>
+      ${scheds.length ? `<label class="f full">موعد العمل (بيملأ بداية ونهاية الوردية)<select id="schsel"><option value="">— يدوي —</option>${scheds.map((x) => `<option value="${esc(x.start)}|${esc(x.end)}">${esc(x.name)} (${esc(x.start)} - ${esc(x.end)})</option>`).join('')}</select></label>` : ''}
+      <label class="f">بداية الوردية<input type="time" name="shift_start" value="${esc((u && u.shift_start) || '09:00')}"></label>
+      <label class="f">نهاية الوردية<input type="time" name="shift_end" value="${esc((u && u.shift_end) || '17:00')}"></label>` },
+    { t: 'التسلسل الإداري', s: 'المدير المباشر', h: 'لمن يتبع هذا الموظف', html: `
+      <label class="f full">المدير المباشر<select name="manager_id"><option value="">—</option>${ppl.map((x) => `<option value="${x.id}" ${u && u.manager_id === x.id ? 'selected' : ''}>${esc(x.name)}${x.job_title ? ' — ' + esc(x.job_title) : ''}</option>`).join('')}</select></label>` },
+    { t: 'متطلبات الدولة', s: 'الجنسية والهوية الوطنية', h: 'بيانات الجنسية والهوية', html: `
+      <label class="f">الجنسية<input name="nationality" value="${v('nationality')}" maxlength="40"></label>
+      <label class="f">الهوية الوطنية (الرقم القومي)<input name="national_id" value="${v('national_id')}" maxlength="30" inputmode="numeric"></label>` },
+    ...(canSal ? [{ t: 'المرتب', s: 'الراتب الأساسي والبدلات', h: 'بيانات الراتب (بتظهر لمن عنده صلاحية المرتبات فقط)', html: `
+      <label class="f">المرتب الأساسي<input type="number" step="0.01" min="0" name="base_salary" value="${u && u.base_salary != null ? u.base_salary : 0}"></label>
+      <label class="f">البدلات<input type="number" step="0.01" min="0" name="allowances" value="${u && u.allowances != null ? u.allowances : 0}"></label>` }] : []),
+  ];
+  const last = steps.length - 1;
+  const o = modal(`<form id="ewf" novalidate class="ew">
+    <div class="ew-top"><button type="button" class="im-x" data-close aria-label="إغلاق">×</button><div class="ew-title"><span class="ew-ico">${ico('user')}</span><div><h3>${isNew ? 'موظف جديد' : 'تعديل بيانات الموظف'}</h3><div class="muted small">${isNew ? 'أضيفي موظفاً جديداً وحدّدي إعداداته' : 'حدّثي بيانات هذا الموظف وإعداداته'}</div></div></div></div>
+    <div class="ew-main"><nav class="ew-nav"><div class="ew-navh">الأقسام</div>${steps.map((s, i) => `<button type="button" class="ew-step" data-s="${i}"><span class="n">${i + 1}</span><span class="tx"><b>${s.t}</b><small>${s.s}</small></span></button>`).join('')}</nav>
+      <div class="ew-panes">${steps.map((s, i) => `<section class="ew-pane" data-p="${i}" hidden><h4>${s.t}</h4><p class="muted small">${s.h}</p><div class="form">${s.html}</div></section>`).join('')}</div></div>
+    <div class="ew-foot"><button class="btn" id="ewNext" type="submit">التالي</button>${isNew ? '' : '<button type="button" class="btn alt" id="ewSave">حفظ</button>'}<button type="button" class="btn alt" id="ewBack">السابق</button><button type="button" class="btn alt" data-close>إلغاء</button><span class="muted small" id="ewHint"></span></div></form>`);
+  o.classList.add('ewo'); o.dataset.lock = '1';
+  const f = $('#ewf', o), panes = [...o.querySelectorAll('.ew-pane')], navs = [...o.querySelectorAll('.ew-step')];
+  let cur = 0;
+  const show = (k) => {
+    cur = k;
+    panes.forEach((p, i) => (p.hidden = i !== k)); navs.forEach((n, i) => n.classList.toggle('on', i === k));
+    $('#ewNext', o).textContent = k === last ? (isNew ? 'إنشاء الموظف' : 'حفظ') : 'التالي';
+    $('#ewBack', o).hidden = k === 0;
+    $('#ewHint', o).textContent = k < last ? 'التالي: ' + steps[k + 1].t : '';
+    if ($('#ewSave', o)) $('#ewSave', o).hidden = k === last;
+  };
+  const validStep = (k) => { for (const el of panes[k].querySelectorAll('input,select')) if (!el.checkValidity()) { show(k); el.reportValidity(); return false; } return true; };
+  const save = () => {
+    if (!steps.every((_, k) => validStep(k))) return;
+    run($('#ewNext', o), async () => {
+      const b = Object.fromEntries(new FormData(f));
+      delete b.active_cb;
+      if (!isNew && !u.is_admin) b.active = f.active_cb.checked;
+      if (!b.password) delete b.password;
+      if (locs.length) b.location_ids = [...f.querySelectorAll('[data-loc]:checked')].map((x) => Number(x.dataset.loc));
+      await api(isNew ? '/employees' : '/employees/' + u.id, isNew ? 'POST' : 'PUT', b);
+      o.close(); toast('تم الحفظ'); done();
+    });
+  };
+  f.onsubmit = (e) => { e.preventDefault(); if (cur < last) { if (validStep(cur)) show(cur + 1); } else save(); };
+  navs.forEach((n) => (n.onclick = () => show(Number(n.dataset.s))));
+  $('#ewBack', o).onclick = () => show(Math.max(0, cur - 1));
+  if ($('#ewSave', o)) $('#ewSave', o).onclick = save;
+  if ($('#ewResetFace', o)) $('#ewResetFace', o).onclick = () => { if (confirm('إعادة ضبط بصمة وجه الموظف؟ هيسجّلها من جديد.')) run($('#ewResetFace', o), async () => { await api(`/employees/${u.id}/reset-face`, 'POST'); $('#ewFaceTxt', o).textContent = 'تمت إعادة الضبط، هتسجّلها الموظفة من جهازها'; $('#ewResetFace', o).remove(); u.face_enrolled = false; }); };
   const ss = $('#schsel', o);
   if (ss) ss.onchange = () => { const [a, b] = ss.value.split('|'); if (a) { f.shift_start.value = a; f.shift_end.value = b; } };
-  f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
-    const b = Object.fromEntries(new FormData(f));
-    if (b.active !== undefined) b.active = b.active === '1';
-    if (!b.password) delete b.password;
-    if (locs.length) b.location_ids = [...f.querySelectorAll('[data-loc]:checked')].map((x) => Number(x.dataset.loc));
-    await api(isNew ? '/employees' : '/employees/' + u.id, isNew ? 'POST' : 'PUT', b);
-    o.close(); toast('تم الحفظ'); done();
-  }); };
+  show(0);
 }
 
 /* --- سجل الحضور للجميع --- */
@@ -1351,7 +1466,7 @@ function manualAtt(emps, a, done) {
   const isEdit = a && !a.manual_new;
   const emp = a && emps.find((e) => e.id === a.user_id);
   const head = isEdit
-    ? `<div class="ehead"><div><h3 style="margin:0">تعديل بيانات الحضور</h3><div class="muted small">${esc((emp && emp.name) || a.user_name || '')} · ${esc(fmtDate(a.date))}${emp ? ` · (${esc(fmt12(emp.shift_start))} - ${esc(fmt12(emp.shift_end))})` : ''}</div></div><span class="badge-admin">تعديل المدير</span></div>`
+    ? `<div class="atthead"><div><h3 style="margin:0">تعديل بيانات الحضور</h3><div class="muted small">${esc((emp && emp.name) || a.user_name || '')} · ${esc(fmtDate(a.date))}${emp ? ` · (${esc(fmt12(emp.shift_start))} - ${esc(fmt12(emp.shift_end))})` : ''}</div></div><span class="badge-admin">تعديل المدير</span></div>`
     : '<h3>تسجيل حضور يدوي</h3>';
   const o = modal(`${head}<form class="form" id="mf">
     <label class="f full">الموظف<select name="user_id" ${a ? 'disabled' : ''}>${emps.filter((e) => !e.is_admin).map((e) => `<option value="${e.id}" ${a && a.user_id === e.id ? 'selected' : ''}>${esc(e.name)}</option>`).join('')}</select></label>

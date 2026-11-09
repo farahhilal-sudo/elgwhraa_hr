@@ -1,5 +1,5 @@
 // خدمة بسيطة تخلّي الموقع يتثبت كتطبيق. البيانات دايماً من الإنترنت.
-const CACHE = 'hr-shell-v13';
+const CACHE = 'hr-shell-v14';
 const FACE = 'hr-face-v1'; // مكتبة الوجه ونماذجها (حوالي 7MB) بتتحمّل مرة واحدة بس وبعدها فورية
 const SHELL = ['/', '/style.css', '/app.js', '/icon.svg', '/icon-192.png', '/manifest.json'];
 self.addEventListener('install', (e) => {
