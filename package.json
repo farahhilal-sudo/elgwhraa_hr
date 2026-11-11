@@ -1,6 +1,6 @@
 {
   "name": "attendance-hr-app",
-  "version": "3.10.0",
+  "version": "3.11.0",
   "private": true,
   "description": "نظام حضور وانصراف وموارد بشرية (بصمة وجه + موقع) على PostgreSQL",
   "main": "server.js",

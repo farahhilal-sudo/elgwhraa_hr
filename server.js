@@ -822,6 +822,23 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
   res.json({ ok: true, record: saved });
 }));
 
+// تسجيل انصراف موظف نيابةً عنه (لمن عنده attendance.edit): بيحفظ الوقت الحالي ويسجّل العملية في سجل التدقيق
+app.post('/api/attendance/checkout', auth, need('attendance.edit'), wrap(async (req, res) => {
+  const uid = toId((req.body || {}).user_id);
+  const u = uid && await db.get('SELECT * FROM users WHERE id=?', uid);
+  if (!u || u.is_admin) return res.status(404).json({ error: 'الموظف غير موجود' });
+  const now = tzParts();
+  const rec = await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date);
+  if (!rec || !rec.check_in) return res.status(400).json({ error: 'الموظف لم يسجّل حضوراً اليوم' });
+  if (rec.check_out) return res.status(409).json({ error: 'تم تسجيل الانصراف بالفعل' });
+  const early = Math.max(0, toMin(u.shift_end) - now.minutes);
+  const note = ((rec.note ? rec.note + ' · ' : '') + 'انصراف سجّله ' + req.user.name).slice(0, 200);
+  const up = await db.run('UPDATE attendance SET check_out=?, early_minutes=?, note=? WHERE id=? AND check_out IS NULL', new Date().toISOString(), early, note, rec.id);
+  if (!up.rowCount) return res.status(409).json({ error: 'تم تسجيل الانصراف بالفعل' });
+  await audit(req, 'attendance.manual_checkout', `${u.name} ${now.date}`);
+  res.json({ ok: true });
+}));
+
 // صورة الحضور/الانصراف: للموظفة نفسها أو لمن عنده صلاحية عرض الحضور للجميع
 app.get('/api/attendance/:id/photo/:kind', auth, wrap(async (req, res) => {
   const id = toId(req.params.id), kind = req.params.kind;
@@ -1141,15 +1158,22 @@ async function todayStatusMap(users) {
     else if (leaves.has(u.id)) status = 'leave';
     else if (weekendToday) status = 'off';
     else if (now.minutes < toMin(u.shift_start) + graceOf(u, st, pctx)) status = 'not_yet';
-    out[u.id] = { status, check_in: a?.check_in || null, check_out: a?.check_out || null, late_minutes: a?.late_minutes || 0 };
+    out[u.id] = { status, check_in: a?.check_in || null, check_out: a?.check_out || null, late_minutes: a?.late_minutes || 0, in_loc: a?.in_loc || '', out_loc: a?.out_loc || '' };
   }
   return out;
 }
 app.get('/api/employees', auth, need('employees.view'), wrap(async (req, res) => {
   const rows = await db.all('SELECT * FROM users ORDER BY is_admin DESC, id');
   const tmap = await todayStatusMap(rows.filter((u) => u.active && !u.pending));
+  // آخر صورة بصمة لكل موظف خلال آخر 14 يوم (بتتعرض كصورة شخصية في الكروت)
+  const photoMap = {};
+  if (can(req.user, 'attendance.view_all')) {
+    const since = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
+    for (const r of await db.all('SELECT DISTINCT ON (a.user_id) a.user_id, a.id AS att_id, p.kind FROM attendance_photos p JOIN attendance a ON a.id=p.attendance_id WHERE a.date >= ? ORDER BY a.user_id, a.date DESC, p.created_at DESC', since))
+      photoMap[r.user_id] = { id: r.att_id, kind: r.kind };
+  }
   res.json(rows.map((u) => ({
-    ...publicUser(u), today: tmap[u.id] || null,
+    ...publicUser(u), today: tmap[u.id] || null, photo: photoMap[u.id] || null,
     ...(can(req.user, 'payroll.view') ? { base_salary: u.base_salary, allowances: u.allowances } : {}),
     ...(can(req.user, 'employees.manage') ? { national_id: u.national_id || '' } : {}),
   })));

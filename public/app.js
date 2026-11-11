@@ -62,9 +62,15 @@ function loadPhoto(id, kind) { // الصورة بتتحمّل عند الطلب 
   }
   return photoCache.get(k);
 }
-function fillPhotos(root) { // أي <img data-aid data-kind> بتتملي بالصورة
-  root.querySelectorAll('img[data-aid]').forEach((img) => loadPhoto(img.dataset.aid, img.dataset.kind).then((u) => { if (u) { img.src = u; img.hidden = false; } else img.closest('.phwrap')?.classList.add('noph'); }));
+function fillPhotos(root) { // أي <img data-aid data-kind> بتتملي بالصورة (صور الكروت data-lazy بتتحمّل لما تظهر على الشاشة بس)
+  const go = (img) => loadPhoto(img.dataset.aid, img.dataset.kind).then((u) => { if (u) { img.src = u; img.hidden = false; } else img.closest('.phwrap')?.classList.add('noph'); });
+  const io = 'IntersectionObserver' in window ? new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { io.unobserve(e.target); go(e.target.__img); } }), { rootMargin: '250px' }) : null;
+  root.querySelectorAll('img[data-aid]').forEach((img) => { if (io && img.hasAttribute('data-lazy')) { img.parentElement.__img = img; io.observe(img.parentElement); } else go(img); });
 }
+const fmtTimeSec = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: TZ }) : '');
+const empAv = (u, cls = 'lg') => `<div class="avatar ${cls} phwrap av-ph">${u.photo ? `<img alt="" data-lazy data-aid="${Number(u.photo.id)}" data-kind="${u.photo.kind === 'out' ? 'out' : 'in'}" hidden>` : ''}<span class="av-t">${esc(initials(u.name))}</span></div>`;
+const ICO_IN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7l5 5-5 5M3 12h11M21 4v16"/></svg>';
+const ICO_OUT = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l-5 5 5 5M21 12H10M3 4v16"/></svg>';
 const mapSrc = (lat, lng) => `https://www.google.com/maps?q=${Number(lat)},${Number(lng)}&z=17&hl=ar&output=embed`;
 const mapFrame = (lat, lng) => `<iframe loading="lazy" referrerpolicy="no-referrer" title="الموقع" src="${mapSrc(lat, lng)}"></iframe>`;
 const hasLL = (a, k) => a && a[k + '_lat'] != null && a[k + '_lng'] != null;
@@ -73,27 +79,42 @@ const ICO_PIN = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" str
 const initials = (n) => String(n || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('');
 
 /* ====== الوجه والموقع ====== */
-const FACE_CDN = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13';
+const FACE_CDNS = ['https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13', 'https://fastly.jsdelivr.net/npm/@vladmandic/face-api@1.7.13', 'https://unpkg.com/@vladmandic/face-api@1.7.13'];
 let faceReady = null;
+const faceInfo = {};
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms))]);
+const loadScript = (src) => new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => { s.remove(); rej(new Error('script')); }; document.head.appendChild(s); });
 function loadFace() {
   if (faceReady) return faceReady;
-  faceReady = new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = FACE_CDN + '/dist/face-api.js';
-    s.onload = async () => {
+  faceReady = (async () => {
+    for (const base of FACE_CDNS) { // لو موقع بطيء أو محجوب، بنجرّب اللي بعده
       try {
-        const M = FACE_CDN + '/model/';
-        await faceapi.nets.tinyFaceDetector.loadFromUri(M);
-        await faceapi.nets.faceLandmark68Net.loadFromUri(M);
-        await faceapi.nets.faceRecognitionNet.loadFromUri(M);
-        resolve();
-      } catch (e) { reject(e); }
-    };
-    s.onerror = () => reject(new Error('تعذّر تحميل نظام التعرّف على الوجه، تأكدي من الإنترنت'));
-    document.head.appendChild(s);
-  }).catch((e) => { faceReady = null; throw e; });
+        const t0 = performance.now();
+        if (!window.faceapi) await withTimeout(loadScript(base + '/dist/face-api.js'), 25000);
+        faceInfo.scriptMs = Math.round(performance.now() - t0);
+        const M = base + '/model/', t1 = performance.now();
+        await withTimeout(Promise.all([faceapi.nets.tinyFaceDetector.loadFromUri(M), faceapi.nets.faceLandmark68Net.loadFromUri(M), faceapi.nets.faceRecognitionNet.loadFromUri(M)]), 70000);
+        faceInfo.modelsMs = Math.round(performance.now() - t1); faceInfo.cdn = new URL(base).hostname;
+        return;
+      } catch (e) { faceInfo.lastError = e.message; }
+    }
+    throw new Error('تعذّر تحميل نظام التعرّف على الوجه من الإنترنت. جرّبي تبدّلي الشبكة (واي فاي ↔ بيانات الموبايل) وأعيدي المحاولة.');
+  })().catch((e) => { faceReady = null; throw e; });
   return faceReady;
 }
+async function getCam() { // لو الكاميرا الأمامية بالمواصفات دي مش متاحة نجرّب أي كاميرا
+  const md = navigator.mediaDevices;
+  try { return await md.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false }); }
+  catch (e) { if (e.name === 'OverconstrainedError' || e.name === 'NotFoundError') return await md.getUserMedia({ video: true, audio: false }); throw e; }
+}
+const camErr = (e) => ({
+  NotAllowedError: 'الكاميرا مش مسموحة: اضغطي على أيقونة القفل جنب الرابط ← الكاميرا ← سماح، وأعيدي المحاولة',
+  PermissionDeniedError: 'الكاميرا مش مسموحة: اضغطي على أيقونة القفل جنب الرابط ← الكاميرا ← سماح، وأعيدي المحاولة',
+  NotFoundError: 'مفيش كاميرا متاحة على الجهاز',
+  NotReadableError: 'الكاميرا مستخدمة من تطبيق تاني، اقفليه وحاولي تاني',
+  TrackStartError: 'الكاميرا مستخدمة من تطبيق تاني، اقفليه وحاولي تاني',
+  SecurityError: 'لازم تفتحي الموقع من رابط https عشان الكاميرا تشتغل',
+}[e && e.name] || (e && e.message) || 'حصلت مشكلة في الكاميرا');
 const dist = (a, b) => Math.sqrt(a.reduce((s, x, i) => s + (x - b[i]) ** 2, 0));
 /** يفتح الكاميرا ويرجّع بصمة الوجه (متوسط 3 لقطات). */
 function snapPhoto(v) { // صورة صغيرة (360px JPEG) من الكاميرا: حوالي 15-20KB فقط
@@ -113,11 +134,13 @@ function captureFace(title, opts = {}) {
     const stop = () => { if (stream) stream.getTracks().forEach((t) => t.stop()); };
     o.onclose = () => { stop(); if (!done) reject(new Error('تم الإلغاء')); };
     const st = (t) => ($('#fst', o).innerHTML = t);
+    const fail = (msg) => { st(`<span class="neg">${esc(msg)}</span> <button type="button" class="link" id="fdiag2">فحص المشكلة</button>`); const b = $('#fdiag2', o); if (b) b.onclick = faceDiag; };
     (async () => {
       try {
         if (!navigator.mediaDevices?.getUserMedia) throw new Error('المتصفح لا يدعم الكاميرا (تأكدي من استخدام رابط https)');
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+        stream = await getCam();
         const v = $('video', o); v.srcObject = stream; await v.play();
+        st('<span class="spin"></span> جارٍ تحميل نظام التعرّف على الوجه (أول مرة بس)...');
         await loadFace();
         st('ضعي وجهك داخل الدائرة ثم اضغطي التقاط');
         $('#fgo', o).disabled = false;
@@ -139,13 +162,46 @@ function captureFace(title, opts = {}) {
             if (N === 3 && (dist(ds[0], ds[1]) > 0.45 || dist(ds[0], ds[2]) > 0.45)) throw new Error('الوجه اتحرك كتير، حاولي تاني وانتِ ثابتة');
             const avg = N === 1 ? ds[0] : ds[0].map((_, i) => (ds[0][i] + ds[1][i] + ds[2][i]) / 3);
             done = true; stop(); o.remove(); resolve(opts.photo ? { descriptor: avg, photo } : avg);
-          } catch (e) { st(`<span class="neg">${esc(e.message)}</span>`); btn.disabled = false; }
+          } catch (e) { fail(e.message); btn.disabled = false; }
         };
       } catch (e) {
-        st(`<span class="neg">${esc(e.name === 'NotAllowedError' ? 'لازم تسمحي بالكاميرا من إعدادات المتصفح' : e.message)}</span>`);
+        fail(camErr(e));
       }
     })();
   });
+}
+async function faceDiag() { // فحص خطوة خطوة: بيبيّن الخطوة اللي بتفشل بالظبط
+  const o = modal(`<h3>فحص الكاميرا والتعرّف على الوجه</h3><div class="cam" id="dcam" hidden><video playsinline muted autoplay></video></div>
+    <div id="dlist" class="diag"></div><div class="actions"><button class="btn alt" data-close>إغلاق</button><button class="btn" id="dcopy" disabled>نسخ التقرير</button></div>`);
+  let stream; const report = [], L = $('#dlist', o);
+  o.onclose = () => { if (stream) stream.getTracks().forEach((t) => t.stop()); };
+  const step = (label) => {
+    const el = document.createElement('div'); el.className = 'diag-row'; el.innerHTML = `<span class="spin"></span><b>${label}</b><span class="dd">جارٍ الفحص...</span>`; L.appendChild(el);
+    return (ok, txt) => { el.innerHTML = `<i class="${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'}</i><b>${label}</b><span class="dd">${esc(txt)}</span>`; report.push(`${ok ? 'OK  ' : 'FAIL'} ${label}: ${txt}`); return ok; };
+  };
+  const finish = () => { const b = $('#dcopy', o); if (!b) return; b.disabled = false; b.onclick = () => { navigator.clipboard?.writeText(report.join('\n') + '\n' + navigator.userAgent); toast('تم نسخ التقرير'); }; };
+  let r = step('اتصال آمن (https)');
+  if (!r(window.isSecureContext, window.isSecureContext ? location.protocol + '//' + location.host : 'الكاميرا والموقع بيشتغلوا على https فقط')) return finish();
+  r = step('دعم الكاميرا في المتصفح');
+  if (!r(!!navigator.mediaDevices?.getUserMedia, navigator.mediaDevices?.getUserMedia ? 'مدعومة' : 'المتصفح لا يدعم الكاميرا (جرّبي Chrome أو Safari حديث)')) return finish();
+  r = step('فتح الكاميرا');
+  try { stream = await getCam(); const v = $('video', o); v.srcObject = stream; $('#dcam', o).hidden = false; await v.play(); const t = stream.getVideoTracks()[0], s = t.getSettings(); r(true, `${t.label || 'كاميرا'} · ${s.width || v.videoWidth}×${s.height || v.videoHeight}`); }
+  catch (e) { r(false, camErr(e) + ` (${e.name || 'error'})`); return finish(); }
+  r = step('تحميل مكتبة الوجه ونماذجها (قد تأخذ وقت أول مرة)');
+  const t0 = performance.now();
+  try { await loadFace(); r(true, `${faceInfo.cdn || ''} · مكتبة ${faceInfo.scriptMs || 0}ms · نماذج ${faceInfo.modelsMs || 0}ms`); }
+  catch (e) { r(false, e.message + (faceInfo.lastError ? ` (${faceInfo.lastError})` : '')); return finish(); }
+  r = step('محرّك الحساب');
+  let be = ''; try { be = window.faceapi.tf.getBackend(); } catch { /* تجاهل */ }
+  r(true, (be || 'غير معروف') + (be === 'cpu' ? ' (بطيء: ممكن يأخذ ثواني)' : ''));
+  r = step('اكتشاف وجه (انظري للكاميرا)');
+  try {
+    const v = $('video', o); let d = null; const t1 = performance.now();
+    for (let i = 0; i < 6 && !d; i++) { d = await faceapi.detectSingleFace(v, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor(); if (!d) await new Promise((x) => setTimeout(x, 400)); }
+    r(!!d, d ? `لقيت وجه (ثقة ${Math.round(d.detection.score * 100)}%) في ${Math.round(performance.now() - t1)}ms` : 'ما لقيتش وجه: قرّبي وزوّدي الإضاءة وانظري للكاميرا مباشرة');
+    if (d) { r = step('حجم الصورة المرسلة'); const kb = Math.round(snapPhoto(v).length * 0.75 / 1024); r(kb < 120, `${kb}KB`); }
+  } catch (e) { r(false, 'فشل التشغيل على هذا الجهاز: ' + e.message); }
+  finish();
 }
 function getPos() {
   return new Promise((resolve, reject) => {
@@ -425,7 +481,9 @@ PAGES.home = async (view) => {
       <div class="info"><b>${esc(u.name)}</b><span class="muted">${esc(u.job_title || '')}</span><span class="muted">${esc(u.department || '')}</span></div></div>
     <div class="card" style="margin-top:12px"><div class="strip-head">${IS_APP ? `<span class="calic">${fi('calsearch')}</span>` : ''}<span class="strip-month" id="smon"></span><span class="muted" id="sdow"></span></div>
       <div class="strip" id="strip"></div></div>
-    <div class="card punchcard" id="pc" style="margin-top:12px"></div></div>`;
+    <div class="card punchcard" id="pc" style="margin-top:12px"></div>
+    <div style="text-align:center;margin:12px 0"><button class="link" id="fdiag">مشكلة في البصمة؟ افحصي الكاميرا والتعرّف على الوجه</button></div></div>`;
+  $('#fdiag').onclick = faceDiag;
   const loadRecs = async () => {
     const months = [...new Set(days.map((d) => d.slice(0, 7)))];
     const lists = await Promise.all(months.map((m) => api('/attendance/mine?month=' + m)));
@@ -1132,11 +1190,25 @@ PAGES.employees = async (view) => {
     if (t && (t.status === 'present' || t.status === 'late')) return [st[1], `${st[0]} ${fmtTime(t.check_in)}${t.late_minutes ? ' (' + t.late_minutes + ' د)' : ''}${t.check_out ? ' · انصرف ' + fmtTime(t.check_out) : ''}`, 'clock'];
     return st ? [st[1], st[0] === 'لم يسجّل الحضور' ? 'لم يسجل الحضور' : st[0], ['absent', 'not_yet'].includes(t.status) ? 'clockoff' : 'clock'] : ['', '—', 'clock'];
   };
-  const punchBtn = (u) => (has('attendance.edit') && u.active && u.today && ['absent', 'not_yet'].includes(u.today.status) ? `<button class="btn alt sm" data-in="${u.id}">${ico('clock')} تسجيل الحضور</button>` : '');
-  const card = (u) => { const l = lineOf(u); return `<div class="card ecard"><div class="ehead" data-prof="${u.id}" title="فتح الملف الشخصي"><div class="avatar lg">${esc(initials(u.name))}</div>
-    <div class="einfo"><b>${esc(u.name)}</b><span>${esc(u.job_title || '—')}</span><span>${esc(u.department || '')}</span></div>${u.is_admin ? '<span class="badge b-info">مدير</span>' : ''}</div>
-    <div class="estat"><span class="sline ${l[0]}">${ico(l[2])}${esc(l[1])}</span>${punchBtn(u)}</div><div class="eact">${btns(u)}</div></div>`; };
-  const trow = (u) => { const l = lineOf(u); return `<tr><td><div class="emp" data-prof="${u.id}" title="فتح الملف الشخصي"><div class="avatar sm">${esc(initials(u.name))}</div><b>${esc(u.name)}</b>${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}</div></td>
+  // الإجراء المتاح للمدير على الموظف الآن: تسجيل حضور (غائب/لم يسجل) أو تسجيل انصراف (حاضر ولم ينصرف)
+  const actOf = (u) => {
+    const t = u.today;
+    if (!has('attendance.edit') || !u.active || u.is_admin || u.pending || !t) return null;
+    if (['absent', 'not_yet'].includes(t.status)) return 'in';
+    return t.check_in && !t.check_out ? 'out' : null;
+  };
+  const punchBtn = (u) => { const a = actOf(u); return a === 'in' ? `<button class="btn alt sm" data-in="${u.id}">${ico('clock')} تسجيل الحضور</button>` : a === 'out' ? `<button class="btn alt sm bad" data-out="${u.id}">تسجيل الانصراف</button>` : ''; };
+  const card = (u) => {
+    const t = u.active ? u.today : null, st = t ? TODAY_ST[t.status] : null, a = actOf(u);
+    const badge = u.is_admin ? '<span class="ec-badge info">مدير</span>' : !u.active ? '<span class="ec-badge bad">موقوف</span>' : st && t.status !== 'not_yet' ? `<span class="ec-badge ${st[1]}">${t.status === 'present' ? 'حاضر' : st[0]}${t.status === 'late' && t.late_minutes ? ' ' + t.late_minutes + ' د' : ''}</span>` : '';
+    const line = (k, iso, loc) => `<div class="ec-line"><span class="ec-t ${k}">${k === 'in' ? ICO_IN : ICO_OUT}${fmtTimeSec(iso)}</span>${loc ? `<span class="ec-p ${k}">${ICO_PIN}${esc(loc)}</span>` : ''}</div>`;
+    const lines = (t && t.check_in ? line('in', t.check_in, t.in_loc) : '') + (t && t.check_out ? line('out', t.check_out, t.out_loc) : '');
+    const note = !lines && t && t.status === 'not_yet' ? '<div class="ec-note">لم يسجل الحضور بعد</div>' : '';
+    const btn = a === 'in' ? `<button class="ec-btn in" data-in="${u.id}">${ICO_IN} تسجيل الحضور</button>` : a === 'out' ? `<button class="ec-btn out" data-out="${u.id}">${ICO_OUT} تسجيل الانصراف</button>` : '';
+    return `<div class="card ec"><div class="ec-head" data-prof="${u.id}" title="فتح الملف الشخصي">${empAv(u, 'ec-av')}<div class="ec-info"><b>${esc(u.name)}</b><span>${esc(u.job_title || '—')}</span><span>${esc(u.department || '')}</span></div>${badge}</div>
+      <div class="ec-body">${lines}${note}${btn}</div><div class="ec-foot">${btns(u)}</div></div>`;
+  };
+  const trow = (u) => { const l = lineOf(u); return `<tr><td><div class="emp" data-prof="${u.id}" title="فتح الملف الشخصي">${empAv(u, 'sm')}<b>${esc(u.name)}</b>${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}</div></td>
     <td>${esc(u.job_title || '—')}</td><td>${esc(u.department || '—')}</td><td dir="ltr">${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}</td><td><span class="sline ${l[0]}">${ico(l[2])}${esc(l[1])}</span></td><td class="actcol"><div class="racts">${punchBtn(u)}${btns(u)}</div></td></tr>`; };
 
   const render = () => {
@@ -1194,7 +1266,12 @@ PAGES.employees = async (view) => {
       $('#add', body).onclick = () => empForm(null, again);
       body.querySelectorAll('[data-e]').forEach((b) => (b.onclick = () => empForm(byId(b.dataset.e), again)));
     }
+    fillPhotos(body);
     body.querySelectorAll('[data-in]').forEach((b) => (b.onclick = () => manualAtt(people, { user_id: Number(b.dataset.in), date: S.me.today_date, manual_new: true }, again)));
+    body.querySelectorAll('[data-out]').forEach((b) => (b.onclick = () => {
+      const u = byId(b.dataset.out);
+      if (confirm(`تسجيل انصراف «${u.name}» الآن؟`)) run(b, async () => { await api('/attendance/checkout', 'POST', { user_id: u.id }); toast('تم تسجيل الانصراف'); again(); });
+    }));
     body.querySelectorAll('[data-info]').forEach((b) => (b.onclick = () => infoModal(byId(b.dataset.info))));
     body.querySelectorAll('[data-prof]').forEach((b) => (b.onclick = () => openProfile(b.dataset.prof)));
     body.querySelectorAll('[data-more]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); popMenu(b, menuFor(byId(b.dataset.more))); }));
@@ -1269,7 +1346,7 @@ PAGES.employees = async (view) => {
       ['تاريخ التعيين', u.hire_date ? dmy(u.hire_date) : ''], ['تاريخ الميلاد', u.birth_date ? dmy(u.birth_date) : ''], ['النوع', GENDER_AR[u.gender]], ['الحالة الاجتماعية', MARITAL_AR[u.marital_status]], ['الجنسية', u.nationality],
       ...(u.national_id !== undefined ? [['الهوية الوطنية', u.national_id]] : [])];
     view.innerHTML = `<div class="epf"><div class="epf-back"><button class="btn alt sm" id="pfBack">${ico('chev')} كل الموظفين</button></div>
-      <div class="card epf-head"><div class="epf-id"><div class="epf-av">${esc(initials(u.name))}</div><div class="epf-info"><h2>${esc(u.name)}${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}${u.active ? '' : ' <span class="badge b-bad">موقوف</span>'}</h2>
+      <div class="card epf-head"><div class="epf-id"><div class="epf-av phwrap av-ph">${u.photo ? `<img alt="" data-aid="${Number(u.photo.id)}" data-kind="${u.photo.kind === 'out' ? 'out' : 'in'}" hidden>` : ''}<span class="av-t">${esc(initials(u.name))}</span></div><div class="epf-info"><h2>${esc(u.name)}${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}${u.active ? '' : ' <span class="badge b-bad">موقوف</span>'}</h2>
           <div class="epf-ln">${ico('user')}<span>${esc(u.job_title || '—')}</span></div><div class="epf-ln">${ico('building')}<span>${esc(u.department || '—')}</span></div></div></div>
         <div class="epf-side"><span class="epf-chip">${esc(officesOf(u) || 'أي موقع')} · من ${esc(fmt12(u.shift_start))} حتى ${esc(fmt12(u.shift_end))}</span>
           <div class="epf-acts"><button class="btn alt sm" id="pfExp">تصدير</button><div class="epf-icons">
@@ -1278,6 +1355,7 @@ PAGES.employees = async (view) => {
       <div class="epf-stats" id="pfStats">${'<div class="card epf-stat"><div class="sk"></div></div>'.repeat(4)}</div>
       <div class="card epf-tabs">${TABS.map(([k, l]) => `<button class="epf-tab ${k === tab ? 'on' : ''}" data-pt="${k}">${l}</button>`).join('')}</div>
       <div class="card epf-body" id="pfBody"><div class="empty">جارٍ التحميل...</div></div></div>`;
+    fillPhotos(view);
     $('#pfBack').onclick = () => { S.empProfileId = null; again(); };
     $('#pfInfo').onclick = () => infoModal(u);
     if ($('#pfEdit')) $('#pfEdit').onclick = () => empForm(u, again);
@@ -2979,7 +3057,7 @@ function empMobileUI(c) {
       ? `${shift}<div class="mrow">${sq}<div class="mlines">${line('in', s.ci, s.inLoc)}${hasOut ? line('out', s.co, s.outLoc) : ''}</div><span class="grow"></span>${info}${chev}</div>`
       : `<div class="mrow">${sq}${shift}${chev}</div>`;
     const tel = u.phone ? `<a class="btn alt sm" href="tel:${esc(u.phone)}">اتصال</a>` : '';
-    return `<div class="card mcard" data-u="${u.id}"><div class="mhead"><span class="mav" style="--ring:${ring}"><span class="avatar">${esc(initials(u.name))}</span></span>
+    return `<div class="card mcard" data-u="${u.id}"><div class="mhead"><span class="mav" style="--ring:${ring}">${empAv(u, '')}</span>
       <div class="mname"><b>${esc(u.name)}</b><span>${esc([u.job_title, u.department].filter(Boolean).join(' - ') || '—')}</span></div></div>${bottom}
       <div class="mexp" hidden><div class="kv"><div><span class="muted">الحالة</span><b>${(EM_ST[s.status] || [''])[0]}${s.late ? ` (${s.late} د)` : ''}</b></div><div><span class="muted">الوردية</span><b dir="ltr">${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}</b></div>${u.phone ? `<div><span class="muted">الهاتف</span><b dir="ltr">${esc(u.phone)}</b></div>` : ''}</div>
         <div class="row" style="margin-top:10px">${tel}${manage ? `<button class="btn alt sm" data-e="${u.id}">تعديل</button>` : ''}<button class="btn alt sm" data-more="${u.id}">المزيد</button></div></div></div>`;
@@ -2989,6 +3067,7 @@ function empMobileUI(c) {
     $('#mlist', body).innerHTML = rs.map(card).join('') || '<div class="card empty">لا يوجد موظفون</div>';
     $('#mcount', body).textContent = `${rs.length} من ${people.filter((u) => u.active).length}`;
     const L = $('#mlist', body);
+    fillPhotos(L);
     L.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => { const u = byId(b.dataset.view), s = dayInfo(u); if (s.rec && s.rec.id) attViewModal(u, s.rec, E.day, b.dataset.k); }));
     L.querySelectorAll('[data-info]').forEach((b) => (b.onclick = () => infoModal(byId(b.dataset.info))));
     L.querySelectorAll('[data-ex]').forEach((b) => (b.onclick = () => { const p = b.closest('.mcard'), x = $('.mexp', p); x.hidden = !x.hidden; b.innerHTML = fi(x.hidden ? 'chev_dn' : 'chev_up'); }));
