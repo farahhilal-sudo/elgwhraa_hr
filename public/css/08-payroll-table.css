@@ -1,0 +1,19 @@
+/* payroll table */
+.ptwrap { max-height: 70vh; }
+.ptable { min-width: 1000px; }
+.ptable th, .ptable td { padding: 9px 8px; font-size: 13px; }
+.pact2 { display: flex; gap: 12px; margin-top: 2px; } .pact2 .link { font-size: 12px; padding: 0; }
+.ptable th, .ptable td { text-align: center; font-variant-numeric: tabular-nums; }
+.ptable .who { text-align: start; position: sticky; inset-inline-start: 0; background: var(--card); z-index: 1; min-width: 190px; }
+.ptable th.who { background: #f8faf9; z-index: 3; }
+.ptable th.tb { background: #dbeafe; color: #1d4ed8; } .ptable td.tb { background: #f1f7ff; }
+.ptable th.tg { background: #bbf7d0; color: #15803d; } .ptable td.tg { background: #effcf3; }
+.ptable th.tp { background: #fecaca; color: #b91c1c; } .ptable td.tp { background: #fff1f1; }
+.ptable th.tn, .ptable td.tn { background: #fff; font-weight: 700; font-size: 15px; color: var(--ink); position: sticky; inset-inline-end: 0; z-index: 1; box-shadow: -6px 0 8px -6px rgba(0,0,0,.15); }
+.ptable th.tn { background: #e0f2fe; color: var(--brand-d); z-index: 3; }
+.ptable .totrow th { position: sticky; bottom: 0; border-top: 2px solid var(--line); }
+@media (max-width: 900px) { .frow select, .fsearch { min-width: 45%; } .chips { min-width: 100%; } }
+@media (max-width: 700px) { .ecards { grid-template-columns: 1fr; } }
+.modal .g2 { grid-template-columns: 1fr; }
+.modal table { min-width: 0; } .modal td, .modal th { white-space: normal; }
+

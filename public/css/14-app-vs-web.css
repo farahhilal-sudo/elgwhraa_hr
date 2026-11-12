@@ -1,0 +1,23 @@
+/* ===== وضع التطبيق مقابل وضع الموقع ===== */
+html.is-app body { background: #e9eef4; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: contain; user-select: none; -webkit-user-select: none; }
+html.is-app input, html.is-app textarea, html.is-app select, html.is-app td { user-select: text; -webkit-user-select: text; }
+html.is-app .shell { max-width: 520px; margin: 0 auto; min-height: 100vh; background: var(--bg); box-shadow: 0 0 40px rgba(15,30,60,.08); }
+html.is-app .mtop { padding-top: calc(14px + env(safe-area-inset-top)); }
+html.is-app .bottom { max-width: 520px; margin-inline: auto; }
+html.is-app .content { padding: 14px 14px calc(110px + env(safe-area-inset-bottom)); max-width: none; }
+html.is-app .overlay { align-items: end; padding: 0; } html.is-app .modal { border-radius: 22px 22px 0 0; max-width: 520px; margin-inline: auto; }
+html.is-app .overlay.wiz .modal, html.is-app .overlay.wide .modal { max-width: 520px; }
+html.is-app .g4, html.is-app .g3 { grid-template-columns: repeat(2, 1fr); } html.is-app .form { grid-template-columns: 1fr; }
+html.is-app .ecards { grid-template-columns: 1fr; }
+html.is-app .wz-main { flex-direction: column; } html.is-app .wz-side { width: auto; flex-direction: row; overflow-x: auto; flex: none; } html.is-app .g2w { grid-template-columns: 1fr; }
+html:not(.is-app) .hmb { display: none; }
+@media (max-width: 900px) {
+  html:not(.is-app) .shell { display: block; padding: 8px; }
+  html:not(.is-app) .side, html:not(.is-app) .mtop, html:not(.is-app) .bottom { display: none; }
+  html:not(.is-app) .topbar { border-radius: 14px; padding: 8px 12px; flex-wrap: wrap; position: sticky; top: 6px; }
+  html:not(.is-app) .hmb { display: grid; }
+  html:not(.is-app) .search, html:not(.is-app) #cdate, html:not(.is-app) #cclk, html:not(.is-app) .uname { display: none; }
+  html:not(.is-app) .content { padding: 12px 0 30px; }
+}
+@media (display-mode: standalone) { body { background: #e9eef4; } }
+

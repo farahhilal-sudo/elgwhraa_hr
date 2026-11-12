@@ -1,0 +1,14 @@
+/* ===== توحيد الخط والحجم في الموقع كله (زي الإعدادات) ===== */
+html { font-size: 13px; }
+body, button, input, select, textarea, table { font-family: 'Poppins', 'Cairo', system-ui, 'Segoe UI', Tahoma, sans-serif; font-size: 13px; }
+h2, .page-head h2 { font-size: 17px; font-weight: 700; } h3 { font-size: 14.5px; font-weight: 700; }
+.pinfo h2 { font-size: 17px; } .prof .info b, .mtop .info b { font-size: 14px; } .mtop .info span { font-size: 12px; }
+.shift { font-size: 16px; } .prow b, .day b { font-size: 14px; } .pbtn { font-size: 14px; padding: 11px; } .btn.big { font-size: 14px; padding: 12px 18px; }
+.slnet { font-size: 14px; } .slnet b, .slamt b, .sumc b, .stat b, .stat2 .sval b, .sct b { font-size: 17px; font-weight: 700; }
+.sl, .slcard .sltxt b, .strip-month, .calttl { font-size: 13.5px; } .stat span, .sct .un, .muted.small, .small { font-size: 12px; }
+.clock .t { font-size: 34px; } .punchrow .cell b { font-size: 16px; }
+.dropdown button, .note, .toast { font-size: 12.5px; }
+.cd2 > b, .ch2, .cpill, .arow, .aio b, .durchip { font-size: 12.5px; }
+.ptable th, .ptable td { font-size: 12px; } .ptable th.tn, .ptable td.tn { font-size: 13px; }
+.bottom button[data-b] { font-size: 11px; }
+@media (max-width: 900px) { .mtop .info b { font-size: 14px; } .sct b { font-size: 15px; } .sumc b { font-size: 15px; } .frow2 .sel2, .stbox { min-width: 45%; } .chips2 { min-width: 100%; } }

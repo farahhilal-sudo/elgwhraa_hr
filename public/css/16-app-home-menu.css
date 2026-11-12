@@ -1,0 +1,40 @@
+/* الجدول (الرئيسية) */
+html.is-app .narrow { max-width: none; }
+html.is-app .strip-head { gap: 10px; justify-content: flex-start; margin-bottom: 10px; }
+html.is-app .calic { display: grid; place-items: center; width: 40px; height: 40px; border: 1.5px solid #4b5563; border-radius: 11px; color: #4b5563; }
+html.is-app .calic .ico { width: 24px; height: 24px; }
+html.is-app .strip-month { font-size: 17px; font-weight: 400; color: #555; }
+html.is-app .strip-month b { font-weight: 600; color: #2a2f36; }
+html.is-app #sdow { margin-inline-start: auto; font-size: 16px; color: #444; }
+html.is-app .strip { overflow-x: auto; justify-content: flex-start; gap: 0; scrollbar-width: none; scroll-snap-type: x proximity; }
+html.is-app .strip::-webkit-scrollbar { display: none; }
+html.is-app .strip .day { flex: 0 0 calc(100% / 7); min-width: 0; padding: 4px 0; gap: 8px; border-radius: 0; background: none !important; scroll-snap-align: start; }
+html.is-app .day b { min-width: 42px; height: 30px; line-height: 30px; border-radius: 15px; text-align: center; font-size: 17px; font-weight: 400; color: #444; }
+html.is-app .day.on b { background: var(--abrand); color: #fff; font-weight: 600; }
+html.is-app .day i { width: 7px; height: 7px; }
+html.is-app .day.on i { background: var(--abrand) !important; }
+html.is-app .narrow > .card { padding: 16px 14px; }
+html.is-app .punchcard { padding: 22px 16px; }
+html.is-app .pbtn { background: var(--abrand); border-radius: 12px; }
+html.is-app .pbtn.out { background: var(--bad); }
+
+/* القائمة (كروت) */
+html.is-app .mprof { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px; text-align: start; cursor: pointer; background: #fff; margin-bottom: 14px; }
+html.is-app .mprof .avatar.big { width: 52px; height: 52px; font-size: 17px; }
+html.is-app .mpi { flex: 1; display: flex; flex-direction: column; line-height: 1.45; min-width: 0; }
+html.is-app .mpi b { font-size: 15px; font-weight: 600; }
+html.is-app .mpi span { color: var(--amut); font-size: 12px; }
+html.is-app .mpc { color: #4b5563; display: grid; }
+html.is-app .mpc .ico { width: 22px; height: 22px; }
+html.is-app .msec { font-size: 15px; font-weight: 600; color: #555; margin: 20px 4px 10px; }
+html.is-app .mgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 4px; }
+html.is-app .mgrid:first-of-type { margin-top: 0; }
+html.is-app .mc { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 68px; padding: 12px 14px; border: 0; border-radius: 14px; background: #fff; box-shadow: var(--ash); cursor: pointer; text-align: start; color: var(--atext); font-size: 14.5px; }
+html.is-app .mc:active { background: #f1f5f9; }
+html.is-app .mct { flex: 1; min-width: 0; line-height: 1.4; }
+html.is-app .cic { width: 32px; height: 32px; flex: none; }
+html.is-app .mlogout { width: 100%; margin-top: 22px; justify-content: flex-start; gap: 12px; min-height: 64px; color: #dc2626; }
+html.is-app .mlogout .mct { flex: none; font-weight: 600; }
+html.is-app .mlic { width: 40px; height: 40px; border-radius: 12px; background: #fde4e4; color: #dc2626; display: grid; place-items: center; }
+html.is-app .mlic .ico { width: 22px; height: 22px; }
+

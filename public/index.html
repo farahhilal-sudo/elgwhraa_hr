@@ -22,11 +22,71 @@
   <meta name="apple-mobile-web-app-title" content="الحضور">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/style.css">
+  <!-- الستايل مقسّم لملفات بنفس ترتيب الأصل (الترتيب مهم لأن الأحدث بيغلب). شوفي README ← "هيكل المشروع" -->
+  <link rel="stylesheet" href="/css/01-base.css">
+  <link rel="stylesheet" href="/css/02-account-page.css">
+  <link rel="stylesheet" href="/css/03-components.css">
+  <link rel="stylesheet" href="/css/04-punch-perms-modal-login.css">
+  <link rel="stylesheet" href="/css/05-app-mode-pwa.css">
+  <link rel="stylesheet" href="/css/06-attendance-home.css">
+  <link rel="stylesheet" href="/css/07-tabs-filters-cards.css">
+  <link rel="stylesheet" href="/css/08-payroll-table.css">
+  <link rel="stylesheet" href="/css/09-account-redesign.css">
+  <link rel="stylesheet" href="/css/10-font-tuning.css">
+  <link rel="stylesheet" href="/css/11-settings.css">
+  <link rel="stylesheet" href="/css/12-employees.css">
+  <link rel="stylesheet" href="/css/13-font-unify.css">
+  <link rel="stylesheet" href="/css/14-app-vs-web.css">
+  <link rel="stylesheet" href="/css/15-app-shell-header-bottom.css">
+  <link rel="stylesheet" href="/css/16-app-home-menu.css">
+  <link rel="stylesheet" href="/css/17-app-dashboard-employees.css">
+  <link rel="stylesheet" href="/css/18-policies.css">
+  <link rel="stylesheet" href="/css/19-dashboard-web.css">
+  <link rel="stylesheet" href="/css/20-photos-maps.css">
+  <link rel="stylesheet" href="/css/21-employee-profile.css">
 </head>
 <body>
   <div id="app"></div>
   <div id="toast" class="toast" hidden></div>
-  <script src="/app.js"></script>
+  <!-- الكود مقسّم: core (الأساس) ← pages (صفحة لكل ملف) ← settings ← app-mode ← boot. الترتيب مهم. -->
+  <script src="/js/core/01-utils.js"></script>
+  <script src="/js/core/02-media.js"></script>
+  <script src="/js/core/03-face-location.js"></script>
+  <script src="/js/core/04-auth.js"></script>
+  <script src="/js/core/05-icons.js"></script>
+  <script src="/js/core/06-shell.js"></script>
+  <script src="/js/core/07-helpers.js"></script>
+  <script src="/js/core/08-tabs-helpers.js"></script>
+  <script src="/js/pages/home.js"></script>
+  <script src="/js/pages/account-slip.js"></script>
+  <script src="/js/pages/account.js"></script>
+  <script src="/js/pages/account-requests.js"></script>
+  <script src="/js/pages/dashboard.js"></script>
+  <script src="/js/pages/employees-tabs.js"></script>
+  <script src="/js/pages/employees.js"></script>
+  <script src="/js/pages/employee-form.js"></script>
+  <script src="/js/pages/attendance-log.js"></script>
+  <script src="/js/pages/requests.js"></script>
+  <script src="/js/pages/payroll.js"></script>
+  <script src="/js/pages/reports.js"></script>
+  <script src="/js/pages/permissions.js"></script>
+  <script src="/js/pages/adjustments.js"></script>
+  <script src="/js/pages/tiers.js"></script>
+  <script src="/js/settings/00-constants.js"></script>
+  <script src="/js/settings/10-engine.js"></script>
+  <script src="/js/settings/20-offices.js"></script>
+  <script src="/js/settings/30-schedules.js"></script>
+  <script src="/js/settings/40-payroll-presets.js"></script>
+  <script src="/js/settings/50-general-form.js"></script>
+  <script src="/js/settings/60-policy-core.js"></script>
+  <script src="/js/settings/62-policy-wizard.js"></script>
+  <script src="/js/settings/64-policy-list.js"></script>
+  <script src="/js/settings/70-leaves-holidays.js"></script>
+  <script src="/js/settings/90-render.js"></script>
+  <script src="/js/app-mode/01-header.js"></script>
+  <script src="/js/app-mode/02-menu-quick.js"></script>
+  <script src="/js/app-mode/03-dashboard.js"></script>
+  <script src="/js/app-mode/04-employees.js"></script>
+  <script src="/js/boot.js"></script>
 </body>
 </html>
