@@ -1,5 +1,5 @@
 // خدمة بسيطة تخلّي الموقع يتثبت كتطبيق. البيانات دايماً من الإنترنت.
-const CACHE = 'hr-shell-v15';
+const CACHE = 'hr-shell-v16';
 const FACE = 'hr-face-v1'; // مكتبة الوجه ونماذجها (حوالي 7MB) بتتحمّل مرة واحدة بس وبعدها فورية
 // ملفات الواجهة (css + js) بالترتيب نفسه اللي في index.html
 const SHELL = [
@@ -28,6 +28,7 @@ const SHELL = [
   '/css/19-dashboard-web.css',
   '/css/20-photos-maps.css',
   '/css/21-employee-profile.css',
+  '/css/22-employee-cards.css',
   '/js/core/01-utils.js',
   '/js/core/02-media.js',
   '/js/core/03-face-location.js',
@@ -76,7 +77,7 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method === 'GET' && url.hostname === 'cdn.jsdelivr.net' && url.pathname.includes('face-api')) {
+  if (e.request.method === 'GET' && ['cdn.jsdelivr.net', 'fastly.jsdelivr.net', 'unpkg.com'].includes(url.hostname) && url.pathname.includes('face-api')) {
     e.respondWith(caches.open(FACE).then((c) => c.match(e.request).then((hit) => hit || fetch(e.request).then((r) => { if (r.ok) c.put(e.request, r.clone()); return r; }))));
     return;
   }

@@ -17,7 +17,9 @@ PAGES.home = async (view) => {
       <div class="info"><b>${esc(u.name)}</b><span class="muted">${esc(u.job_title || '')}</span><span class="muted">${esc(u.department || '')}</span></div></div>
     <div class="card" style="margin-top:12px"><div class="strip-head">${IS_APP ? `<span class="calic">${fi('calsearch')}</span>` : ''}<span class="strip-month" id="smon"></span><span class="muted" id="sdow"></span></div>
       <div class="strip" id="strip"></div></div>
-    <div class="card punchcard" id="pc" style="margin-top:12px"></div></div>`;
+    <div class="card punchcard" id="pc" style="margin-top:12px"></div>
+    <div style="text-align:center;margin:12px 0"><button class="fdl" id="fdiag">مشكلة في البصمة؟ افحصي الكاميرا والتعرّف على الوجه</button></div></div>`;
+  $('#fdiag').onclick = faceDiag;
   const loadRecs = async () => {
     const months = [...new Set(days.map((d) => d.slice(0, 7)))];
     const lists = await Promise.all(months.map((m) => api('/attendance/mine?month=' + m)));

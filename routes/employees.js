@@ -43,7 +43,7 @@ async function todayStatusMap(users) {
     else if (leaves.has(u.id)) status = 'leave';
     else if (weekendToday) status = 'off';
     else if (now.minutes < toMin(u.shift_start) + graceOf(u, st, pctx)) status = 'not_yet';
-    out[u.id] = { status, check_in: a?.check_in || null, check_out: a?.check_out || null, late_minutes: a?.late_minutes || 0 };
+    out[u.id] = { status, check_in: a?.check_in || null, check_out: a?.check_out || null, late_minutes: a?.late_minutes || 0, in_loc: a?.in_loc || '', out_loc: a?.out_loc || '' };
   }
   return out;
 }
@@ -58,8 +58,15 @@ module.exports = function register(app) {
 app.get('/api/employees', auth, need('employees.view'), wrap(async (req, res) => {
   const rows = await db.all('SELECT * FROM users ORDER BY is_admin DESC, id');
   const tmap = await todayStatusMap(rows.filter((u) => u.active && !u.pending));
+  // آخر صورة بصمة لكل موظف خلال آخر 14 يوم (بتتعرض كصورة شخصية في الكروت)
+  const photoMap = {};
+  if (can(req.user, 'attendance.view_all')) {
+    const since = new Date(Date.now() - 14 * 86400000).toISOString().slice(0, 10);
+    for (const r of await db.all('SELECT DISTINCT ON (a.user_id) a.user_id, a.id AS att_id, p.kind FROM attendance_photos p JOIN attendance a ON a.id=p.attendance_id WHERE a.date >= ? ORDER BY a.user_id, a.date DESC, p.created_at DESC', since))
+      photoMap[r.user_id] = { id: r.att_id, kind: r.kind };
+  }
   res.json(rows.map((u) => ({
-    ...publicUser(u), today: tmap[u.id] || null,
+    ...publicUser(u), today: tmap[u.id] || null, photo: photoMap[u.id] || null,
     ...(can(req.user, 'payroll.view') ? { base_salary: u.base_salary, allowances: u.allowances } : {}),
     ...(can(req.user, 'employees.manage') ? { national_id: u.national_id || '' } : {}),
   })));

@@ -1,0 +1,32 @@
+/* ====== كروت الموظفين (على شكل الشاشة المرجعية) ====== */
+.av-ph { position: relative; overflow: hidden; }
+.av-ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.av-ph img:not([hidden]) ~ .av-t { visibility: hidden; }
+.ec { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.ec-head { display: flex; align-items: center; gap: 12px; padding: 16px 16px 8px; cursor: pointer; }
+.ec-av { width: 60px; height: 60px; flex: none; border-radius: 50%; background: #262626; color: #fff; font-weight: 800; display: grid; place-items: center; font-size: 20px; }
+.ec-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.ec-info b { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ec-info span { color: var(--muted); font-size: 14px; line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ec-head:hover .ec-info b { color: var(--brand-d); }
+.ec-badge { padding: 3px 14px; border-radius: 8px; font-size: 13px; font-weight: 700; background: #f1f5f9; color: #475569; white-space: nowrap; align-self: flex-start; }
+.ec-badge.ok { background: var(--ok-l); color: var(--ok); } .ec-badge.warn { background: var(--warn-l); color: var(--warn); } .ec-badge.bad { background: var(--bad-l); color: var(--bad); } .ec-badge.info { background: var(--info-l); color: var(--info); }
+.ec-body { padding: 4px 16px 14px; display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 64px; }
+.ec-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; color: #333; }
+.ec-t, .ec-p { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.ec-t.in, .ec-p.in { color: #1d4ed8; } .ec-t.out, .ec-p.out { color: #dc2626; }
+.ec-t { direction: ltr; } .ec-p svg { width: 17px; height: 17px; }
+.ec-note { color: var(--muted); font-size: 13px; }
+.ec-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; align-self: flex-start; padding: 6px 14px; border-radius: 9px; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; border: 1px solid; }
+.ec-btn.in { background: #e0f2fe; color: #0369a1; border-color: #bae6fd; } .ec-btn.out { background: #fff; color: #dc2626; border-color: #fca5a5; background: #fef2f2; }
+.ec-btn:disabled { opacity: .5; }
+.ec-foot { display: flex; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--line); }
+.btn.sm.bad { color: #dc2626; border-color: #fca5a5; }
+
+
+/* فحص الكاميرا والوجه */
+.diag { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+.diag-row { display: grid; grid-template-columns: 24px 1fr; gap: 2px 10px; align-items: start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: 13px; }
+.diag-row .dd { grid-column: 2; color: var(--muted); word-break: break-word; }
+.diag-row i { font-style: normal; font-weight: 800; } .diag-row i.ok { color: var(--ok); } .diag-row i.bad { color: var(--bad); }
+.fdl { background: none; border: 0; color: var(--brand-d); cursor: pointer; font-family: inherit; font-size: 13px; text-decoration: underline; padding: 0; }

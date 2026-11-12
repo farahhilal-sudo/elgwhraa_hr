@@ -44,7 +44,7 @@ function empMobileUI(c) {
       ? `${shift}<div class="mrow">${sq}<div class="mlines">${line('in', s.ci, s.inLoc)}${hasOut ? line('out', s.co, s.outLoc) : ''}</div><span class="grow"></span>${info}${chev}</div>`
       : `<div class="mrow">${sq}${shift}${chev}</div>`;
     const tel = u.phone ? `<a class="btn alt sm" href="tel:${esc(u.phone)}">اتصال</a>` : '';
-    return `<div class="card mcard" data-u="${u.id}"><div class="mhead"><span class="mav" style="--ring:${ring}"><span class="avatar">${esc(initials(u.name))}</span></span>
+    return `<div class="card mcard" data-u="${u.id}"><div class="mhead"><span class="mav" style="--ring:${ring}">${empAv(u, '')}</span>
       <div class="mname"><b>${esc(u.name)}</b><span>${esc([u.job_title, u.department].filter(Boolean).join(' - ') || '—')}</span></div></div>${bottom}
       <div class="mexp" hidden><div class="kv"><div><span class="muted">الحالة</span><b>${(EM_ST[s.status] || [''])[0]}${s.late ? ` (${s.late} د)` : ''}</b></div><div><span class="muted">الوردية</span><b dir="ltr">${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}</b></div>${u.phone ? `<div><span class="muted">الهاتف</span><b dir="ltr">${esc(u.phone)}</b></div>` : ''}</div>
         <div class="row" style="margin-top:10px">${tel}${manage ? `<button class="btn alt sm" data-e="${u.id}">تعديل</button>` : ''}<button class="btn alt sm" data-more="${u.id}">المزيد</button></div></div></div>`;
@@ -54,6 +54,7 @@ function empMobileUI(c) {
     $('#mlist', body).innerHTML = rs.map(card).join('') || '<div class="card empty">لا يوجد موظفون</div>';
     $('#mcount', body).textContent = `${rs.length} من ${people.filter((u) => u.active).length}`;
     const L = $('#mlist', body);
+    fillPhotos(L);
     L.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => { const u = byId(b.dataset.view), s = dayInfo(u); if (s.rec && s.rec.id) attViewModal(u, s.rec, E.day, b.dataset.k); }));
     L.querySelectorAll('[data-info]').forEach((b) => (b.onclick = () => infoModal(byId(b.dataset.info))));
     L.querySelectorAll('[data-ex]').forEach((b) => (b.onclick = () => { const p = b.closest('.mcard'), x = $('.mexp', p); x.hidden = !x.hidden; b.innerHTML = fi(x.hidden ? 'chev_dn' : 'chev_up'); }));

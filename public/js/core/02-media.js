@@ -11,9 +11,15 @@ function loadPhoto(id, kind) { // الصورة بتتحمّل عند الطلب 
   }
   return photoCache.get(k);
 }
-function fillPhotos(root) { // أي <img data-aid data-kind> بتتملي بالصورة
-  root.querySelectorAll('img[data-aid]').forEach((img) => loadPhoto(img.dataset.aid, img.dataset.kind).then((u) => { if (u) { img.src = u; img.hidden = false; } else img.closest('.phwrap')?.classList.add('noph'); }));
+function fillPhotos(root) { // أي <img data-aid data-kind> بتتملي بالصورة (صور الكروت data-lazy بتتحمّل لما تظهر على الشاشة بس)
+  const go = (img) => loadPhoto(img.dataset.aid, img.dataset.kind).then((u) => { if (u) { img.src = u; img.hidden = false; } else img.closest('.phwrap')?.classList.add('noph'); });
+  const io = 'IntersectionObserver' in window ? new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { io.unobserve(e.target); go(e.target.__img); } }), { rootMargin: '250px' }) : null;
+  root.querySelectorAll('img[data-aid]').forEach((img) => { if (io && img.hasAttribute('data-lazy')) { img.parentElement.__img = img; io.observe(img.parentElement); } else go(img); });
 }
+const fmtTimeSec = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true, timeZone: TZ }) : '');
+const empAv = (u, cls = 'lg') => `<div class="avatar ${cls} phwrap av-ph">${u.photo ? `<img alt="" data-lazy data-aid="${Number(u.photo.id)}" data-kind="${u.photo.kind === 'out' ? 'out' : 'in'}" hidden>` : ''}<span class="av-t">${esc(initials(u.name))}</span></div>`;
+const ICO_IN = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7l5 5-5 5M3 12h11M21 4v16"/></svg>';
+const ICO_OUT = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7l-5 5 5 5M21 12H10M3 4v16"/></svg>';
 const mapSrc = (lat, lng) => `https://www.google.com/maps?q=${Number(lat)},${Number(lng)}&z=17&hl=ar&output=embed`;
 const mapFrame = (lat, lng) => `<iframe loading="lazy" referrerpolicy="no-referrer" title="الموقع" src="${mapSrc(lat, lng)}"></iframe>`;
 const hasLL = (a, k) => a && a[k + '_lat'] != null && a[k + '_lng'] != null;

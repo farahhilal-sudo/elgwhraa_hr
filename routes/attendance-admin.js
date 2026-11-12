@@ -24,6 +24,7 @@ app.post('/api/attendance', auth, need('attendance.edit'), wrap(async (req, res)
   const uid = toId(user_id);
   const u = uid && await db.get('SELECT * FROM users WHERE id=?', uid);
   if (!u || !isDate(date)) return res.status(400).json({ error: 'بيانات غير صحيحة' });
+  if (u.is_admin) return res.status(400).json({ error: 'حسابات المديرين لا يُسجَّل لها حضور وانصراف' });
   for (const t of [check_in, check_out]) if (t && !isHHMM(t)) return res.status(400).json({ error: 'صيغة الوقت غير صحيحة' });
   const tz = (await settings()).timezone || 'Africa/Cairo'; // (كانت +03:00 ثابتة، فكانت بتغلط ساعة شتاءً)
   const mk = (t) => (t ? zonedToUtc(date, t, tz).toISOString() : null);
@@ -35,6 +36,22 @@ app.post('/api/attendance', auth, need('attendance.edit'), wrap(async (req, res)
     ON CONFLICT(user_id,date) DO UPDATE SET check_in=excluded.check_in, check_out=excluded.check_out, late_minutes=excluded.late_minutes, early_minutes=excluded.early_minutes, note=excluded.note`,
     u.id, date, ci, co, late, early, String(note).slice(0, 200));
   await audit(req, 'attendance.edit', `${u.name} ${date}`, `in=${check_in || '-'} out=${check_out || '-'}`);
+  res.json({ ok: true });
+}));
+// تسجيل انصراف موظف نيابةً عنه (لمن عنده attendance.edit): بيحفظ الوقت الحالي ويسجّل العملية في سجل التدقيق
+app.post('/api/attendance/checkout', auth, need('attendance.edit'), wrap(async (req, res) => {
+  const uid = toId((req.body || {}).user_id);
+  const u = uid && await db.get('SELECT * FROM users WHERE id=?', uid);
+  if (!u || u.is_admin) return res.status(404).json({ error: 'الموظف غير موجود' });
+  const now = tzParts();
+  const rec = await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date);
+  if (!rec || !rec.check_in) return res.status(400).json({ error: 'الموظف لم يسجّل حضوراً اليوم' });
+  if (rec.check_out) return res.status(409).json({ error: 'تم تسجيل الانصراف بالفعل' });
+  const early = Math.max(0, toMin(u.shift_end) - now.minutes);
+  const note = ((rec.note ? rec.note + ' · ' : '') + 'انصراف سجّله ' + req.user.name).slice(0, 200);
+  const up = await db.run('UPDATE attendance SET check_out=?, early_minutes=?, note=? WHERE id=? AND check_out IS NULL', new Date().toISOString(), early, note, rec.id);
+  if (!up.rowCount) return res.status(409).json({ error: 'تم تسجيل الانصراف بالفعل' });
+  await audit(req, 'attendance.manual_checkout', `${u.name} ${now.date}`);
   res.json({ ok: true });
 }));
 app.delete('/api/attendance/:id', auth, need('attendance.edit'), wrap(async (req, res) => {

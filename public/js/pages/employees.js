@@ -4,7 +4,7 @@
 PAGES.employees = async (view) => {
   const manage = has('employees.manage');
   const [all, resets, locs, tpls] = await Promise.all([api('/employees'), manage ? api('/password-resets') : [], manage || has('settings.manage') ? api('/locations').catch(() => []) : [], api('/config/filter_template').catch(() => [])]);
-  const pend = all.filter((u) => u.pending), people = all.filter((u) => !u.pending);
+  const pend = all.filter((u) => u.pending), people = all.filter((u) => !u.pending), staff = people.filter((u) => !u.is_admin); // المدير مابيظهرش في قائمة الموظفين
   const sal = people.some((r) => r.base_salary !== undefined);
   const tab = S.emptab || 'list';
   const cur = tab === 'pending' ? 'employees:pending' : tab === 'resets' ? 'employees:resets' : 'employees';
@@ -65,16 +65,30 @@ PAGES.employees = async (view) => {
     if (t && (t.status === 'present' || t.status === 'late')) return [st[1], `${st[0]} ${fmtTime(t.check_in)}${t.late_minutes ? ' (' + t.late_minutes + ' د)' : ''}${t.check_out ? ' · انصرف ' + fmtTime(t.check_out) : ''}`, 'clock'];
     return st ? [st[1], st[0] === 'لم يسجّل الحضور' ? 'لم يسجل الحضور' : st[0], ['absent', 'not_yet'].includes(t.status) ? 'clockoff' : 'clock'] : ['', '—', 'clock'];
   };
-  const punchBtn = (u) => (has('attendance.edit') && u.active && u.today && ['absent', 'not_yet'].includes(u.today.status) ? `<button class="btn alt sm" data-in="${u.id}">${ico('clock')} تسجيل الحضور</button>` : '');
-  const card = (u) => { const l = lineOf(u); return `<div class="card ecard"><div class="ehead" data-prof="${u.id}" title="فتح الملف الشخصي"><div class="avatar lg">${esc(initials(u.name))}</div>
-    <div class="einfo"><b>${esc(u.name)}</b><span>${esc(u.job_title || '—')}</span><span>${esc(u.department || '')}</span></div>${u.is_admin ? '<span class="badge b-info">مدير</span>' : ''}</div>
-    <div class="estat"><span class="sline ${l[0]}">${ico(l[2])}${esc(l[1])}</span>${punchBtn(u)}</div><div class="eact">${btns(u)}</div></div>`; };
-  const trow = (u) => { const l = lineOf(u); return `<tr><td><div class="emp" data-prof="${u.id}" title="فتح الملف الشخصي"><div class="avatar sm">${esc(initials(u.name))}</div><b>${esc(u.name)}</b>${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}</div></td>
+  // الإجراء المتاح للمدير على الموظف الآن: تسجيل حضور (غائب/لم يسجل) أو تسجيل انصراف (حاضر ولم ينصرف)
+  const actOf = (u) => {
+    const t = u.today;
+    if (!has('attendance.edit') || !u.active || u.is_admin || u.pending || !t) return null;
+    if (['absent', 'not_yet'].includes(t.status)) return 'in';
+    return t.check_in && !t.check_out ? 'out' : null;
+  };
+  const punchBtn = (u) => { const a = actOf(u); return a === 'in' ? `<button class="btn alt sm" data-in="${u.id}">${ico('clock')} تسجيل الحضور</button>` : a === 'out' ? `<button class="btn alt sm bad" data-out="${u.id}">تسجيل الانصراف</button>` : ''; };
+  const card = (u) => {
+    const t = u.active ? u.today : null, st = t ? TODAY_ST[t.status] : null, a = actOf(u);
+    const badge = u.is_admin ? '<span class="ec-badge info">مدير</span>' : !u.active ? '<span class="ec-badge bad">موقوف</span>' : st && t.status !== 'not_yet' ? `<span class="ec-badge ${st[1]}">${t.status === 'present' ? 'حاضر' : st[0]}${t.status === 'late' && t.late_minutes ? ' ' + t.late_minutes + ' د' : ''}</span>` : '';
+    const line = (k, iso, loc) => `<div class="ec-line"><span class="ec-t ${k}">${k === 'in' ? ICO_IN : ICO_OUT}${fmtTimeSec(iso)}</span>${loc ? `<span class="ec-p ${k}">${ICO_PIN}${esc(loc)}</span>` : ''}</div>`;
+    const lines = (t && t.check_in ? line('in', t.check_in, t.in_loc) : '') + (t && t.check_out ? line('out', t.check_out, t.out_loc) : '');
+    const note = !lines && t && t.status === 'not_yet' ? '<div class="ec-note">لم يسجل الحضور بعد</div>' : '';
+    const btn = a === 'in' ? `<button class="ec-btn in" data-in="${u.id}">${ICO_IN} تسجيل الحضور</button>` : a === 'out' ? `<button class="ec-btn out" data-out="${u.id}">${ICO_OUT} تسجيل الانصراف</button>` : '';
+    return `<div class="card ec"><div class="ec-head" data-prof="${u.id}" title="فتح الملف الشخصي">${empAv(u, 'ec-av')}<div class="ec-info"><b>${esc(u.name)}</b><span>${esc(u.job_title || '—')}</span><span>${esc(u.department || '')}</span></div>${badge}</div>
+      <div class="ec-body">${lines}${note}${btn}</div><div class="ec-foot">${btns(u)}</div></div>`;
+  };
+  const trow = (u) => { const l = lineOf(u); return `<tr><td><div class="emp" data-prof="${u.id}" title="فتح الملف الشخصي">${empAv(u, 'sm')}<b>${esc(u.name)}</b>${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}</div></td>
     <td>${esc(u.job_title || '—')}</td><td>${esc(u.department || '—')}</td><td dir="ltr">${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}</td><td><span class="sline ${l[0]}">${ico(l[2])}${esc(l[1])}</span></td><td class="actcol"><div class="racts">${punchBtn(u)}${btns(u)}</div></td></tr>`; };
 
   const render = () => {
-    if (IS_APP) return empMobileUI({ view, body, people, manage, again, byId, menuFor, infoModal, f });
-    const rows = people.filter(match), shown = f.more ? ALLST : ALLST.slice(0, 5);
+    if (IS_APP) return empMobileUI({ view, body, people: staff, manage, again, byId, menuFor, infoModal, f });
+    const rows = staff.filter(match), shown = f.more ? ALLST : ALLST.slice(0, 5);
     body.innerHTML = `<div class="efil">
       <div class="frow2">
         <label class="sel2 ${f.tpl ? '' : 'ph'}">${ico('filter')}<select data-f="tpl"><option value="">حدد القالب</option>${tpls.map((t) => `<option value="${t.id}" ${String(f.tpl) === String(t.id) ? 'selected' : ''}>${esc(t.name)}</option>`).join('')}</select></label>
@@ -83,7 +97,7 @@ PAGES.employees = async (view) => {
         ${locs.length ? sel2('loc', 'building', 'حدد المكتب', locs.map((l) => [l.id, l.name])) : ''}${sel2('dept', 'building', 'تحديد القسم', uniq('department'))}${sel2('job', 'user', 'اختر المنصب', uniq('job_title'))}
       </div>
       <div class="frow2">
-        ${sel2('role', 'users', 'حدد الدور', [['admin', 'مدير'], ['employee', 'موظف']])}${sel2('mgr', 'user', 'اختر مدير', people.map((u) => [String(u.id), u.name]))}${sel2('nat', 'pin', 'الجنسية', uniq('nationality'))}
+        ${sel2('mgr', 'user', 'اختر مدير', people.map((u) => [String(u.id), u.name]))}${sel2('nat', 'pin', 'الجنسية', uniq('nationality'))}
         <div class="sel2 stbox"><span>الحالة</span><i class="n">${f.st.length}</i><button id="stall" title="تحديد الكل">×</button></div>
       </div>
       <div class="frow2 chiprow">
@@ -94,7 +108,7 @@ PAGES.employees = async (view) => {
         <b class="xl">مرشح إضافي</b><button class="fchip2 ${f.activeOnly ? 'on' : 'off'}" id="actonly">نشط</button>
       </div>
       <div class="frow2">${manage ? `<button class="btn" id="add">${ico('plus')} موظف جديد</button>` : ''}
-        <button class="link rs" id="reset">${ico('filter')} إعادة تعيين المرشحات</button><span class="muted small">${rows.length} من ${people.length}</span><span class="grow"></span>
+        <button class="link rs" id="reset">${ico('filter')} إعادة تعيين المرشحات</button><span class="muted small">${rows.length} من ${staff.length}</span><span class="grow"></span>
         ${exportCsvBtn('exp')}<button class="btn vtog" id="vtog" title="تبديل العرض">${ico(f.view === 'cards' ? 'menu' : 'grid')}</button></div>
     </div>
     ${f.view === 'cards' ? `<div class="grid g3 ecards">${rows.map(card).join('') || '<div class="card empty" style="grid-column:1/-1">لا يوجد موظفون بهذه المرشحات</div>'}</div>`
@@ -127,7 +141,12 @@ PAGES.employees = async (view) => {
       $('#add', body).onclick = () => empForm(null, again);
       body.querySelectorAll('[data-e]').forEach((b) => (b.onclick = () => empForm(byId(b.dataset.e), again)));
     }
+    fillPhotos(body);
     body.querySelectorAll('[data-in]').forEach((b) => (b.onclick = () => manualAtt(people, { user_id: Number(b.dataset.in), date: S.me.today_date, manual_new: true }, again)));
+    body.querySelectorAll('[data-out]').forEach((b) => (b.onclick = () => {
+      const u = byId(b.dataset.out);
+      if (confirm(`تسجيل انصراف «${u.name}» الآن؟`)) run(b, async () => { await api('/attendance/checkout', 'POST', { user_id: u.id }); toast('تم تسجيل الانصراف'); again(); });
+    }));
     body.querySelectorAll('[data-info]').forEach((b) => (b.onclick = () => infoModal(byId(b.dataset.info))));
     body.querySelectorAll('[data-prof]').forEach((b) => (b.onclick = () => openProfile(b.dataset.prof)));
     body.querySelectorAll('[data-more]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); popMenu(b, menuFor(byId(b.dataset.more))); }));
@@ -202,7 +221,7 @@ PAGES.employees = async (view) => {
       ['تاريخ التعيين', u.hire_date ? dmy(u.hire_date) : ''], ['تاريخ الميلاد', u.birth_date ? dmy(u.birth_date) : ''], ['النوع', GENDER_AR[u.gender]], ['الحالة الاجتماعية', MARITAL_AR[u.marital_status]], ['الجنسية', u.nationality],
       ...(u.national_id !== undefined ? [['الهوية الوطنية', u.national_id]] : [])];
     view.innerHTML = `<div class="epf"><div class="epf-back"><button class="btn alt sm" id="pfBack">${ico('chev')} كل الموظفين</button></div>
-      <div class="card epf-head"><div class="epf-id"><div class="epf-av">${esc(initials(u.name))}</div><div class="epf-info"><h2>${esc(u.name)}${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}${u.active ? '' : ' <span class="badge b-bad">موقوف</span>'}</h2>
+      <div class="card epf-head"><div class="epf-id"><div class="epf-av phwrap av-ph">${u.photo ? `<img alt="" data-aid="${Number(u.photo.id)}" data-kind="${u.photo.kind === 'out' ? 'out' : 'in'}" hidden>` : ''}<span class="av-t">${esc(initials(u.name))}</span></div><div class="epf-info"><h2>${esc(u.name)}${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}${u.active ? '' : ' <span class="badge b-bad">موقوف</span>'}</h2>
           <div class="epf-ln">${ico('user')}<span>${esc(u.job_title || '—')}</span></div><div class="epf-ln">${ico('building')}<span>${esc(u.department || '—')}</span></div></div></div>
         <div class="epf-side"><span class="epf-chip">${esc(officesOf(u) || 'أي موقع')} · من ${esc(fmt12(u.shift_start))} حتى ${esc(fmt12(u.shift_end))}</span>
           <div class="epf-acts"><button class="btn alt sm" id="pfExp">تصدير</button><div class="epf-icons">
@@ -211,6 +230,7 @@ PAGES.employees = async (view) => {
       <div class="epf-stats" id="pfStats">${'<div class="card epf-stat"><div class="sk"></div></div>'.repeat(4)}</div>
       <div class="card epf-tabs">${TABS.map(([k, l]) => `<button class="epf-tab ${k === tab ? 'on' : ''}" data-pt="${k}">${l}</button>`).join('')}</div>
       <div class="card epf-body" id="pfBody"><div class="empty">جارٍ التحميل...</div></div></div>`;
+    fillPhotos(view);
     $('#pfBack').onclick = () => { S.empProfileId = null; again(); };
     $('#pfInfo').onclick = () => infoModal(u);
     if ($('#pfEdit')) $('#pfEdit').onclick = () => empForm(u, again);
