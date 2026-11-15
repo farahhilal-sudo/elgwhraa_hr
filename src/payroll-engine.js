@@ -1,4 +1,5 @@
 'use strict';
+const { loanSchedule } = require('./loans');
 /* src/payroll-engine.js — محرك المرتبات: شرائح التأخير وسياسات الجزاءات والإضافي والعطلات وحساب الشهر (computeMonth) */
 const { eachDay, hoursBetween, isDate, monthRange, shiftMinutes, toMin } = require('../lib/utils');
 const { db, pool } = require('./db');
@@ -125,11 +126,12 @@ async function computeMonth(user, month, st, tiers = []) {
   const today = tzParts().date;
   const upto = last < today ? last : today;
   const weekend = String(st.weekend_days || '').split(',').filter(Boolean).map(Number);
-  const [att, reqs, adj, pctx] = await Promise.all([
+  const [att, reqs, adj, pctx, loanRows] = await Promise.all([
     db.all('SELECT * FROM attendance WHERE user_id=? AND date BETWEEN ? AND ?', user.id, first, last),
     db.all("SELECT * FROM requests WHERE user_id=? AND status='approved' AND to_date>=? AND from_date<=?", user.id, first, last),
     db.all('SELECT * FROM adjustments WHERE user_id=? AND month=? ORDER BY id', user.id, month),
     getPolicyCtx(),
+    db.all("SELECT * FROM loans WHERE user_id=? AND status='active'", user.id),
   ]);
   const { pen, ot } = policiesFor(user, pctx);
   const polGrace = pen && Number.isFinite(Number(pen.grace)) ? Number(pen.grace) : null;
@@ -216,7 +218,10 @@ async function computeMonth(user, month, st, tiers = []) {
   const accruedBasic = round2((user.base_salary / 30) * accruedDays), accruedAllowances = round2((user.allowances / 30) * accruedDays);
   const compensationPay = round2(compPay);
   const gross = round2(accruedBasic + accruedAllowances + bonuses + overtimePay + compensationPay);
-  const totalDeductions = round2(lateDeduction + absenceDeduction + manualDeductions + penalties);
+  // قسط القرض بيتحصل آخر يوم في الشهر: بيدخل المرتب لما الشهر يخلص (أو اليوم يبقى آخر يوم فيه)
+  const loanItems = loanRows.flatMap((l) => loanSchedule(l, today).filter((x) => x.month === month && x.due <= today).map((x) => ({ loan_id: l.id, name: l.name, n: x.n, of: l.installments, amount: x.amount, due: x.due })));
+  const loanDeduction = round2(loanItems.reduce((t, x) => t + x.amount, 0));
+  const totalDeductions = round2(lateDeduction + absenceDeduction + manualDeductions + penalties + loanDeduction);
   return {
     user_id: user.id, name: user.name, job_title: user.job_title, department: user.department, month,
     base_salary: user.base_salary, allowances: user.allowances, accrued_days: accruedDays, accrued_basic: accruedBasic, accrued_allowances: accruedAllowances,
@@ -226,7 +231,7 @@ async function computeMonth(user, month, st, tiers = []) {
     penalty_policy: pen ? pen.name : null, overtime_policy: ot ? ot.name : null, leave_profile: prof ? prof.name : null,
     holiday_days: holidayDays, off_days_worked: offDaysWorked, comp_days: compDays, compensation_pay: compensationPay,
     overtime_pay: overtimePay, bonuses, late_deduction: lateDeduction, absence_deduction: absenceDeduction,
-    manual_deductions: manualDeductions, manual_social: manualSocial, manual_medical: manualMedical, manual_tax: manualTax, manual_other: manualOther, penalties, gross, total_deductions: totalDeductions,
+    manual_deductions: manualDeductions, manual_social: manualSocial, manual_medical: manualMedical, manual_tax: manualTax, manual_other: manualOther, penalties, loan_deduction: loanDeduction, loan_items: loanItems, gross, total_deductions: totalDeductions,
     net: round2(gross - totalDeductions), adjustments: adj,
   };
 }

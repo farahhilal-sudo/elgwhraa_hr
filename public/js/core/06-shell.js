@@ -31,7 +31,7 @@ const MENU = [
     ['home', 'تسجيل الحضور', () => IS_APP, 'clock'], // تسجيل الحضور من التطبيق فقط (مفيش صفحة تسجيل في الويب)
     ...ATT_TABS.map(([k, l, ic]) => [k, l, () => has('attendance.view_all'), ic])] },
   { g: 'fin', ic: 'wallet', t: 'المالية', items: [
-    ['payroll', 'المرتبات', () => has('payroll.view'), 'dollar'], ['bonuses', 'المكافآت', () => has('payroll.view'), 'gift'], ['deductions', 'الخصومات', () => has('payroll.view'), 'shield'], ['tiers', 'سياسة الخصومات', () => has('settings.manage'), 'timer']] },
+    ['payroll', 'المرتبات', () => has('payroll.view'), 'dollar'], ['bonuses', 'المكافآت', () => has('payroll.view'), 'gift'], ['deductions', 'الخصومات', () => has('payroll.view'), 'shield'], ['tiers', 'سياسة الخصومات', () => has('settings.manage'), 'timer'], ['loans', 'قروض', () => has('payroll.view'), 'wallet']] },
   { id: 'reports', ic: 'chart', t: 'التقارير', ok: () => has('reports.view') },
   { g: 'set', ic: 'sliders', t: 'الإعدادات', items: [
     ['set_company', 'شركة', () => has('settings.manage'), 'building'], ['set_attendance', 'الحضور', () => has('settings.manage'), 'clock'],

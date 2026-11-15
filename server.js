@@ -76,6 +76,7 @@ require('./routes/employees')(app);
 require('./routes/attendance-admin')(app);
 require('./routes/attendance-tabs')(app);
 require('./routes/payroll')(app);
+require('./routes/loans')(app);
 require('./routes/locations')(app);
 require('./routes/late-tiers')(app);
 require('./routes/reports')(app);

@@ -7,7 +7,7 @@ const ADJ = { bonus: ['مكافأة', 'pos', '＋'], penalty: ['جزاء', 'neg'
 const tabsBar = (items, cur) => `<div class="tabs pagetabs">${items.map(([k, l, ic, n]) => `<button data-tab="${k}" class="${k === cur ? 'on' : ''}">${ico(ic)}<span>${l}</span>${n ? `<em class="cnt">${n}</em>` : ''}</button>`).join('')}</div>`;
 const bindTabs = (root, fn) => root.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => fn(b.dataset.tab)));
 const financeTabs = (cur) => tabsBar([
-  has('payroll.view') && ['payroll', 'المرتبات', 'dollar'], has('payroll.view') && ['bonuses', 'المكافآت', 'gift'], has('payroll.view') && ['deductions', 'الخصومات', 'shield'], has('settings.manage') && ['tiers', 'سياسة الخصومات', 'timer'],
+  has('payroll.view') && ['payroll', 'المرتبات', 'dollar'], has('payroll.view') && ['bonuses', 'المكافآت', 'gift'], has('payroll.view') && ['deductions', 'الخصومات', 'shield'], has('settings.manage') && ['tiers', 'سياسة الخصومات', 'timer'], has('payroll.view') && ['loans', 'قروض', 'wallet'],
 ].filter(Boolean), cur === 'adjustments' ? 'bonuses' : cur);
 const TODAY_ST = {
   present: ['حضر', 'ok'], late: ['متأخر', 'warn'], absent: ['غائب', 'bad'], leave: ['في إجازة', 'info'], not_yet: ['لم يسجّل الحضور', ''], off: ['عطلة', ''],

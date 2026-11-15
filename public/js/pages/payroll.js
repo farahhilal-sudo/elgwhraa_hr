@@ -40,8 +40,9 @@ PAGES.payroll = async (view) => {
     const earned = (r) => round2c(r.accrued_basic + r.accrued_allowances);
     const penAll = (r) => round2c((r.late_deduction || 0) + (r.absence_deduction || 0) + (r.penalties || 0));
     const mk = (r, k) => (r.manual_social === undefined ? (k === 'other' ? r.manual_deductions : 0) : r['manual_' + k]) || 0;
+    const otherAmt = (r) => round2c(mk(r, 'other') + (r.loan_deduction || 0));
     const canAdj = (r) => has('payroll.manage') && !r.paid;
-    const pen = (r, cat) => `${money(mk(r, cat))}${canAdj(r) ? ` <button type="button" class="pencil noprint" data-cat="${cat}:${r.user_id}" title="إضافة خصم" aria-label="إضافة خصم">${ico('edit')}</button>` : ''}`;
+    const pen = (r, cat) => `${money(cat === 'other' ? otherAmt(r) : mk(r, cat))}${cat === 'other' && r.loan_deduction > 0 ? info('lo', r) : ''}${canAdj(r) ? ` <button type="button" class="pencil noprint" data-cat="${cat}:${r.user_id}" title="إضافة خصم" aria-label="إضافة خصم">${ico('edit')}</button>` : ''}`;
     const cols = [
       ['الأساسي', 'tb', (r) => money(r.base_salary), () => money(tot('base_salary'))],
       ['البدلات', 'tb', (r) => money(r.allowances), () => money(tot('allowances')), (r) => `${money(r.allowances)}${r.allowances > 0 ? info('al', r) : ''}`],
@@ -53,7 +54,7 @@ PAGES.payroll = async (view) => {
       ['اجتماعي', 'tp', (r) => money(mk(r, 'social')), () => money(rows.reduce((x, r) => x + mk(r, 'social'), 0)), (r) => pen(r, 'social')],
       ['طبي', 'tp', (r) => money(mk(r, 'medical')), () => money(rows.reduce((x, r) => x + mk(r, 'medical'), 0)), (r) => pen(r, 'medical')],
       ['الضرائب', 'tp', (r) => money(mk(r, 'tax')), () => money(rows.reduce((x, r) => x + mk(r, 'tax'), 0)), (r) => pen(r, 'tax')],
-      ['أخرى', 'tp', (r) => money(mk(r, 'other')), () => money(rows.reduce((x, r) => x + mk(r, 'other'), 0)), (r) => pen(r, 'other')],
+      ['أخرى', 'tp', (r) => money(otherAmt(r)), () => money(rows.reduce((x, r) => x + otherAmt(r), 0)), (r) => pen(r, 'other')],
       ['مستحق الدفع', 'tw', (r) => money(r.net), () => money(tot('net'))],
       ['قيد الانتظار', 'tw', (r) => money(r.paid ? 0 : r.net), () => money(rows.reduce((x, r) => x + (r.paid ? 0 : r.net), 0))],
       ['مدفوع', 'tw', (r) => money(r.paid ? r.net : 0), () => money(rows.reduce((x, r) => x + (r.paid ? r.net : 0), 0)), (r) => `${money(r.paid ? r.net : 0)}${has('payroll.manage') && !r.paid && data.ended ? ` <button type="button" class="pencil noprint" data-pay="${r.user_id}" title="تسجيل الدفع" aria-label="تسجيل الدفع">${ico('edit')}</button>` : ''}`],
@@ -68,6 +69,7 @@ PAGES.payroll = async (view) => {
     view.querySelectorAll('[data-inf]').forEach((b) => (b.onclick = () => {
       const [k, id] = b.dataset.inf.split(':'), r = data.rows.find((x) => String(x.user_id) === id);
       if (k === 'pen') return penModal(r, data.month, load);
+      if (k === 'lo') return modal(`<h3>أقساط القروض</h3><p class="muted small" style="margin:0 0 10px"><b>${esc(r.name)}</b> · بتتخصم آخر يوم في الشهر</p><div class="tablewrap"><table class="ptinfo"><tr><th>القرض</th><th>القسط</th><th>تاريخ الاستحقاق</th><th>المبلغ</th></tr>${(r.loan_items || []).map((x) => `<tr><td>${esc(x.name)}</td><td>${x.n} من ${x.of}</td><td dir="ltr">${x.due}</td><td>${money(x.amount)}</td></tr>`).join('')}<tr class="tot"><td colspan="3">الإجمالي</td><td>${money(r.loan_deduction)}</td></tr></table></div><div class="actions" style="margin-top:12px"><button class="btn alt" data-close>إغلاق</button></div>`);
       const head = `<h3>${k === 'pen' ? 'الجزاءات' : 'البدلات'}</h3><p class="muted small" style="margin:0 0 10px"><b>${esc(r.name)}</b> · ${MONTHS_AR[Number(mm) - 1]} ${yy}</p>`;
       let body;
       if (k === 'pen') {

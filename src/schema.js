@@ -84,6 +84,20 @@ CREATE TABLE IF NOT EXISTS config_items (
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (${NOW})
 );
+CREATE TABLE IF NOT EXISTS loans (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL DEFAULT 'سلفة',
+  amount DOUBLE PRECISION NOT NULL,
+  installments INTEGER NOT NULL DEFAULT 1,
+  disbursed_on TEXT NOT NULL,
+  start_month TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active',
+  note TEXT DEFAULT '',
+  request_id INTEGER,
+  created_by INTEGER, created_by_name TEXT DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
 CREATE TABLE IF NOT EXISTS penalty_flags (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
