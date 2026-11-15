@@ -36,7 +36,7 @@ test('كل ملفات الواجهة بتتحمّل بالترتيب وبتسج�
   ctx.addEventListener = () => {}; ctx.matchMedia = () => ({ matches: false, addEventListener() {} }); ctx.Image = mk(); ctx.Blob = mk(); ctx.URL = { createObjectURL: () => '' };
   for (const f of scripts) vm.runInContext(fs.readFileSync(path.join(pub, f), 'utf8'), ctx, { filename: f });
   const pages = vm.runInContext('Object.keys(PAGES)', ctx);
-  for (const p of ['home', 'me', 'dashboard', 'employees', 'attendance', 'requests', 'payroll', 'reports', 'permissions', 'adjustments', 'tiers', 'set_company', 'set_attendance', 'set_finance', 'set_misc', 'menu']) assert.ok(pages.includes(p), 'صفحة ناقصة: ' + p);
+  for (const p of ['home', 'me', 'dashboard', 'employees', 'attendance', 'requests', 'payroll', 'reports', 'permissions', 'adjustments', 'tiers', 'set_company', 'set_attendance', 'set_finance', 'set_misc', 'menu', 'att_calendar', 'att_penalties', 'att_assign', 'att_taskrules', 'att_balance', 'att_open_in', 'att_checkins', 'att_open_shifts', 'requests_classic', 'req_out', 'req_settings']) assert.ok(pages.includes(p), 'صفحة ناقصة: ' + p);
 });
 
 test('ملفات السيرفر سليمة وكل require جوّاها بيلاقي ملفه', () => {

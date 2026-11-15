@@ -2,11 +2,12 @@
 /* pages/attendance-log.js — صفحة «سجل الحضور» وتفاصيل الحضور والتسجيل اليدوي */
 
 /* --- سجل الحضور للجميع --- */
-PAGES.attendance = async (view) => {
+ATT_VIEWS.attendance = async (view) => {
   const emps = has('employees.view') ? await api('/employees') : [];
-  const first = thisMonth() + '-01';
+  const af = S.attf || {}; S.attf = null;
+  const first = af.from || thisMonth() + '-01';
   view.innerHTML = `<div class="page-head"><h2>سجل الحضور</h2><div class="row noprint">${has('attendance.edit') ? '<button class="btn" id="man">+ تسجيل يدوي</button>' : ''}<button class="btn alt" id="exp">تصدير CSV</button></div></div>
-    <div class="card form" style="margin-bottom:12px;grid-template-columns:repeat(3,1fr)"><label class="f">من<input type="date" id="f1" value="${first}"></label><label class="f">إلى<input type="date" id="f2" value="${todayStr()}"></label>
+    <div class="card form" style="margin-bottom:12px;grid-template-columns:repeat(3,1fr)"><label class="f">من<input type="date" id="f1" value="${first}"></label><label class="f">إلى<input type="date" id="f2" value="${af.to || todayStr()}"></label>
     <label class="f">الموظف<select id="f3"><option value="">الكل</option>${emps.filter((e) => !e.is_admin).map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label></div><div id="al"></div>`;
   let rows = [];
   const load = async () => {

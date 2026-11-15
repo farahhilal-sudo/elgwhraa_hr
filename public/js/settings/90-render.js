@@ -29,7 +29,10 @@ async function renderSettings(view, top) {
         { k: 'week_start', l: 'بداية الأسبوع', t: 'select', o: DAYS.map((d, i) => [String(i), d]) },
         { sec: 'الحضور والأمان' }, { k: '_days' },
         { k: 'face_threshold', l: 'حساسية مطابقة الوجه (0.3 أشد – 0.7 أخف)', t: 'number', attrs: 'step="0.05" min="0.3" max="0.7"' },
-        { k: 'signup_enabled', l: 'السماح بإنشاء حساب جديد من صفحة الدخول (بيحتاج موافقتك)', t: 'check' }] });
+        { k: 'signup_enabled', l: 'السماح بإنشاء حساب جديد من صفحة الدخول (بيحتاج موافقتك)', t: 'check' },
+        { sec: 'الوقت الإضافي التلقائي' },
+        { k: 'overtime_minute_rate', l: 'قيمة الدقيقة الإضافية (جنيه)', t: 'number', attrs: 'step="0.1" min="0"', help: 'انصراف بعد نهاية الشفت (5:05 والشفت 5:00 = 5 دقايق) بيتحسب إضافي تلقائياً بالقيمة دي. الافتراضي 2 جنيه للدقيقة. لو الوردية مربوطة بسياسة إضافي بتحكم السياسة. لو صفر بيتحسب بأجر الساعة × معامل الإضافي' },
+        { k: 'overtime_auto_approve', l: 'اعتماد الوقت الإضافي التلقائي فوراً (لو مقفول بيستنى موافقة المدير)', t: 'check' }] });
     } else if (SIMPLE[cur]) await catalog(body, simpleSpec(cur, ...SIMPLE[cur]));
   } catch (e) { body.innerHTML = `<div class="card empty neg">${esc(e.message)}</div>`; }
 }

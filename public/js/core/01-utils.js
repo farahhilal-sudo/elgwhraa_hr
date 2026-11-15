@@ -11,7 +11,8 @@ const money = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDig
 const thisMonth = () => new Date().toLocaleDateString('en-CA', { timeZone: TZ }).slice(0, 7);
 const todayStr = () => new Date().toLocaleDateString('en-CA', { timeZone: TZ });
 const has = (p) => !!(S.me && S.me.user && (S.me.user.is_admin || S.me.user.permissions.includes(p)));
-const TYPES = () => (S.meta ? S.meta.request_types : {});
+const TYPES = () => (S.meta ? { ...S.meta.request_types, ...(S.meta.mgr_types || {}) } : {});
+const OWN_TYPES = () => (S.meta ? S.meta.request_types : {});
 const STATUS_AR = { pending: ['قيد الانتظار', 'b-warn'], approved: ['مقبول', 'b-ok'], rejected: ['مرفوض', 'b-bad'] };
 
 function toast(msg, err) {
@@ -21,7 +22,7 @@ function toast(msg, err) {
 }
 async function api(path, method = 'GET', body) {
   const r = await fetch('/api' + path, {
-    method, headers: { 'Content-Type': 'application/json', ...(S.token ? { Authorization: 'Bearer ' + S.token } : {}) },
+    method, headers: { 'Content-Type': 'application/json', ...(S.token ? { Authorization: 'Bearer ' + S.token } : {}), ...(IS_APP ? { 'X-App-Mode': '1' } : {}) },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await r.json().catch(() => ({}));

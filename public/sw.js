@@ -28,7 +28,7 @@ const SHELL = [
   '/css/19-dashboard-web.css',
   '/css/20-photos-maps.css',
   '/css/21-employee-profile.css',
-  '/css/22-employee-cards.css',
+  '/css/22-attendance-requests-tabs.css',
   '/js/core/01-utils.js',
   '/js/core/02-media.js',
   '/js/core/03-face-location.js',
@@ -45,8 +45,10 @@ const SHELL = [
   '/js/pages/employees-tabs.js',
   '/js/pages/employees.js',
   '/js/pages/employee-form.js',
+  '/js/pages/attendance-tabs.js',
   '/js/pages/attendance-log.js',
   '/js/pages/requests.js',
+  '/js/pages/requests-tabs.js',
   '/js/pages/payroll.js',
   '/js/pages/reports.js',
   '/js/pages/permissions.js',
@@ -77,7 +79,7 @@ self.addEventListener('activate', (e) => {
 });
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  if (e.request.method === 'GET' && ['cdn.jsdelivr.net', 'fastly.jsdelivr.net', 'unpkg.com'].includes(url.hostname) && url.pathname.includes('face-api')) {
+  if (e.request.method === 'GET' && url.hostname === 'cdn.jsdelivr.net' && url.pathname.includes('face-api')) {
     e.respondWith(caches.open(FACE).then((c) => c.match(e.request).then((hit) => hit || fetch(e.request).then((r) => { if (r.ok) c.put(e.request, r.clone()); return r; }))));
     return;
   }

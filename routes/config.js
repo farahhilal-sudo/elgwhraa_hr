@@ -13,10 +13,12 @@ const CONFIG_KINDS = new Set(['schedule', 'department', 'grade', 'position', 'ac
   'leave_profile', 'leave_type', 'holiday', 'compensation_rule', 'holiday_limit', 'payroll_preset', 'allowance', 'deduction',
   'expense_category', 'payroll_lieu', 'payslip_display', 'document', 'automation_rule', 'override_rule',
   'penalty_policy', 'overtime_policy', 'leave_template',
-  'work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template']);
+  'work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template',
+  'assignment', 'task_rule', 'open_shift', 'att_template', 'req_template']);
+const ATT_KINDS = new Set(['assignment', 'task_rule', 'open_shift', 'att_template']);
 const HR_KINDS = new Set(['work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template']);
 const cfgAuth = (req, res, next) => {
-  const ok = HR_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'employees.view' : 'employees.manage') : can(req.user, 'settings.manage');
+  const ok = req.params.kind === 'req_template' ? can(req.user, 'requests.view_all') : ATT_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'attendance.view_all' : 'attendance.edit') : HR_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'employees.view' : 'employees.manage') : can(req.user, 'settings.manage');
   return ok ? next() : res.status(403).json({ error: 'ليس لديك صلاحية لهذا الإجراء' });
 };
 const cfgKind = (req, res, next) => (CONFIG_KINDS.has(req.params.kind) ? next() : res.status(404).json({ error: 'نوع غير معروف' }));

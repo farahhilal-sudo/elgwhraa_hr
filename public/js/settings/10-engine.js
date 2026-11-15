@@ -31,17 +31,18 @@ const showVal = (f, v) => {
 /* --- محرك القوائم (بحث + تابات + شرائح + ترقيم + نموذج) --- */
 async function catalog(box, sp) {
   const PS = 10;
-  const st = { tab: sp.tabs[0][0], chip: sp.chips ? sp.chips[0][0] : '', q: '', sel: '', page: 1, open: {}, tpl: '' };
+  const st = { tab: sp.tabs[0][0], chip: sp.chips ? sp.chips[0][0] : '', q: '', sel: '', page: 1, open: {}, tpl: '', from: sp.range ? sp.range.from : '', to: sp.range ? sp.range.to : '' };
+  const hasAct = !sp.readOnly || !!sp.extra || !!sp.rowActs;
   let items = [], tpls = [];
   const getFields = () => [sp.nameField || { k: 'name', l: sp.nameLabel || 'الاسم', req: true, full: true }, ...(typeof sp.fields === 'function' ? sp.fields() : sp.fields), ...(sp.noStatus ? [] : [{ k: 'active', l: 'الحالة', t: 'select', o: sp.statusOpts || [['1', 'نشط'], ['0', 'غير نشط']] }])];
-  const reload = async () => { items = await sp.load(); draw(); };
+  const reload = async () => { items = await sp.load(st); draw(); };
   const filtered = () => {
     const tp = (sp.tabs.find((x) => x[0] === st.tab) || sp.tabs[0])[2];
     const cp = sp.chips ? (sp.chips.find((x) => x[0] === st.chip) || sp.chips[0])[2] : null;
     const q = st.q.trim().toLowerCase();
     return items.filter((it) => tp(it) && (!cp || cp(it)) && (!st.sel || sp.sel.pred(it, st.sel)) && (!q || sp.text(it).toLowerCase().includes(q)));
   };
-  const actions = (it) => (sp.rowActs ? sp.rowActs(it) : `<div class="racts">${sp.extra ? sp.extra(it) : ''}<button class="sqb" data-a="edit" data-id="${it.id}" title="تعديل">${ico('edit')}</button><button class="sqb" data-a="del" data-id="${it.id}" title="حذف">${ico('trash')}</button></div>`);
+  const actions = (it) => (sp.rowActs ? sp.rowActs(it) : `<div class="racts">${sp.extra ? sp.extra(it) : ''}${sp.readOnly ? '' : `<button class="sqb" data-a="edit" data-id="${it.id}" title="تعديل">${ico('edit')}</button><button class="sqb" data-a="del" data-id="${it.id}" title="حذف">${ico('trash')}</button>`}</div>`);
   const doAct = (a, it, el) => {
     if (a === 'edit') openForm(it);
     else if (a === 'del') { if (confirm(typeof sp.delMsg === 'function' ? sp.delMsg(it) : (sp.delMsg || 'حذف العنصر ده؟'))) run(el, async () => { await sp.remove(it); toast('تم الحذف'); reload(); }); }
@@ -54,9 +55,9 @@ async function catalog(box, sp) {
     const from = (st.page - 1) * PS, part = rows.slice(from, from + PS);
     const rowHtml = (it) => {
       const open = sp.expand && st.open[it.id];
-      return `<tr>${sp.cols.map((c, ci) => `<td>${ci === 0 && sp.expand ? `<div class="xcell">${c[1](it)}<button class="xbtn ${open ? 'on' : ''}" data-x="${it.id}" aria-label="تفاصيل">${ico('chev')}</button></div>` : c[1](it)}</td>`).join('')}<td class="actcol">${actions(it)}</td></tr>${open ? `<tr class="xrow"><td colspan="${sp.cols.length + 1}">${sp.expand(it)}</td></tr>` : ''}`;
+      return `<tr>${sp.cols.map((c, ci) => `<td>${ci === 0 && sp.expand ? `<div class="xcell">${c[1](it)}<button class="xbtn ${open ? 'on' : ''}" data-x="${it.id}" aria-label="تفاصيل">${ico('chev')}</button></div>` : c[1](it)}</td>`).join('')}${hasAct ? `<td class="actcol">${actions(it)}</td>` : ''}</tr>${open ? `<tr class="xrow"><td colspan="${sp.cols.length + 1}">${sp.expand(it)}</td></tr>` : ''}`;
     };
-    $('#stab', box).innerHTML = `<div class="tablewrap st"><table><thead><tr>${sp.cols.map((c) => `<th>${c[0]}</th>`).join('')}<th class="actcol">${sp.actHead || ''}</th></tr></thead>
+    $('#stab', box).innerHTML = `<div class="tablewrap st"><table><thead><tr>${sp.cols.map((c) => `<th>${c[0]}</th>`).join('')}${hasAct ? `<th class="actcol">${sp.actHead || ''}</th>` : ''}</tr></thead>
       <tbody>${part.map(rowHtml).join('') || `<tr><td colspan="${sp.cols.length + 1}" class="empty">لا توجد نتائج</td></tr>`}</tbody></table></div>
       <div class="pager"><button class="pg" data-pg="${st.page - 1}" ${st.page <= 1 ? 'disabled' : ''}>${ico('chev', 'rot90')}</button>
         ${Array.from({ length: pages }, (_, i) => `<button class="pg ${i + 1 === st.page ? 'on' : ''}" data-pg="${i + 1}">${i + 1}</button>`).join('')}
@@ -86,15 +87,17 @@ async function catalog(box, sp) {
     const segT = sp.tabs.length > 1 ? seg(sp.tabs, 'tab', 'tb') : '', segC = sp.chips ? seg(sp.chips, 'chip', 'cp', items.filter(tp)) : '';
     $('#sfil', box).innerHTML = `${sp.tpl ? tplRow() : ''}${sp.chipsFirst ? segC + segT : segT + segC}
       <label class="fs">${ico('search')}<input id="sq" placeholder="${sp.searchPh || 'بحث'}" value="${esc(st.q)}" autocomplete="off"></label>
-      ${sp.sel ? `<select id="ssel" class="fsel"><option value="">${sp.sel.ph || 'الكل'}</option>${sp.sel.opts.map(([v, l]) => `<option value="${esc(v)}" ${v === st.sel ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
+      ${sp.range ? `<label class="dt">${ico('calendar')}<input type="date" id="sfrom" value="${st.from}"></label><label class="dt">${ico('calendar')}<input type="date" id="sto" value="${st.to}"></label>` : ''}
+      ${sp.sel ? `<select id="ssel" class="fsel"><option value="">${sp.sel.ph || 'الكل'}</option>${(typeof sp.sel.opts === 'function' ? sp.sel.opts(items) : sp.sel.opts).map(([v, l]) => `<option value="${esc(v)}" ${v === st.sel ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>` : ''}
       <button class="link rs" id="srs">${ico('filter')} إعادة تعيين المرشحات</button><span class="grow"></span>${sp.extraBtn || ''}
-      <button class="btn sm" id="snew">${ico('plus')} ${sp.newLabel}</button>`;
+      ${sp.readOnly ? '' : `<button class="btn sm" id="snew">${ico('plus')} ${sp.newLabel}</button>`}`;
     box.querySelectorAll('[data-tb]').forEach((b) => (b.onclick = () => { st.tab = b.dataset.tb; st.page = 1; draw(); }));
     box.querySelectorAll('[data-cp]').forEach((b) => (b.onclick = () => { st.chip = b.dataset.cp; st.page = 1; draw(); }));
     $('#sq', box).oninput = (e) => { st.q = e.target.value; st.page = 1; tdraw(); };
     if ($('#ssel', box)) $('#ssel', box).onchange = (e) => { st.sel = e.target.value; st.page = 1; tdraw(); };
-    $('#srs', box).onclick = () => { Object.assign(st, { tab: sp.tabs[0][0], chip: sp.chips ? sp.chips[0][0] : '', q: '', sel: '', page: 1, tpl: '' }); draw(); };
-    $('#snew', box).onclick = () => openForm(null);
+    if (sp.range) { const rl = () => { st.from = $('#sfrom', box).value; st.to = $('#sto', box).value; st.page = 1; reload().catch((e) => toast(e.message, true)); }; $('#sfrom', box).onchange = rl; $('#sto', box).onchange = rl; }
+    $('#srs', box).onclick = () => { Object.assign(st, { tab: sp.tabs[0][0], chip: sp.chips ? sp.chips[0][0] : '', q: '', sel: '', page: 1, tpl: '', from: sp.range ? sp.range.from : '', to: sp.range ? sp.range.to : '' }); if (sp.range) reload().catch((e) => toast(e.message, true)); else draw(); };
+    if ($('#snew', box)) $('#snew', box).onclick = () => openForm(null);
     if (sp.bindExtra) sp.bindExtra(box, reload);
     if (sp.tpl) {
       $('#tsel', box).onchange = (e) => {
@@ -123,7 +126,7 @@ async function catalog(box, sp) {
     }); };
   }
   box.innerHTML = '<div class="sfil" id="sfil"></div><div id="stab"></div>';
-  items = await sp.load();
+  items = await sp.load(st);
   if (sp.tpl) tpls = await api('/config/' + sp.tpl).catch(() => []);
   draw();
 }

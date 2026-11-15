@@ -5,13 +5,15 @@ const { auth, wrap } = require('../src/middleware');
 const { settings, tzParts } = require('../src/bootstrap');
 const { allowedLocations, can, faceDistance, parsePhoto, toId, validDescriptor } = require('../src/helpers');
 const { db } = require('../src/db');
-const { getPolicyCtx, graceOf } = require('../src/payroll-engine');
+const { getPolicyCtx, graceOf, syncAutoOvertime } = require('../src/payroll-engine');
 
 
 module.exports = function register(app) {
 
 /* ----- تسجيل الحضور والانصراف ----- */
 app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
+  // تسجيل الحضور والانصراف من التطبيق المثبّت فقط (التطبيق بيبعت الهيدر ده)
+  if (req.get('x-app-mode') !== '1') return res.status(403).json({ error: 'تسجيل الحضور والانصراف من التطبيق فقط. افتحي التطبيق المثبّت على موبايلك.' });
   const { type, lat, lng, descriptor, photo } = req.body || {};
   if (!['in', 'out'].includes(type)) return res.status(400).json({ error: 'نوع غير صالح' });
   const u = req.user, st = await settings();
@@ -57,6 +59,7 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
     const early = Math.max(0, toMin(u.shift_end) - now.minutes);
     const up = await db.run('UPDATE attendance SET check_out=?,out_lat=?,out_lng=?,out_face=?,early_minutes=?,out_loc=? WHERE id=? AND check_out IS NULL', iso, la, ln, score, early, where, rec.id);
     if (!up.rowCount) return res.status(409).json({ error: 'تم تسجيل الانصراف اليوم بالفعل' });
+    await syncAutoOvertime(u, now.date, now.minutes, st); // الدقايق بعد نهاية الشفت بتتحسب إضافي
   }
   const saved = await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date);
   try { // الصورة دليل إضافي، فلو فشل حفظها ما نفشّلش التسجيل نفسه

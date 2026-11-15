@@ -22,19 +22,23 @@ function reqTable(rows, manage) {
 function requestForm(done, preset = {}) {
   const t = preset.date || todayStr();
   const o = modal(`<h3>طلب جديد</h3><form class="form" id="rf">
-    <label class="f full">نوع الطلب<select name="type">${Object.entries(TYPES()).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
+    <label class="f full">نوع الطلب<select name="type">${Object.entries(OWN_TYPES()).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
     <label class="f">من تاريخ<input type="date" name="from_date" value="${t}" required></label>
     <label class="f" id="tod">إلى تاريخ<input type="date" name="to_date" value="${t}" required></label>
     <label class="f full" id="hrs" hidden>عدد الساعات<input type="number" name="hours" min="0.25" max="24" step="0.25"></label>
+    <label class="f full" id="amt" hidden>المبلغ<input type="number" name="amount" min="1" step="0.01"></label>
+    <label class="f full" id="ptn" hidden>الزميل<select name="partner"><option value="">— اختاري —</option></select></label>
     <label class="f full">السبب / ملاحظات<textarea name="reason" rows="3" maxlength="500"></textarea></label>
     <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">إرسال الطلب</button></div></form>`);
   const f = $('#rf', o);
   if (preset.type) f.type.value = preset.type;
-  const sync = () => { const h = ['overtime', 'permission'].includes(f.type.value); $('#hrs', o).hidden = !h; $('#tod', o).hidden = h || f.type.value === 'attendance_edit'; };
+  const sync = () => { const h = ['overtime', 'permission'].includes(f.type.value), t = f.type.value; $('#hrs', o).hidden = !h; $('#amt', o).hidden = !['expense', 'loan'].includes(t); $('#ptn', o).hidden = !['shift_swap', 'leave_swap'].includes(t); $('#tod', o).hidden = h || ['attendance_edit', 'expense', 'loan', 'shift_swap'].includes(t); };
+  api('/colleagues').then((l) => { $('select[name=partner]', o).innerHTML += l.map((u) => `<option value="${u.id}">${esc(u.name)}</option>`).join(''); }).catch(() => {});
   f.type.onchange = sync; sync();
   f.from_date.onchange = () => { if (f.to_date.value < f.from_date.value) f.to_date.value = f.from_date.value; };
   f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
-    await api('/requests', 'POST', { type: f.type.value, from_date: f.from_date.value, to_date: f.to_date.value, hours: f.hours.value, reason: f.reason.value });
+    const pt = f.partner && f.partner.value ? { partner_id: Number(f.partner.value), partner_name: f.partner.selectedOptions[0].textContent } : {};
+    await api('/requests', 'POST', { type: f.type.value, from_date: f.from_date.value, to_date: f['to_date'].value, hours: f.hours.value, reason: f.reason.value, amount: f.amount.value || 0, meta: pt });
     o.close(); toast('تم إرسال الطلب'); done();
   }); };
 }

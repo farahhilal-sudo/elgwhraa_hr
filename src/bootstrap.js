@@ -34,6 +34,10 @@ async function init() {
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality TEXT DEFAULT ''");
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS manager_id INTEGER');
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS leave_profile_id INTEGER');
+  await pool.query('ALTER TABLE requests ADD COLUMN IF NOT EXISTS auto INTEGER NOT NULL DEFAULT 0');
+  await pool.query('ALTER TABLE requests ADD COLUMN IF NOT EXISTS amount DOUBLE PRECISION NOT NULL DEFAULT 0');
+  await pool.query('ALTER TABLE requests ADD COLUMN IF NOT EXISTS created_by INTEGER');
+  await pool.query("ALTER TABLE requests ADD COLUMN IF NOT EXISTS meta TEXT NOT NULL DEFAULT '{}'");
   // بيانات الملف الشخصي: كود الموظف وتاريخ الميلاد والنوع والحالة الاجتماعية والهوية الوطنية
   for (const c of ['employee_code', 'birth_date', 'gender', 'marital_status', 'national_id']) await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${c} TEXT DEFAULT ''`);
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_code ON users(employee_code) WHERE employee_code <> ''");
@@ -86,4 +90,4 @@ function tzParts(date = new Date()) {
 const getJwtSecret = () => jwtSecret; // بيستخدمه الـ auth والـ login وتغيير كلمة المرور (المتغيّر نفسه جوه الوحدة دي)
 const resetSettingsCache = () => { settingsCache = null; }; // لمّا الإعدادات تتغيّر نحمّلها فوراً
 
-module.exports = { getJwtSecret, jwtSecret, putSetting, ready, resetSettingsCache, settings, settingsCache, tzParts };
+module.exports = { getJwtSecret, putSetting, ready, resetSettingsCache, settings, tzParts };

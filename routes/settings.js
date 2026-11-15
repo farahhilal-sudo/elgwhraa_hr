@@ -2,7 +2,7 @@
 /* routes/settings.js — سجل التدقيق والإعدادات العامة */
 const { adminOnly, auth, need, wrap } = require('../src/middleware');
 const { db } = require('../src/db');
-const { putSetting, resetSettingsCache, settings, settingsCache } = require('../src/bootstrap');
+const { putSetting, resetSettingsCache, settings } = require('../src/bootstrap');
 const { DEFAULT_SETTINGS } = require('../src/constants');
 const { audit } = require('../src/helpers');
 
@@ -24,8 +24,8 @@ app.put('/api/settings', auth, need('settings.manage'), wrap(async (req, res) =>
     if (b[k] === undefined) continue;
     const v = String(b[k]).trim();
     if (['work_lat', 'work_lng'].includes(k) && v !== '' && !isFinite(Number(v))) return res.status(400).json({ error: 'إحداثيات غير صحيحة' });
-    if (['radius_m', 'grace_minutes', 'late_factor', 'absence_factor', 'overtime_factor'].includes(k) && !(Number(v) >= 0)) return res.status(400).json({ error: 'قيمة رقمية غير صحيحة' });
-    if (k === 'signup_enabled' && !['0', '1'].includes(v)) return res.status(400).json({ error: 'قيمة غير صحيحة' });
+    if (['radius_m', 'grace_minutes', 'late_factor', 'absence_factor', 'overtime_factor', 'overtime_minute_rate'].includes(k) && !(Number(v) >= 0)) return res.status(400).json({ error: 'قيمة رقمية غير صحيحة' });
+    if (['signup_enabled', 'overtime_auto_approve'].includes(k) && !['0', '1'].includes(v)) return res.status(400).json({ error: 'قيمة غير صحيحة' });
     if (k === 'face_threshold' && !(Number(v) >= 0.3 && Number(v) <= 0.7)) return res.status(400).json({ error: 'حساسية الوجه بين 0.3 و 0.7' });
     if (k === 'timezone') {
       try { new Intl.DateTimeFormat('en', { timeZone: v }); } catch { return res.status(400).json({ error: 'المنطقة الزمنية غير صحيحة' }); }

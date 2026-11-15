@@ -11,6 +11,10 @@ function installApp() {
     <p class="muted small">بعد التثبيت افتحيه من أيقونته على الشاشة، وهيظهر كتطبيق بشريط سفلي من غير شريط المتصفح.</p><div class="actions"><button class="btn" data-close>تمام</button></div>`);
 }
 // قائمة بمجموعات (زي الشاشة): عنصر مفرد أو مجموعة فيها عناصر فرعية
+const ATT_TABS = [
+  ['att_calendar', 'تقويم العمل', 'users'], ['attendance', 'سجل الحضور', 'clock'], ['att_penalties', 'الجزاءات', 'grid'], ['att_assign', 'التكليفات', 'clock'],
+  ['att_taskrules', 'قواعد المهام', 'clock'], ['att_balance', 'سجل الرصيد', 'file'], ['att_open_in', 'تسجيلات الوصول المفتوحة', 'file'], ['att_checkins', 'تسجيلات الوصول', 'file'], ['att_open_shifts', 'الورديات المفتوحة', 'clock'],
+];
 const MENU = [
   { id: 'dashboard', ic: 'grid', t: 'لوحة المعلومات', ok: () => has('dashboard.view') },
   { id: 'me', ic: 'user', t: 'حسابي', ok: () => true },
@@ -21,9 +25,11 @@ const MENU = [
     ['transfers_log', 'سجل النقل', () => has('employees.view'), 'file'], ['title_changes', 'تغيير المسمى الوظيفي', () => has('employees.view'), 'users'],
     ['suspension_log', 'سجل الإيقاف', () => has('employees.view'), 'file'], ['pending_suspensions', 'الإيقافات المعلقة', () => has('employees.view'), 'file'],
     ['permissions', 'الصلاحيات', () => S.me.user.is_admin, 'lock']] },
-  { id: 'requests', ic: 'file', t: 'الطلبات', ok: () => has('requests.view_all') },
+  { g: 'rq', ic: 'file', t: 'الطلبات', items: [
+    ['requests', 'وارد', () => has('requests.view_all'), 'rq_in'], ['req_out', 'صادر', () => true, 'rq_out'], ['req_settings', 'الإعدادات', () => has('settings.manage'), 'rq_gear']] },
   { g: 'att', ic: 'clock', t: 'الحضور', items: [
-    ['home', 'تسجيل الحضور', () => true], ['attendance', 'سجل الحضور', () => has('attendance.view_all')]] },
+    ['home', 'تسجيل الحضور', () => IS_APP, 'clock'], // تسجيل الحضور من التطبيق فقط (مفيش صفحة تسجيل في الويب)
+    ...ATT_TABS.map(([k, l, ic]) => [k, l, () => has('attendance.view_all'), ic])] },
   { g: 'fin', ic: 'wallet', t: 'المالية', items: [
     ['payroll', 'المرتبات والخصومات', () => has('payroll.view')], ['adjustments', 'المكافآت والجزاءات', () => has('payroll.view')], ['tiers', 'شرائح خصم التأخير', () => has('settings.manage')]] },
   { id: 'reports', ic: 'chart', t: 'التقارير', ok: () => has('reports.view') },
@@ -34,7 +40,7 @@ const MENU = [
     ['set_misc', 'إعدادات متنوعة', () => has('settings.manage'), 'sliders']] },
 ];
 const menuVisible = () => MENU.map((m) => (m.g ? { ...m, items: m.items.filter((i) => i[2]()) } : m)).filter((m) => (m.g ? m.items.length : m.ok()));
-const allPages = () => menuVisible().flatMap((m) => (m.g ? m.items.map((i) => i[0]) : [m.id]));
+const allPages = () => [...menuVisible().flatMap((m) => (m.g ? m.items.map((i) => i[0]) : [m.id])), ...(has('requests.view_all') ? ['requests_classic'] : [])];
 function go(page, opts = {}) { S.empProfileId = null; S.page = page; if (opts.tab) S.metab = opts.tab; S.q = opts.q || ''; renderShell(); window.scrollTo(0, 0); }
 function menuHtml(sheet) {
   return menuVisible().map((m) => {
@@ -55,7 +61,7 @@ function menuSheet() {
 }
 function renderShell() {
   S.open = S.open || {};
-  if (!allPages().includes(S.page) && !(IS_APP && (S.page === 'menu' || S.page === 'dashboard'))) S.page = 'home';
+  if (!allPages().includes(S.page) && !(IS_APP && (S.page === 'menu' || S.page === 'dashboard'))) S.page = IS_APP ? 'home' : (allPages().includes('dashboard') ? 'dashboard' : allPages()[0] || 'me'); // الويب مفيهوش صفحة تسجيل حضور
   S.pg = {};
   const u = S.me.user, canSearch = has('employees.view');
   const third = has('employees.view') ? ['employees', 'الموظفون', 'b_team'] : ['me:attendance', 'سجلي', 'b_clock'];

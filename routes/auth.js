@@ -5,8 +5,8 @@ const jwt = require('jsonwebtoken');
 const { auth, wrap } = require('../src/middleware');
 const { db } = require('../src/db');
 const { USERNAME_RE, allowedLocations, audit, limited, notifyManagers, publicUser, pwVersion, validDescriptor } = require('../src/helpers');
-const { getJwtSecret, jwtSecret, settings, tzParts } = require('../src/bootstrap');
-const { PERMISSIONS, REQUEST_TYPES } = require('../src/constants');
+const { getJwtSecret, settings, tzParts } = require('../src/bootstrap');
+const { MGR_TYPES, PERMISSIONS, REQUEST_TYPES } = require('../src/constants');
 const { getPolicyCtx, graceOf } = require('../src/payroll-engine');
 
 
@@ -79,7 +79,10 @@ app.post('/api/forgot-password', wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
-app.get('/api/meta', (req, res) => res.json({ permissions: PERMISSIONS, request_types: REQUEST_TYPES }));
+app.get('/api/meta', (req, res) => res.json({ permissions: PERMISSIONS, request_types: REQUEST_TYPES, mgr_types: MGR_TYPES }));
+app.get('/api/colleagues', auth, wrap(async (req, res) => {
+  res.json((await db.all('SELECT id,name,department,job_title FROM users WHERE active=1 AND is_admin=0 AND pending=0 ORDER BY name')).filter((u) => u.id !== req.user.id));
+}));
 
 app.get('/api/me', auth, wrap(async (req, res) => {
   const st = await settings();

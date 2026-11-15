@@ -5,8 +5,8 @@ const { tzParts } = require('../src/bootstrap');
 const { NOW, db } = require('../src/db');
 const { getPolicyCtx, profileOf } = require('../src/payroll-engine');
 const { auth, need, wrap } = require('../src/middleware');
-const { audit, notify, notifyManagers, toId } = require('../src/helpers');
-const { REQUEST_TYPES } = require('../src/constants');
+const { audit, can, notify, notifyManagers, toId } = require('../src/helpers');
+const { ALL_TYPES, AMOUNT_TYPES, LEAVE_TYPES, MGR_TYPES, ON_BEHALF, REQUEST_TYPES } = require('../src/constants');
 const { parseCfg } = require('../src/shared');
 
 
@@ -82,22 +82,31 @@ app.get('/api/employees/:id/summary', auth, need('employees.view'), wrap(async (
 }));
 
 app.post('/api/requests', auth, wrap(async (req, res) => {
-  const { type, from_date, to_date, hours = 0, reason = '' } = req.body || {};
-  if (!REQUEST_TYPES[type]) return res.status(400).json({ error: 'نوع الطلب غير صالح' });
+  const { type, from_date, to_date, hours = 0, reason = '', amount = 0, meta = {}, user_id } = req.body || {};
+  if (!ALL_TYPES[type]) return res.status(400).json({ error: 'نوع الطلب غير صالح' });
+  const isMgr = !!MGR_TYPES[type];
+  if (isMgr && !can(req.user, 'requests.approve')) return res.status(403).json({ error: 'ليس لديك صلاحية لهذا النوع من الطلبات' });
+  let target = req.user;
+  if (ON_BEHALF.includes(type)) {
+    target = toId(user_id) && await db.get('SELECT * FROM users WHERE id=? AND active=1', toId(user_id));
+    if (!target || (target.is_admin && !req.user.is_admin)) return res.status(400).json({ error: 'اختاري الموظف' });
+  }
+  if (AMOUNT_TYPES.includes(type) && !(Number(amount) > 0)) return res.status(400).json({ error: 'اكتبي المبلغ' });
   if (!isDate(from_date) || !isDate(to_date) || to_date < from_date) return res.status(400).json({ error: 'التواريخ غير صحيحة' });
   if (daysBetween(from_date, to_date) > 366) return res.status(400).json({ error: 'مدة الطلب لا تزيد عن 366 يوم' });
   const ruleErr = await checkLeaveRules(req.user, type, from_date, to_date);
   if (ruleErr) return res.status(400).json({ error: ruleErr });
   if (['overtime', 'permission'].includes(type) && !(Number(hours) > 0 && Number(hours) <= 24)) return res.status(400).json({ error: 'حددي عدد الساعات' });
-  const id = await db.insert('INSERT INTO requests(user_id,type,from_date,to_date,hours,reason) VALUES(?,?,?,?,?,?)',
-    req.user.id, type, from_date, ['overtime', 'permission', 'attendance_edit'].includes(type) ? from_date : to_date, Number(hours) || 0, String(reason).slice(0, 500));
-  await notifyManagers(`طلب جديد (${REQUEST_TYPES[type]}) من ${req.user.name}`, req.user.id);
+  const metaStr = JSON.stringify(meta && typeof meta === 'object' ? meta : {}).slice(0, 800);
+  const id = await db.insert('INSERT INTO requests(user_id,type,from_date,to_date,hours,reason,amount,created_by,meta) VALUES(?,?,?,?,?,?,?,?,?)',
+    target.id, type, from_date, ['overtime', 'permission', 'attendance_edit', 'expense', 'loan', ...Object.keys(MGR_TYPES)].includes(type) ? from_date : to_date, Number(hours) || 0, String(reason).slice(0, 500), Number(amount) || 0, req.user.id, metaStr);
+  await notifyManagers(`طلب جديد (${ALL_TYPES[type]}) من ${req.user.name}${target.id !== req.user.id ? ' بخصوص ' + target.name : ''}`, req.user.id);
   res.json({ id });
 }));
 
 app.delete('/api/requests/:id', auth, wrap(async (req, res) => {
   const id = toId(req.params.id);
-  const r = id && await db.get('SELECT * FROM requests WHERE id=? AND user_id=?', id, req.user.id);
+  const r = id && await db.get('SELECT * FROM requests WHERE id=? AND (user_id=? OR created_by=?)', id, req.user.id, req.user.id);
   if (!r) return res.status(404).json({ error: 'غير موجود' });
   if (r.status !== 'pending') return res.status(400).json({ error: 'لا يمكن حذف طلب تم البت فيه' });
   await db.run('DELETE FROM requests WHERE id=?', r.id);
@@ -107,10 +116,38 @@ app.delete('/api/requests/:id', auth, wrap(async (req, res) => {
 app.get('/api/requests', auth, need('requests.view_all'), wrap(async (req, res) => {
   const { status } = req.query;
   const filter = ['pending', 'approved', 'rejected'].includes(status);
-  res.json(await db.all(`SELECT r.*, u.name AS user_name, u.job_title FROM requests r JOIN users u ON u.id=r.user_id
-    ${filter ? 'WHERE r.status=?' : ''} ORDER BY r.id DESC LIMIT 300`, ...(filter ? [status] : [])));
+  const w = [], args = [];
+  if (filter) { w.push('r.status=?'); args.push(status); }
+  if (isDate(req.query.from)) { w.push('r.from_date>=?'); args.push(req.query.from); }
+  if (isDate(req.query.to)) { w.push('r.from_date<=?'); args.push(req.query.to); }
+  res.json(await db.all(`SELECT r.*, u.name AS user_name, u.job_title, u.department, u.username, u.phone, u.location_ids, cb.name AS created_by_name
+    FROM requests r JOIN users u ON u.id=r.user_id LEFT JOIN users cb ON cb.id=r.created_by
+    ${w.length ? 'WHERE ' + w.join(' AND ') : ''} ORDER BY r.id DESC LIMIT 1500`, ...args));
+}));
+// الصادر: الطلبات اللي أنا قدمتها (لنفسي أو بخصوص موظف)
+app.get('/api/requests/outgoing', auth, wrap(async (req, res) => {
+  const w = ['(r.user_id=? OR r.created_by=?)'], args = [req.user.id, req.user.id];
+  if (isDate(req.query.from)) { w.push('r.from_date>=?'); args.push(req.query.from); }
+  if (isDate(req.query.to)) { w.push('r.from_date<=?'); args.push(req.query.to); }
+  res.json(await db.all(`SELECT r.*, u.name AS user_name, u.job_title, u.department, cb.name AS created_by_name
+    FROM requests r JOIN users u ON u.id=r.user_id LEFT JOIN users cb ON cb.id=r.created_by WHERE ${w.join(' AND ')} ORDER BY r.id DESC LIMIT 1000`, ...args));
 }));
 
+// أثر الطلبات اللي ليها تنفيذ فعلي بعد القبول
+async function applyRequestEffect(r, by) {
+  let meta = {}; try { meta = JSON.parse(r.meta || '{}'); } catch { /* تجاهل */ }
+  const month = r.from_date.slice(0, 7), why = `${ALL_TYPES[r.type]}${r.reason ? ': ' + r.reason : ''}`.slice(0, 200);
+  if (['bonus_req', 'allowance_req'].includes(r.type) && r.amount > 0) await db.run('INSERT INTO adjustments(user_id,month,kind,amount,reason,created_by) VALUES(?,?,?,?,?,?)', r.user_id, month, 'bonus', r.amount, why, by.id);
+  else if (r.type === 'deduction_req' && r.amount > 0) await db.run('INSERT INTO adjustments(user_id,month,kind,amount,reason,created_by) VALUES(?,?,?,?,?,?)', r.user_id, month, 'deduction', r.amount, why, by.id);
+  else if (r.type === 'suspend_req') await db.run('UPDATE users SET active=0 WHERE id=? AND is_admin=0', r.user_id);
+  else if (r.type === 'transfer_req') {
+    const u = await db.get('SELECT * FROM users WHERE id=?', r.user_id);
+    if (u) {
+      await db.run("UPDATE users SET department=COALESCE(NULLIF(?,''),department), job_title=COALESCE(NULLIF(?,''),job_title) WHERE id=?", String(meta.department || ''), String(meta.job_title || ''), u.id);
+      await db.run('INSERT INTO config_items(kind,name,data) VALUES(?,?,?)', 'transfer', u.name, JSON.stringify({ from: [u.department, u.job_title].filter(Boolean).join(' / ') || '—', to: [meta.department || u.department, meta.job_title || u.job_title].filter(Boolean).join(' / ') || '—', date: r.from_date, reason: r.reason || '' }));
+    }
+  } else if (r.type === 'schedule_req' && /^\d{2}:\d{2}$/.test(meta.start || '') && /^\d{2}:\d{2}$/.test(meta.end || '')) await db.run('UPDATE users SET shift_start=?, shift_end=? WHERE id=?', meta.start, meta.end, r.user_id);
+}
 app.post('/api/requests/:id/decide', auth, need('requests.approve'), wrap(async (req, res) => {
   const { decision, note = '' } = req.body || {};
   if (!['approved', 'rejected'].includes(decision)) return res.status(400).json({ error: 'قرار غير صالح' });
@@ -121,7 +158,8 @@ app.post('/api/requests/:id/decide', auth, need('requests.approve'), wrap(async 
   await db.run(`UPDATE requests SET status=?, decided_by=?, decided_at=${NOW}, decision_note=? WHERE id=?`,
     decision, req.user.id, String(note).slice(0, 300), r.id);
   await audit(req, 'request.' + decision, `#${r.id} ${REQUEST_TYPES[r.type]}`, `user_id=${r.user_id}`);
-  await notify(r.user_id, `تم ${decision === 'approved' ? 'قبول' : 'رفض'} طلبك (${REQUEST_TYPES[r.type]})`);
+  if (decision === 'approved' && r.status !== 'approved') await applyRequestEffect(r, req.user);
+  await notify(r.user_id, `تم ${decision === 'approved' ? 'قبول' : 'رفض'} طلبك (${ALL_TYPES[r.type] || r.type})`);
   res.json({ ok: true });
 }));
 };

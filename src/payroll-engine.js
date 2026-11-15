@@ -1,11 +1,12 @@
 'use strict';
 /* src/payroll-engine.js — محرك المرتبات: شرائح التأخير وسياسات الجزاءات والإضافي والعطلات وحساب الشهر (computeMonth) */
-const { eachDay, hoursBetween, isDate, monthRange, shiftMinutes } = require('../lib/utils');
+const { eachDay, hoursBetween, isDate, monthRange, shiftMinutes, toMin } = require('../lib/utils');
 const { db, pool } = require('./db');
 const { parseCfg, truthy } = require('./shared');
 const { tzParts } = require('./bootstrap');
 const { LEAVE_TYPES } = require('./constants');
 const { round2 } = require('./helpers');
+const { isWeekendDay } = require('./dash-data');
 
 
 /* ---------- شرائح خصم التأخير ---------- */
@@ -93,6 +94,26 @@ function compRuleFor(pctx, kinds) {
 }
 const profileOf = (user, pctx) => (user.leave_profile_id && pctx.profiles && pctx.profiles[String(user.leave_profile_id)]) || null;
 
+// قيمة الإضافي: لو الوردية مربوطة بسياسة إضافي بتحكم هي (المعامل). غير كده: كل دقيقة بقيمة الدقيقة (الافتراضي 2 جنيه). لو القيمة صفر: أجر الساعة × المعامل.
+function otPayFor(ot, hours, hourlyRate, st) {
+  if (ot) return round2(hours * hourlyRate * (Number(ot.factor) || 0));
+  const rate = parseFloat(st.overtime_minute_rate);
+  return rate > 0 ? round2(Math.round(hours * 60) * rate) : round2(hours * hourlyRate * parseFloat(st.overtime_factor || 1.5));
+}
+// الإضافي التلقائي: انصراف بعد معاد نهاية الشفت (مثلاً 5:05 والشفت بينتهي 5:00) = 5 دقايق إضافي في طلب وقت إضافي تلقائي
+async function syncAutoOvertime(u, date, outMin, st) {
+  const start = toMin(u.shift_start), end = toMin(u.shift_end);
+  const off = isWeekendDay(st, date) || holidayMap(await getPolicyCtx(), date, date).has(date); // أيام العطل ليها قاعدة التعويض
+  const extra = !off && outMin !== null && outMin !== undefined && end > start ? Math.max(0, outMin - end) : 0;
+  const ex = await db.get("SELECT * FROM requests WHERE user_id=? AND type='overtime' AND auto=1 AND from_date=?", u.id, date);
+  if (extra < 1) { if (ex && ex.status !== 'rejected') await db.run('DELETE FROM requests WHERE id=?', ex.id); return 0; }
+  if (ex) { if (ex.status !== 'rejected') await db.run('UPDATE requests SET hours=? WHERE id=?', extra / 60, ex.id); return extra; }
+  const auto = st.overtime_auto_approve !== '0';
+  await db.run('INSERT INTO requests(user_id,type,from_date,to_date,hours,reason,status,auto,decision_note,decided_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+    u.id, 'overtime', date, date, extra / 60, `وقت إضافي تلقائي: ${extra} دقيقة بعد نهاية الشفت`, auto ? 'approved' : 'pending', 1, auto ? 'اعتماد تلقائي' : '', auto ? new Date().toISOString() : null);
+  return extra;
+}
+
 /* ---------- حساب شهر لموظف (حضور + غياب + خصومات + مرتب) ---------- */
 async function computeMonth(user, month, st, tiers = []) {
   const [first, last] = monthRange(month);
@@ -108,6 +129,7 @@ async function computeMonth(user, month, st, tiers = []) {
   const { pen, ot } = policiesFor(user, pctx);
   const polGrace = pen && Number.isFinite(Number(pen.grace)) ? Number(pen.grace) : null;
   const attByDate = Object.fromEntries(att.map((a) => [a.date, a]));
+  const waived = new Set((await db.all('SELECT date,kind FROM penalty_flags WHERE user_id=? AND applied=0 AND date BETWEEN ? AND ?', user.id, first, last)).map((f) => f.date + '|' + f.kind));
   const covered = new Set();
   let overtimeHours = 0, permissionHours = 0;
   for (const r of reqs) {
@@ -151,15 +173,16 @@ async function computeMonth(user, month, st, tiers = []) {
         // مع السياسة: السماحية بتاعتها هي المعتمدة، وسماحية الانصراف المبكر
         const lm = polGrace !== null && a.late_minutes <= polGrace ? 0 : a.late_minutes;
         const em = pen && a.early_minutes <= (Number(pen.early_grace) || 0) ? 0 : a.early_minutes;
-        lateMinutes += lm; earlyMinutes += em;
-        if (lm > 0) { lateDays++; lateTierTotal += pen ? policyLate(pen, lm, dailyRate, hourlyRate) : tierDeduction(tiers, lm, dailyRate); }
+        const wl = waived.has(d + '|late'), we = waived.has(d + '|early');
+        lateMinutes += wl ? 0 : lm; earlyMinutes += we ? 0 : em;
+        if (lm > 0) { lateDays++; if (!wl) lateTierTotal += pen ? policyLate(pen, lm, dailyRate, hourlyRate) : tierDeduction(tiers, lm, dailyRate); }
         // انصراف ناقص: يوم فات فيه حضور من غير انصراف
         if (pen && pen.partial_on && !a.check_out && d < today) {
           partialDays++; partialTotal += pen.partial_kind === 'fixed' ? Number(pen.partial_value) || 0 : (Number(pen.partial_value) || 0) * dailyRate;
         }
       }
       else if (covered.has(d)) leaveDays++;
-      else if (d < today) absentDays++;
+      else if (d < today) { if (!waived.has(d + '|absent')) absentDays++; }
     }
   }
   const lateFactor = parseFloat(st.late_factor || 1);
@@ -169,7 +192,7 @@ async function computeMonth(user, month, st, tiers = []) {
   const earlyDeduction = pen ? (pen.early_on ? (earlyMinutes / 60) * hourlyRate * (Number(pen.early_factor) || 0) : 0) : (earlyMinutes / 60) * hourlyRate * lateFactor;
   const lateDeduction = round2(lateOnly + earlyDeduction + partialTotal);
   const absenceDeduction = round2(absentDays * dailyRate * (pen ? Number(pen.absence_factor) || 0 : parseFloat(st.absence_factor || 1)));
-  const overtimePay = round2(overtimeHours * hourlyRate * (ot ? Number(ot.factor) || 0 : parseFloat(st.overtime_factor || 1.5)));
+  const overtimePay = otPayFor(ot, overtimeHours, hourlyRate, st);
   const sumKind = (k) => round2(adj.filter((a) => a.kind === k).reduce((s, a) => s + a.amount, 0));
   const bonuses = sumKind('bonus'), manualDeductions = sumKind('deduction'), penalties = sumKind('penalty');
   // المرتب بيتحسب يوم بيوم: كل يوم بيعدّي (من أول الشهر أو من تاريخ التعيين) بيستحق فيه الموظف أجر يوم = (الأساسي + البدلات) ÷ 30
@@ -195,4 +218,4 @@ async function computeMonth(user, month, st, tiers = []) {
   };
 }
 
-module.exports = { computeMonth, getPolicyCtx, getTiers, graceOf, holidayMap, invalidatePolicyCtx, policiesFor, policyLate, policyOvertime, profileOf, tierDeduction };
+module.exports = { computeMonth, getPolicyCtx, getTiers, graceOf, holidayMap, invalidatePolicyCtx, otPayFor, policiesFor, policyLate, policyOvertime, profileOf, syncAutoOvertime, tierDeduction };
