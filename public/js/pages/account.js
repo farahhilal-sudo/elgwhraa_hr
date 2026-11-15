@@ -154,7 +154,7 @@ PAGES.me = async (view) => {
       ];
       body.innerHTML = rows.length ? `<div class="tablewrap ptwrap"><table class="ptable"><tr><th class="who">الفترة</th>${cols.map(([hh, c]) => `<th class="${c}">${hh}</th>`).join('')}<th></th></tr>
         ${rows.map((m, i) => `<tr><td class="who"><b>${monthName(m.month)}</b><div class="muted small">${m.paid ? 'مدفوع' : monthRange(m.month)[1] < today ? 'بانتظار الصرف' : 'جارٍ الحساب'}</div></td>${cols.map(([, c, fn]) => `<td class="${c}">${fn(m)}</td>`).join('')}<td><button class="link" data-v="${i}">عرض</button></td></tr>`).join('')}</table></div>
-        <p class="muted small">المرتب الجاري بيتحسب يوم بيوم لحد النهارده، وبيتقفل ويتحول لـ «مدفوع» لما المدير يسجّل صرفه بعد نهاية الشهر.</p>` : '<div class="card empty">لا توجد مرتبات في هذه السنة</div>';
+      ` : '<div class="card empty">لا توجد مرتبات في هذه السنة</div>';
       body.querySelectorAll('[data-v]').forEach((b) => (b.onclick = () => viewSlip(rows[b.dataset.v])));
     },
     /* ---- مفردات الرواتب (كروت الشهور) ---- */

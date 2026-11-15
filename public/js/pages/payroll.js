@@ -64,7 +64,7 @@ PAGES.payroll = async (view) => {
       ${rows.map((r) => `<tr><td class="who"><b>${esc(r.name)}</b> ${r.paid ? '<span class="badge b-ok">مدفوع</span>' : data.ended ? '<span class="badge b-warn">بانتظار الصرف</span>' : ''}<div class="muted small">حضور ${r.present_days} · غياب ${r.absent_days} · تأخير ${r.late_days} يوم</div>
         <div class="noprint pact2">${has('payroll.manage') && !r.paid ? `<button class="link" data-adj="${r.user_id}">+ بند</button>` : ''}<button class="link" data-sl="${r.user_id}">تفاصيل</button>${has('payroll.manage') && !r.paid && data.ended ? `<button class="link" data-pay="${r.user_id}">تسجيل الدفع</button>` : ''}${S.me.user.is_admin && r.paid ? `<button class="link" data-unpay="${r.user_id}">إلغاء الصرف</button>` : ''}</div></td>${cols.map(([, c, fn, , h]) => `<td class="${c}">${(h || fn)(r)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length + 1}" class="empty">لا توجد بيانات</td></tr>`}
       <tr class="totrow"><th class="who">الإجمالي (${rows.length})</th>${cols.map(([, c, , t]) => `<th class="${c}">${t()}</th>`).join('')}</tr></table></div>
-      <p class="muted small">المرتب بيتحسب يوم بيوم: كل يوم بيعدّي بيستحق فيه الموظف أجر يوم = (الأساسي + البدلات) ÷ 30 (والشهر المنتهي = 30 يوم كاملين). بعدين بيتزود عليه المكافآت والوقت الإضافي، وبيتخصم منه التأخير (من شرائح خصم التأخير) والغياب (أيام الغياب × أجر اليوم) والجزاءات والخصومات. الناتج = مستحق الدفع.</p>`;
+      `;
     view.querySelectorAll('[data-inf]').forEach((b) => (b.onclick = () => {
       const [k, id] = b.dataset.inf.split(':'), r = data.rows.find((x) => String(x.user_id) === id);
       if (k === 'pen') return penModal(r, data.month, load);

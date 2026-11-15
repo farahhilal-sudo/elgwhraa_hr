@@ -63,3 +63,6 @@ html:not(.is-app) .ptable th.tn, html:not(.is-app) .ptable td.tn { font-size: 12
 .pmrow .pmgrow { flex: 1; }
 .sqb.bad { color: #dc2626; } .sqb.okb { color: #16a34a; }
 .pmtag { font-size: 10.5px; background: #fef3c7; color: #b45309; border-radius: 6px; padding: 1px 7px; margin-inline-start: 4px; }
+.modal.pmodal #pmb { display: flex; flex-direction: column; flex: 1; min-height: 0; max-height: 92vh; }
+.modal.pmodal .pmbody { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.modal.pmodal.pmsmall { overflow-y: auto; }
