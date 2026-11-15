@@ -58,8 +58,9 @@ module.exports = function register(app) {
 app.get('/api/employees', auth, need('employees.view'), wrap(async (req, res) => {
   const rows = await db.all('SELECT * FROM users ORDER BY is_admin DESC, id');
   const tmap = await todayStatusMap(rows.filter((u) => u.active && !u.pending));
+  const avs = new Set((await db.all('SELECT user_id FROM user_avatars')).map((r) => r.user_id));
   res.json(rows.map((u) => ({
-    ...publicUser(u), today: tmap[u.id] || null,
+    ...publicUser(u), today: tmap[u.id] || null, has_avatar: avs.has(u.id),
     ...(can(req.user, 'payroll.view') ? { base_salary: u.base_salary, allowances: u.allowances } : {}),
     ...(can(req.user, 'employees.manage') ? { national_id: u.national_id || '' } : {}),
   })));

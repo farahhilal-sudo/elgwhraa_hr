@@ -66,10 +66,10 @@ PAGES.employees = async (view) => {
     return st ? [st[1], st[0] === 'لم يسجّل الحضور' ? 'لم يسجل الحضور' : st[0], ['absent', 'not_yet'].includes(t.status) ? 'clockoff' : 'clock'] : ['', '—', 'clock'];
   };
   const punchBtn = (u) => (has('attendance.edit') && u.active && u.today && ['absent', 'not_yet'].includes(u.today.status) ? `<button class="btn alt sm" data-in="${u.id}">${ico('clock')} تسجيل الحضور</button>` : '');
-  const card = (u) => { const l = lineOf(u); return `<div class="card ecard"><div class="ehead" data-prof="${u.id}" title="فتح الملف الشخصي"><div class="avatar lg">${esc(initials(u.name))}</div>
+  const card = (u) => { const l = lineOf(u); return `<div class="card ecard"><div class="ehead" data-prof="${u.id}" title="فتح الملف الشخصي"><div class="avatar lg"${avAttr(u)}>${esc(initials(u.name))}</div>
     <div class="einfo"><b>${esc(u.name)}</b><span>${esc(u.job_title || '—')}</span><span>${esc(u.department || '')}</span></div>${u.is_admin ? '<span class="badge b-info">مدير</span>' : ''}</div>
     <div class="estat"><span class="sline ${l[0]}">${ico(l[2])}${esc(l[1])}</span>${punchBtn(u)}</div><div class="eact">${btns(u)}</div></div>`; };
-  const trow = (u) => { const l = lineOf(u); return `<tr><td><div class="emp" data-prof="${u.id}" title="فتح الملف الشخصي"><div class="avatar sm">${esc(initials(u.name))}</div><b>${esc(u.name)}</b>${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}</div></td>
+  const trow = (u) => { const l = lineOf(u); return `<tr><td><div class="emp" data-prof="${u.id}" title="فتح الملف الشخصي"><div class="avatar sm"${avAttr(u)}>${esc(initials(u.name))}</div><b>${esc(u.name)}</b>${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}</div></td>
     <td>${esc(u.job_title || '—')}</td><td>${esc(u.department || '—')}</td><td dir="ltr">${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}</td><td><span class="sline ${l[0]}">${ico(l[2])}${esc(l[1])}</span></td><td class="actcol"><div class="racts">${punchBtn(u)}${btns(u)}</div></td></tr>`; };
 
   const render = () => {
@@ -197,22 +197,26 @@ PAGES.employees = async (view) => {
     const canEdit = manage && (!u.is_admin || S.me.user.is_admin), showSal = u.base_salary !== undefined && !u.is_admin;
     const items = menuFor(u).filter((x) => x.t !== 'بيانات الموظف');
     const TABS = [['data', 'بيانات الموظف'], ['att', 'سجل الحضور'], ['req', 'الطلبات والإجازات'], ['shift', 'الوردية والمكتب'], ...(showSal ? [['sal', 'المرتب']] : [])];
+    const TAB_IC = { data: 'user', att: 'clock', req: 'calendar', shift: 'timer', sal: 'wallet' };
     const mg = byId(u.manager_id);
     const dataRows = [['كود الموظف', u.employee_code], ['اسم المستخدم', u.username], ['الهاتف', u.phone], ['البريد الإلكتروني', u.email], ['المنصب', u.job_title], ['القسم', u.department], ['المكتب', officesOf(u) || 'أي موقع'], ['المدير المباشر', mg && mg.name],
       ['تاريخ التعيين', u.hire_date ? dmy(u.hire_date) : ''], ['تاريخ الميلاد', u.birth_date ? dmy(u.birth_date) : ''], ['النوع', GENDER_AR[u.gender]], ['الحالة الاجتماعية', MARITAL_AR[u.marital_status]], ['الجنسية', u.nationality],
       ...(u.national_id !== undefined ? [['الهوية الوطنية', u.national_id]] : [])];
     view.innerHTML = `<div class="epf"><div class="epf-back"><button class="btn alt sm" id="pfBack">${ico('chev')} كل الموظفين</button></div>
-      <div class="card epf-head"><div class="epf-id"><div class="epf-av">${esc(initials(u.name))}</div><div class="epf-info"><h2>${esc(u.name)}${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}${u.active ? '' : ' <span class="badge b-bad">موقوف</span>'}</h2>
-          <div class="epf-ln">${ico('user')}<span>${esc(u.job_title || '—')}</span></div><div class="epf-ln">${ico('building')}<span>${esc(u.department || '—')}</span></div></div></div>
-        <div class="epf-side"><span class="epf-chip">${esc(officesOf(u) || 'أي موقع')} · من ${esc(fmt12(u.shift_start))} حتى ${esc(fmt12(u.shift_end))}</span>
-          <div class="epf-acts"><button class="btn alt sm" id="pfExp">تصدير</button><div class="epf-icons">
+      <div class="card epf-head v2"><div class="epf-id"><div class="epf-av"${avAttr(u)}>${esc(initials(u.name))}${(canEdit || u.id === S.me.user.id) ? `<button class="cam" id="pfCam" title="تغيير الصورة"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-2.5h6L17 8h3v11H4z"/><circle cx="12" cy="13.5" r="3.2"/></svg></button>` : ''}</div><div class="epf-info"><h2>${esc(u.name)}${u.is_admin ? ' <span class="badge b-info">مدير</span>' : ''}${u.active ? '' : ' <span class="badge b-bad">موقوف</span>'}</h2>
+          <div class="epf-ln">${ico('case')}<span>${esc(u.job_title || '—')}</span></div><div class="epf-ln">${ico('users')}<span>${esc(u.department || '—')}</span></div></div></div>
+        <div class="epf-mid"><div class="row1"><span class="badge ${lineOf(u)[0]}">${esc(lineOf(u)[1])}</span><span class="tm">${esc(fmt12(u.shift_start))} - ${esc(fmt12(u.shift_end))}</span></div><div class="sh">${esc(officesOf(u) || 'أي موقع')} · من ${esc(fmt12(u.shift_start))} حتى ${esc(fmt12(u.shift_end))}</div></div>
+        <div class="epf-side v2"><div class="epf-top"><button class="btn alt sm" id="pfExp">${ico('download')} تصدير</button>${u.id === S.me.user.id ? `<button class="btn sm" id="pfNew">${ico('plus')} طلب جديد</button>` : ''}</div>
+          <div class="epf-icons">
             ${u.phone ? `<a class="sqbtn blue" href="tel:${esc(u.phone)}" title="اتصال">${ico('phone')}</a>` : ''}${canEdit ? `<button class="sqbtn blue" id="pfEdit" title="تعديل">${ico('edit')}</button>` : ''}<button class="sqbtn" id="pfInfo" title="بيانات">${ico('info')}</button>
-            ${items.map((x, i) => `<button class="sqbtn ${x.cls === 'bad' ? 'bad' : ''}" data-mi="${i}" title="${esc(x.t)}">${ico(x.ic)}</button>`).join('')}</div></div></div></div>
+            ${items.map((x, i) => `<button class="sqbtn ${x.cls === 'bad' ? 'bad' : ''}" data-mi="${i}" title="${esc(x.t)}">${ico(x.ic)}</button>`).join('')}</div></div></div>
       <div class="epf-stats" id="pfStats">${'<div class="card epf-stat"><div class="sk"></div></div>'.repeat(4)}</div>
-      <div class="card epf-tabs">${TABS.map(([k, l]) => `<button class="epf-tab ${k === tab ? 'on' : ''}" data-pt="${k}">${l}</button>`).join('')}</div>
+      <div class="card epf-tabs v2">${TABS.map(([k, l]) => `<button class="epf-tab ${k === tab ? 'on' : ''}" data-pt="${k}">${ico(TAB_IC[k] || 'file')}${l}</button>`).join('')}</div>
       <div class="card epf-body" id="pfBody"><div class="empty">جارٍ التحميل...</div></div></div>`;
     $('#pfBack').onclick = () => { S.empProfileId = null; again(); };
     $('#pfInfo').onclick = () => infoModal(u);
+    if ($('#pfCam')) $('#pfCam').onclick = () => pickAvatar(u.id, () => { u.has_avatar = true; renderProfile(u); });
+    if ($('#pfNew')) $('#pfNew').onclick = () => requestForm(() => renderProfile(u));
     if ($('#pfEdit')) $('#pfEdit').onclick = () => empForm(u, again);
     $('#pfExp').onclick = () => csv('employee-' + u.username + '.csv', [dataRows.map((r) => r[0]), dataRows.map((r) => r[1] || '')]);
     view.querySelectorAll('[data-mi]').forEach((b) => (b.onclick = () => items[Number(b.dataset.mi)].fn()));
@@ -220,7 +224,7 @@ PAGES.employees = async (view) => {
     let sumP = null; const getSum = () => (sumP = sumP || api(`/employees/${u.id}/summary`));
     getSum().then((sm) => {
       const b = sm.balances, left = (t, used) => Math.max(0, t - used);
-      const card = (lbl, n, unit, sub) => `<div class="card epf-stat"><div class="epf-sn"><b>${n}</b><span>${unit}</span></div><div class="epf-sl">${lbl}</div><div class="epf-ss">${sub}</div></div>`;
+      const card = (lbl, n, unit, sub) => `<div class="card epf-stat v2"><div class="top"><div class="epf-sn"><b>${n}</b><span>${unit}</span></div><span class="sic">${ico('calendar')}</span></div><div class="epf-sl">${lbl}</div><div class="epf-ss">${sub}</div></div>`;
       const el = $('#pfStats'); if (!el) return;
       el.innerHTML = card('إجازة سنوية', b.annual_used, 'الأيام', `المتبقي ${left(b.annual_total, b.annual_used)} من ${b.annual_total}`)
         + card('إجازة طارئة', b.emergency_used, 'الأيام', b.emergency_total ? `المتبقي ${left(b.emergency_total, b.emergency_used)} من ${b.emergency_total}` : 'بدون رصيد محدد')
@@ -239,11 +243,55 @@ PAGES.employees = async (view) => {
         body.innerHTML = sec('الطلبات والإجازات', 'audit') + (sm.requests.length ? `<div class="tablewrap"><table><tr><th>النوع</th><th>من</th><th>إلى</th><th>الحالة</th><th>السبب</th></tr>${sm.requests.map((r) => { const st = STATUS_AR[r.status] || [r.status, '']; return `<tr><td>${esc(TYPES()[r.type] || r.type)}</td><td>${dmy(r.from_date)}</td><td>${dmy(r.to_date)}</td><td><span class="badge ${st[1]}">${st[0]}</span></td><td>${esc((r.reason || '—').slice(0, 80))}</td></tr>`; }).join('')}</table></div>` : '<div class="empty">لا توجد طلبات</div>');
       } catch (e) { body.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
     } else if (tab === 'att') {
-      const to = todayStr(), from = addDays(to, -60);
-      let rows = [];
-      try { rows = await api(`/attendance?user_id=${u.id}&from=${from}&to=${to}`); } catch (e) { body.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
-      body.innerHTML = sec('سجل الحضور (آخر 60 يوم)', 'clock') + (rows.length ? `<div class="tablewrap"><table><tr><th>اليوم</th><th>حضور</th><th>انصراف</th><th>تأخير</th><th>مبكر</th><th>تطابق الوجه</th><th>الصورة</th><th></th></tr>${rows.map((a) => `<tr><td>${fmtDate(a.date)}</td><td>${fmtTime(a.check_in)}</td><td>${fmtTime(a.check_out)}</td><td class="${a.late_minutes ? 'neg' : ''}">${a.late_minutes} د</td><td class="${a.early_minutes ? 'neg' : ''}">${a.early_minutes} د</td><td>${a.in_face != null ? (100 - Math.round(a.in_face * 100)) + '%' : (a.note ? 'يدوي' : '—')}</td><td>${a.in_photo || a.out_photo ? '📷' : '—'}</td><td>${has('attendance.edit') ? `<button class="btn alt sm" data-ed="${a.id}">عرض / تعديل</button>` : ''}</td></tr>`).join('')}</table></div>` : '<div class="empty">لا توجد سجلات</div>');
-      body.querySelectorAll('[data-ed]').forEach((b) => (b.onclick = () => manualAtt(people, rows.find((r) => r.id == b.dataset.ed), () => renderProfile(u))));
+      const af = S.pfatt = S.pfatt || { from: thisMonth() + '-01', to: todayStr(), st: '', ex: '' };
+      body.innerHTML = `<div class="alog-filters"><button class="btn alt" id="aExp">${ico('download')} تصدير</button>
+        <label>مرشح إضافي<select id="aEx"><option value="">مرشح إضافي</option><option value="manual">تعديل يدوي</option><option value="noout">بدون انصراف</option></select></label>
+        <label>إلى<input type="date" id="aTo" value="${af.to}"></label><label>من<input type="date" id="aFrom" value="${af.from}"></label>
+        <label>الحالة<select id="aSt"><option value="">تحديد خيار</option><option value="ok">في الموعد</option><option value="late">متأخر</option><option value="abs">غائب</option><option value="off">يوم إجازة</option></select></label></div><div id="alogList"><div class="empty">جارٍ التحميل...</div></div>`;
+      $('#aEx').value = af.ex; $('#aSt').value = af.st;
+      const weekend = String(S.me.settings.weekend_days || '').split(',').filter(Boolean).map(Number), today = todayStr();
+      let list = [];
+      const dur = (a) => { if (!a.check_in || !a.check_out) return ''; const m = Math.round((new Date(a.check_out) - new Date(a.check_in)) / 60000); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
+      const t12 = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: TZ }) : '');
+      const draw = () => {
+        const f = af.st, ex = af.ex;
+        const rows = list.filter((x) => (!f || (f === 'off' ? ['off', 'leave'].includes(x.kind) : x.kind === f)) && (!ex || (x.a && (ex === 'manual' ? !!x.a.note : x.a.check_in && !x.a.check_out))));
+        const pen = (d, a) => (has('attendance.edit') ? `<button class="alog-pen" data-ed="${d}" title="تعديل">${ico('edit')}</button>` : '<span></span>');
+        $('#alogList').innerHTML = rows.map(({ d, a, kind }) => {
+          const dt = `<div class="d">${dmyDash(d)}</div>`;
+          if (kind === 'off' || kind === 'leave' || kind === 'wait') return `<div class="alog-row off">${dt}<div class="mid">${kind === 'off' ? 'يوم إجازة مجدول' : kind === 'leave' ? 'إجازة معتمدة' : 'لم يتم تسجيل الحضور بعد'}</div>${pen(d, a)}</div>`;
+          const stb = { ok: ['b-ok', 'في الموعد'], late: ['b-warn', `متأخر ${a ? a.late_minutes : ''} د`], abs: ['b-bad', 'غائب'] }[kind];
+          const io = (arrow, iso, loc) => iso ? `<div class="alog-io"><span class="arr ${arrow}">${arrow === 'in' ? '⇥' : '⇤'}</span><div><b>${t12(iso)}</b><small>${esc(loc || '—')}</small></div></div>` : '<div class="alog-io none">——</div>';
+          return `<div class="alog-row">${dt}${io('in', a && a.check_in, a && a.in_loc)}${io('out', a && a.check_out, a && a.out_loc)}<div>${a && dur(a) ? `<span class="alog-dur"><i></i>${dur(a)}</span>` : ''}</div><span class="badge ${stb[0]}">${stb[1]}</span>${pen(d, a)}</div>`;
+        }).join('') || '<div class="empty">لا توجد سجلات</div>';
+        body.querySelectorAll('[data-ed]').forEach((b) => (b.onclick = () => { const x = list.find((r) => r.d === b.dataset.ed); manualAtt(people, x.a || { user_id: u.id, date: x.d, id: null }, () => load()); }));
+      };
+      const load = async () => {
+        let from = af.from, to = af.to;
+        if (!from || !to || to < from) return;
+        if (to > today) to = today;
+        if (daysBetween(from, to) > 93) from = addDays(to, -92);
+        let recs = [], sm = null;
+        try { [recs, sm] = await Promise.all([api(`/attendance?user_id=${u.id}&from=${from}&to=${to}`), getSum()]); } catch (e) { $('#alogList').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+        const by = Object.fromEntries(recs.map((x) => [x.date, x])), leave = new Set();
+        (sm.requests || []).filter((x) => x.status === 'approved' && ['annual_leave', 'sick_leave', 'emergency_leave', 'work_mission'].includes(x.type)).forEach((x) => { for (let d = x.from_date; d <= x.to_date; d = addDays(d, 1)) leave.add(d); });
+        list = [];
+        for (let d = to; d >= from; d = addDays(d, -1)) {
+          const w = new Date(d + 'T00:00:00Z').getUTCDay(), a = by[d];
+          let kind = null;
+          if (a && a.check_in) kind = a.late_minutes > 0 ? 'late' : 'ok';
+          else if (leave.has(d)) kind = 'leave';
+          else if (weekend.includes(w)) kind = 'off';
+          else if (d < today && d >= (u.hire_date || '0000')) kind = 'abs';
+          else if (d === today) kind = 'wait';
+          if (kind) list.push({ d, a, kind });
+        }
+        draw();
+      };
+      $('#aFrom').onchange = () => { af.from = $('#aFrom').value; load(); }; $('#aTo').onchange = () => { af.to = $('#aTo').value; load(); };
+      $('#aSt').onchange = () => { af.st = $('#aSt').value; draw(); }; $('#aEx').onchange = () => { af.ex = $('#aEx').value; draw(); };
+      $('#aExp').onclick = () => csv('attendance-' + u.username + '.csv', [['التاريخ', 'الحالة', 'حضور', 'انصراف', 'مكان الحضور', 'مكان الانصراف'], ...list.map((x) => [x.d, x.kind, t12(x.a && x.a.check_in), t12(x.a && x.a.check_out), (x.a && x.a.in_loc) || '', (x.a && x.a.out_loc) || ''])]);
+      load();
     }
   };
   if (S.empProfileId) { const pu = byId(S.empProfileId); if (pu && !pu.pending) return renderProfile(pu); S.empProfileId = null; }

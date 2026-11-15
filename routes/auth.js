@@ -93,7 +93,7 @@ app.get('/api/me', auth, wrap(async (req, res) => {
     allowedLocations(req.user),
   ]);
   res.json({
-    user: publicUser(req.user), today: today || null, today_date: date, unread: unread.c,
+    user: { ...publicUser(req.user), has_avatar: !!(await db.get('SELECT 1 AS x FROM user_avatars WHERE user_id=?', req.user.id)) }, today: today || null, today_date: date, unread: unread.c,
     settings: {
       company_name: st.company_name, face_threshold: parseFloat(st.face_threshold),
       weekend_days: st.weekend_days, grace_minutes: graceOf(req.user, st, await getPolicyCtx()),

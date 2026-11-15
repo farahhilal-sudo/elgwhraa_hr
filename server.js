@@ -74,6 +74,7 @@ require('./routes/notifications')(app);
 require('./routes/dashboard')(app);
 require('./routes/employees')(app);
 require('./routes/attendance-admin')(app);
+require('./routes/avatars')(app);
 require('./routes/attendance-tabs')(app);
 require('./routes/payroll')(app);
 require('./routes/loans')(app);

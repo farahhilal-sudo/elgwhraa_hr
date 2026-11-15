@@ -54,7 +54,63 @@ function attViewModal(u, rec, day, kind0) {
   };
   draw();
 }
+// شاشة «تعديل بيانات الحضور» (الشكل الجديد): الحالة + المسجّل/القيمة الجديدة + المواقع والصور
+function attEditModal(emps, a, done) {
+  const emp = emps.find((e) => e.id === a.user_id) || { name: a.user_name || '', shift_start: '09:00', shift_end: '17:00' };
+  const hm = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: TZ }) : '');
+  const t12 = (hhmm) => (hhmm ? fmt12(hhmm) : '—');
+  const dnames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], dd = (d) => { const x = new Date(d + 'T00:00:00Z'); return `${dnames[x.getUTCDay()]} ${x.getUTCDate()}`; };
+  const dshort = (d) => `${dd(d)}/${d.slice(5, 7)}`;
+  const weekend = String(S.me.settings.weekend_days || '').split(',').filter(Boolean).map(Number);
+  const hasRec = !!(a.id && a.check_in);
+  const wd = new Date(a.date + 'T00:00:00Z').getUTCDay();
+  const oldSt = hasRec ? 'present' : weekend.includes(wd) ? 'off' : 'absent';
+  const STN = { present: 'حاضر', leave: 'إجازة', absent: 'غائب', off: 'عطلة', holiday: 'عطلة رسمية' };
+  const long = new Date(a.date + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'numeric', year: 'numeric', timeZone: 'UTC' }).replace(/(\d+)\/(\d+)\/(\d+)/, (m, mo, dy, y) => `${dy.padStart(2, '0')}/${mo.padStart(2, '0')}/${y}`);
+  const oldIn = hm(a.check_in), oldOut = hm(a.check_out), prev = addDays(a.date, -1), next = addDays(a.date, 1);
+  const days = (name) => [prev, a.date, next].map((d) => `<label class="am-day ${d === a.date ? 'on' : 'dis'}"><input type="radio" name="${name}" ${d === a.date ? 'checked' : 'disabled'}>${dd(d)}</label>`).join('');
+  const oldTxt = (iso, t) => (iso ? `${dshort(a.date)} · ${fmt12(t)}` : '—');
+  const o = modal(`<div class="am-head"><span class="am-ico">${ico('clock')}</span><div class="am-t"><h3>تعديل بيانات الحضور</h3><div class="sub">${esc(emp.name)} · ${esc(long)} · ${esc(t12(emp.shift_start))} - ${esc(t12(emp.shift_end))}</div></div><span class="am-tag">تعديل المدير</span><button class="am-x" data-close aria-label="إغلاق">×</button></div>
+    <div class="am-body">
+      <div class="am-card"><h4>اليوم <span class="sub">ما الذي تغيّر مقارنة بما تم تسجيله</span></h4><hr class="am-hr">
+        <div class="am-lbl">الحالة</div>
+        <div class="am-seg" id="amSeg">${['present', 'leave', 'absent', 'off', 'holiday'].map((k) => `<button type="button" data-s="${k}" class="${k === oldSt ? 'on' : ''}" ${(k === 'present' || k === 'absent') ? '' : 'disabled'}>${STN[k]}</button>`).join('')}</div>
+        <div class="am-tbl">
+          <div class="am-tr h"><span></span><span>المسجّل</span><span></span><span>القيمة الجديدة</span></div>
+          <div class="am-tr"><span class="k">الحالة</span><span class="old">${STN[oldSt]}</span><span class="arr">←</span><span class="nv" id="amNewSt">${STN[oldSt]}</span></div>
+          <div class="am-tr"><span class="k">نوع اليوم</span><span class="old">يوم كامل</span><span class="arr">←</span><span><span class="am-pill">يوم كامل</span></span></div>
+          <div class="am-tr"><span class="k">موعد العمل المناسب</span><span class="old">${esc(t12(emp.shift_start))} - ${esc(t12(emp.shift_end))}</span><span class="arr">←</span><span><span class="am-pill">${esc(t12(emp.shift_start))} - ${esc(t12(emp.shift_end))} · الإصدار الحالي</span></span></div>
+          <div class="am-tr" id="amRowIn"><span class="k">تسجيل الحضور</span><span class="old">${esc(oldTxt(a.check_in, oldIn))}</span><span class="arr">←</span><div class="am-days">${days('din')}<label class="am-time"><input type="time" id="amIn" value="${oldIn}"></label></div></div>
+          <div class="am-tr" id="amRowOut"><span class="k">تسجيل الانصراف</span><span class="old">${esc(oldTxt(a.check_out, oldOut))}</span><span class="arr">←</span><div class="am-days">${days('dout')}<label class="am-time"><input type="time" id="amOut" value="${oldOut}"></label></div></div>
+        </div>
+        <div class="am-lbl" style="margin-top:16px">سبب التعديل</div><div class="am-time" style="display:flex"><input id="amNote" style="width:100%" dir="rtl" placeholder="سبب التعديل" value="${esc(a.note || '')}"></div></div>
+      ${hasRec ? `<div class="am-card"><div class="am-kv2"><span>دقائق التأخير</span><b>${Number(a.late_minutes || 0).toFixed(2)}</b></div><hr class="am-hr"><div class="am-kv2"><span>دقائق الانصراف المبكر</span><b>${Number(a.early_minutes || 0).toFixed(2)}</b></div></div>` : ''}
+      ${a.id && !IS_APP ? `<div class="am-card"><h4>مواقع تسجيل الحضور والانصراف</h4><hr class="am-hr"><div class="am-maps">${[['out', 'موقع تسجيل الانصراف'], ['in', 'موقع تسجيل الحضور']].map(([k, t]) => `<div class="am-map"><h5>${t}</h5><div class="locmap phwrap">${hasLL(a, k) ? mapFrame(a[k + '_lat'], a[k + '_lng']) : '<div class="locnone">لا يوجد موقع مسجل</div>'}${a[k + '_photo'] ? `<img class="locphoto" alt="صورة البصمة" data-aid="${a.id}" data-kind="${k}" hidden>` : ''}</div></div>`).join('')}</div></div>` : ''}
+    </div>
+    <div class="am-foot"><button class="btn" id="amSave">حفظ التغييرات</button><button class="btn alt" data-close style="min-width:90px">إلغاء</button><span class="chg"><span class="muted" id="amChgT">لا توجد تغييرات بعد</span><b id="amChgN">0 التغييرات</b></span></div>`);
+  o.querySelector('.modal').classList.add('attm');
+  fillPhotos(o);
+  let st = oldSt;
+  const upd = () => {
+    const ch = [];
+    if (st !== oldSt) ch.push('الحالة');
+    if (st === 'present') { if ($('#amIn', o).value !== oldIn) ch.push('الحضور'); if ($('#amOut', o).value !== oldOut) ch.push('الانصراف'); if ($('#amNote', o).value !== (a.note || '')) ch.push('الملاحظة'); }
+    $('#amNewSt', o).textContent = STN[st];
+    ['amRowIn', 'amRowOut'].forEach((i) => ($('#' + i, o).style.opacity = st === 'present' ? '' : '.4'));
+    $('#amChgN', o).textContent = `${ch.length} التغييرات`;
+    $('#amChgT', o).textContent = ch.length ? ch.join('، ') : 'لا توجد تغييرات بعد';
+    $('#amSave', o).disabled = !ch.length || (st === 'present' && !$('#amIn', o).value) || (st === 'absent' && !hasRec);
+  };
+  o.querySelectorAll('#amSeg [data-s]').forEach((b) => (b.onclick = () => { st = b.dataset.s; o.querySelectorAll('#amSeg button').forEach((x) => x.classList.toggle('on', x === b)); upd(); }));
+  o.addEventListener('input', upd); upd();
+  $('#amSave', o).onclick = () => run($('#amSave', o), async () => {
+    if (st === 'absent') await api('/attendance/' + a.id, 'DELETE');
+    else await api('/attendance', 'POST', { user_id: a.user_id, date: a.date, check_in: $('#amIn', o).value, check_out: $('#amOut', o).value, note: $('#amNote', o).value || 'تعديل يدوي' });
+    o.close(); toast('تم الحفظ'); done();
+  });
+}
 function manualAtt(emps, a, done) {
+  if (a && !a.manual_new) return attEditModal(emps, a, done);
   const hm = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: TZ }) : '');
   const isEdit = a && !a.manual_new;
   const emp = a && emps.find((e) => e.id === a.user_id);

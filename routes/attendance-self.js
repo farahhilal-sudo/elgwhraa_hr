@@ -65,6 +65,9 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
   try { // الصورة دليل إضافي، فلو فشل حفظها ما نفشّلش التسجيل نفسه
     await db.run('INSERT INTO attendance_photos(attendance_id,kind,photo) VALUES(?,?,?) ON CONFLICT(attendance_id,kind) DO UPDATE SET photo=EXCLUDED.photo, created_at=EXCLUDED.created_at', saved.id, type, photoBuf);
   } catch (e) { console.error('photo save failed:', e.message); }
+  try { // أول صورة بصمة بتبقى صورة البروفايل لحد ما الموظفة تغيّرها
+    await db.run('INSERT INTO user_avatars(user_id,photo,auto) VALUES(?,?,1) ON CONFLICT(user_id) DO NOTHING', u.id, photoBuf);
+  } catch (e) { console.error('avatar save failed:', e.message); }
   res.json({ ok: true, record: saved });
 }));
 

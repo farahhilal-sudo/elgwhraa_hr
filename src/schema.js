@@ -149,6 +149,12 @@ CREATE TABLE IF NOT EXISTS attendance_photos (
   created_at TEXT NOT NULL DEFAULT (${NOW}),
   PRIMARY KEY (attendance_id, kind)
 );
+CREATE TABLE IF NOT EXISTS user_avatars (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  photo BYTEA NOT NULL,
+  auto INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL DEFAULT (${NOW})
+);
 CREATE INDEX IF NOT EXISTS idx_photos_created ON attendance_photos(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_requests_user ON requests(user_id, from_date);
