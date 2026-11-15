@@ -66,3 +66,17 @@ html:not(.is-app) .ptable th.tn, html:not(.is-app) .ptable td.tn { font-size: 12
 .modal.pmodal #pmb { display: flex; flex-direction: column; flex: 1; min-height: 0; max-height: 92vh; }
 .modal.pmodal .pmbody { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .modal.pmodal.pmsmall { overflow-y: auto; }
+
+/* ===== المالية: تابات وقايمة جنب بشكل الشاشة المرجعية ===== */
+html:not(.is-app) .pagetabs { padding: 0 16px; gap: 26px; border-radius: 16px; align-items: stretch; }
+html:not(.is-app) .pagetabs button { padding: 15px 4px 13px; font-size: 12.5px; font-weight: 600; color: #2f3640; gap: 8px; border-radius: 0; background: none; }
+html:not(.is-app) .pagetabs button .ico { width: 17px; height: 17px; color: #4b5563; }
+html:not(.is-app) .pagetabs button:hover { color: var(--brand-d); }
+html:not(.is-app) .pagetabs button.on { color: var(--brand-d); box-shadow: inset 0 -3px 0 var(--brand); }
+html:not(.is-app) .pagetabs button.on .ico { color: var(--brand); }
+html:not(.is-app) .page-head h2 { font-size: 15px; }
+html:not(.is-app) .navgrp.cur > .navg { background: var(--brand); color: #fff; }
+html:not(.is-app) .navgrp.cur > .navg .chev { color: #fff; }
+html:not(.is-app) .navi.sm.on { background: #e6f2fb; color: var(--brand-d); font-weight: 700; }
+html:not(.is-app) .navi.sm { font-size: 12px; padding: 8px 12px; }
+html:not(.is-app) .navi.sm .ico { width: 17px; height: 17px; }
