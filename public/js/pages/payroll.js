@@ -67,6 +67,7 @@ PAGES.payroll = async (view) => {
       <p class="muted small">المرتب بيتحسب يوم بيوم: كل يوم بيعدّي بيستحق فيه الموظف أجر يوم = (الأساسي + البدلات) ÷ 30 (والشهر المنتهي = 30 يوم كاملين). بعدين بيتزود عليه المكافآت والوقت الإضافي، وبيتخصم منه التأخير (من شرائح خصم التأخير) والغياب (أيام الغياب × أجر اليوم) والجزاءات والخصومات. الناتج = مستحق الدفع.</p>`;
     view.querySelectorAll('[data-inf]').forEach((b) => (b.onclick = () => {
       const [k, id] = b.dataset.inf.split(':'), r = data.rows.find((x) => String(x.user_id) === id);
+      if (k === 'pen') return penModal(r, data.month, load);
       const head = `<h3>${k === 'pen' ? 'الجزاءات' : 'البدلات'}</h3><p class="muted small" style="margin:0 0 10px"><b>${esc(r.name)}</b> · ${MONTHS_AR[Number(mm) - 1]} ${yy}</p>`;
       let body;
       if (k === 'pen') {
@@ -104,4 +105,48 @@ function adjForm(r, month, done, preset = {}) {
   const syncCat = () => { $('#catw', o).hidden = f.kind.value !== 'deduction'; };
   if (preset.kind) f.kind.value = preset.kind; if (preset.category) f.category.value = preset.category; f.kind.onchange = syncCat; syncCat();
   f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => { await api('/adjustments', 'POST', { user_id: r.user_id, month, kind: f.kind.value, category: f.kind.value === 'deduction' ? f.category.value : '', amount: f.amount.value, reason: f.reason.value }); o.close(); toast('تمت الإضافة'); done(); }); };
+}
+
+/* نافذة «الجزاء»: جزاءات الموظف يوم بيوم (غياب/تأخير/انصراف مبكر) مع تفعيل أو إلغاء تطبيقها على المرتب */
+async function penModal(r, month, done) {
+  const [y, m] = month.split('-').map(Number), last = `${month}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
+  let rows;
+  try { rows = (await api(`/att/penalties?from=${month}-01&to=${last}&user_id=${r.user_id}`)).rows; } catch (e) { return toast(e.message || 'تعذّر تحميل الجزاءات', true); }
+  const canEdit = has('attendance.edit');
+  const manual = (r.adjustments || []).filter((a) => a.kind === 'penalty').map((a) => ({ manual: true, date: String(a.created_at || '').slice(0, 10), value: 1, unit: 'جنيه', amount: a.amount, reason: a.reason || 'جزاء يدوي', applied: true }));
+  const all = () => [...rows, ...manual].sort((p, q) => (p.date < q.date ? -1 : p.date > q.date ? 1 : 0));
+  const o = modal('<div id="pmb"></div>');
+  const box = o.querySelector('.modal'); box.classList.add('pmodal');
+  const q2 = (n) => Number(n).toFixed(2), dm = (d) => `${d.slice(8, 10)}-${d.slice(5, 7)}-${d.slice(0, 4)}`;
+  const post = async (row, applied, note = '') => { await api('/att/penalties/flag', 'POST', { items: [{ user_id: row.user_id, date: row.date, kind: row.kind }], applied, note }); Object.assign(row, { applied, note }); done(); };
+  const draw = () => {
+    const L = all(), tot = L.filter((x) => x.applied).reduce((t, x) => t + (x.amount || 0), 0);
+    $('#pmb', o).innerHTML = `<div class="pmh"><h3>الجزاء</h3><button class="pmx" data-close aria-label="إغلاق">✕</button></div>
+      <div class="pmname"><b>${esc(r.name)}</b><span dir="ltr">${last}</span></div>
+      <div class="pmbody"><table class="pmt"><thead><tr><th>التاريخ</th><th>الكمية</th><th>الوحدة</th><th>المبلغ</th><th>السبب</th><th></th></tr></thead><tbody>
+        ${L.map((x, i) => `<tr><td dir="ltr">${dm(x.date)}</td><td>${typeof x.value === 'number' && !x.manual ? q2(x.value) : '—'}</td><td>${x.unit}</td><td>${q2(x.amount || 0)}</td><td>${esc(x.reason)}</td>
+          <td><div class="pmact">${x.manual ? '' : `<button class="sqb" data-pe="${i}" title="تفاصيل / تعديل">${ico('edit')}</button><label class="tgl"><input type="checkbox" data-pt="${i}" ${x.applied ? 'checked' : ''} ${canEdit ? '' : 'disabled'}><i></i></label>`}</div></td></tr>`).join('') || '<tr><td colspan="6" class="empty">لا توجد جزاءات في هذا الشهر</td></tr>'}
+      </tbody></table></div><div class="pmfoot"><span class="muted">إجمالي الجزاءات المطبّقة</span><b>${money(tot)}</b></div>`;
+    o.querySelectorAll('[data-close]').forEach((b) => (b.onclick = o.close));
+    o.querySelectorAll('[data-pt]').forEach((c) => (c.onchange = () => run(null, async () => { const x = L[c.dataset.pt]; try { await post(x, c.checked); toast(c.checked ? 'تم تطبيق الجزاء على المرتب' : 'تم إلغاء تطبيق الجزاء'); draw(); } catch (e) { c.checked = !c.checked; throw e; } })));
+    o.querySelectorAll('[data-pe]').forEach((b) => (b.onclick = () => dayModal(L[b.dataset.pe])));
+  };
+  const dayModal = (x) => {
+    const wd = new Date(x.date + 'T00:00:00Z').toLocaleDateString('en-US', { weekday: 'long', timeZone: 'UTC' });
+    const d = modal(`<div class="pmh"><h3><span class="bl">${esc(r.name)}</span> <span dir="ltr" class="pmdt">${wd} ${x.date.slice(8, 10)} - ${x.date.slice(5, 7)} - ${x.date.slice(0, 4)}</span></h3><button class="pmx" data-close aria-label="إغلاق">✕</button></div>
+      <div class="pmio"><div><b>تسجيل الحضور</b><span dir="ltr">${x.check_in ? clock12(x.check_in) : '-----'}</span></div><div><b>تسجيل الانصراف</b><span dir="ltr">${x.check_out ? clock12(x.check_out) : '-----'}</span></div></div>
+      <div class="pmrow"><b>${esc(x.reason)}</b><span>خصم من <b class="bl">${x.from}</b></span><span>${q2(x.value)}</span><span>${x.unit}</span><span class="pmamt">${q2(x.amount || 0)} جنيه</span>
+        ${canEdit ? `<button class="sqb" id="dpe" title="تعديل">${ico('edit')}</button>` : ''}<label class="tgl"><input type="checkbox" id="dpt" ${x.applied ? 'checked' : ''} ${canEdit ? '' : 'disabled'}><i></i></label><span class="pmapp">${x.applied ? 'مُطبَّق' : 'غير مُطبَّق'}</span></div>
+      ${x.note ? `<p class="muted small" style="margin:10px 0 0">ملاحظة: ${esc(x.note)}</p>` : ''}`);
+    d.querySelector('.modal').classList.add('pmodal', 'pmsmall');
+    $('#dpt', d).onchange = (e) => run(null, async () => { try { await post(x, e.target.checked, x.note || ''); toast(e.target.checked ? 'تم تطبيق الجزاء على المرتب' : 'تم إلغاء تطبيق الجزاء'); d.close(); draw(); } catch (er) { e.target.checked = !e.target.checked; throw er; } });
+    const pe = $('#dpe', d);
+    if (pe) pe.onclick = () => {
+      const e2 = modal(`<h3>تعديل الجزاء</h3><p class="muted small" style="margin:0 0 10px">${esc(r.name)} · ${x.date} · ${esc(x.reason)}</p><form class="form" id="pf"><label class="perm full"><input type="checkbox" name="applied" ${x.applied ? 'checked' : ''}>تطبيق الجزاء على المرتب</label>
+        <label class="f full">ملاحظة (سبب الإلغاء أو التعديل)<input name="note" value="${esc(x.note || '')}" maxlength="200"></label><div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
+      const pf = $('#pf', e2);
+      pf.onsubmit = (ev) => { ev.preventDefault(); run($('.btn:not(.alt)', pf), async () => { await post(x, pf.applied.checked, pf.note.value); e2.close(); d.close(); toast('تم الحفظ'); draw(); }); };
+    };
+  };
+  draw();
 }

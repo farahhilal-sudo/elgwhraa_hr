@@ -36,3 +36,25 @@ html:not(.is-app) .ptable th.tn, html:not(.is-app) .ptable td.tn { font-size: 12
 .pencil { display: inline-grid; place-items: center; border: 0; background: transparent; color: #4b5563; padding: 0 2px; margin-inline-start: 8px; cursor: pointer; vertical-align: middle; }
 .pencil .ico { width: 14px; height: 14px; } .pencil:hover { color: var(--brand); }
 [hidden] { display: none !important; }
+
+/* ===== نافذة الجزاء ===== */
+.modal.pmodal { width: min(1100px, 94vw); max-width: none; padding: 0; overflow: hidden; border-radius: 22px; max-height: 92vh; display: flex; flex-direction: column; }
+.modal.pmodal.pmsmall { width: min(1060px, 94vw); }
+.pmh { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.pmh h3 { margin: 0; font-size: 18px; } .pmh .pmdt { font-weight: 600; color: #374151; margin-inline-start: 12px; font-size: 14px; }
+.pmx { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: #fff; cursor: pointer; color: #6b7280; }
+.bl { color: var(--brand); }
+.pmname { display: flex; justify-content: space-between; align-items: center; margin: 12px 18px; padding: 10px 14px; border-radius: 10px; box-shadow: 0 1px 6px rgba(15,23,42,.08); font-size: 12px; color: #4b5563; }
+.pmbody { overflow: auto; padding: 0 18px; flex: 1; min-height: 0; }
+.pmt { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.pmt th { background: #f6f8fa; color: #4b5563; font-weight: 600; padding: 12px 10px; text-align: center; position: sticky; top: 0; }
+.pmt td { padding: 10px; text-align: center; border-bottom: 1px solid #eef1f4; }
+.pmt .pmact { display: flex; gap: 12px; align-items: center; justify-content: flex-start; }
+.sqb { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line); background: #fff; display: inline-grid; place-items: center; color: var(--brand); cursor: pointer; padding: 0; }
+.sqb .ico { width: 15px; height: 15px; }
+.pmfoot { display: flex; justify-content: space-between; align-items: center; padding: 12px 22px; border-top: 1px solid var(--line); font-size: 13px; }
+.pmio { display: flex; justify-content: space-between; gap: 20px; padding: 22px 26px 8px; font-size: 13px; }
+.pmio > div { display: grid; gap: 14px; text-align: start; } .pmio b { font-size: 14px; } .pmio span { color: #374151; text-align: center; }
+.pmrow { display: flex; align-items: center; gap: 22px; margin: 10px 20px 22px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 12px; font-size: 13px; }
+.pmrow > b:first-child { font-weight: 800; } .pmrow .pmamt { margin-inline-start: auto; font-weight: 700; } .pmapp { font-size: 12px; color: #374151; }
+@media (max-width: 700px) { .pmrow { flex-wrap: wrap; gap: 10px; } .pmio { padding: 16px; } }

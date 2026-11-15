@@ -20,7 +20,9 @@ app.get('/api/att/penalties', auth, need('attendance.view_all'), wrap(async (req
   const lateFactor = parseFloat(st.late_factor || 1), rows = [];
   const push = (u, d, kind, reason, value, unit) => {
     const f = flags.get(`${u.id}|${d}|${kind}`);
-    rows.push({ user_id: u.id, user_name: u.name, department: u.department || '', date: d, kind, reason, value, unit, from: 'المرتب', applied: f ? !!f.applied : true, by: f ? f.by_name : '', at: f ? f.at : null, note: f ? f.note : '' });
+    const inf = info.find((x) => x.u.id === u.id), at = att.get(u.id + '|' + d);
+    const amount = round2(unit === 'الأيام' ? value * inf.dailyRate : unit === 'الساعات' ? value * inf.hourlyRate : value);
+    rows.push({ user_id: u.id, user_name: u.name, department: u.department || '', date: d, kind, reason, value, unit, amount, check_in: at ? at.check_in : null, check_out: at ? at.check_out : null, from: 'المرتب', applied: f ? !!f.applied : true, by: f ? f.by_name : '', at: f ? f.at : null, note: f ? f.note : '' });
   };
   const info = users.map((u) => {
     const { pen } = policiesFor(u, pctx), prof = profileOf(u, pctx), ub = prof && prof.break_paid === false ? Math.max(0, Number(prof.break_min) || 0) : 0;
