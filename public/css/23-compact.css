@@ -1,0 +1,11 @@
+/* ===== تصغير المربعات والمسافات (الموقع) ===== */
+html:not(.is-app) .card { padding: 13px; }
+html:not(.is-app) .btn { padding: 8px 14px; }
+html:not(.is-app) .btn.sm { padding: 5px 10px; }
+html:not(.is-app) input, html:not(.is-app) select, html:not(.is-app) textarea { padding: 7px 10px; }
+html:not(.is-app) .chip { padding: 6px 12px; }
+html:not(.is-app) .ptable th, html:not(.is-app) .ptable td { padding: 6px 6px; }
+html:not(.is-app) .ptable .who { min-width: 170px; }
+html:not(.is-app) .ptable th.tn, html:not(.is-app) .ptable td.tn { font-size: 13px; }
+html:not(.is-app) table th, html:not(.is-app) table td { padding-top: 7px; padding-bottom: 7px; }
+html:not(.is-app) .ptable th, html:not(.is-app) .ptable td { padding: 6px 6px; }
