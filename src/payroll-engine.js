@@ -106,6 +106,8 @@ function otPayFor(ot, hours, hourlyRate, st) {
   const rate = parseFloat(st.overtime_minute_rate);
   return rate > 0 ? round2(Math.round(hours * 60) * rate) : round2(hours * hourlyRate * parseFloat(st.overtime_factor || 1.5));
 }
+// يوم عطلة (أسبوعية أو رسمية)؟ في العطل مفيش قيد على ساعات التسجيل
+async function isOffDay(st, date) { return isWeekendDay(st, date) || holidayMap(await getPolicyCtx(), date, date).has(date); }
 // الإضافي التلقائي: انصراف بعد معاد نهاية الشفت (مثلاً 5:05 والشفت بينتهي 5:00) = 5 دقايق إضافي في طلب وقت إضافي تلقائي
 async function syncAutoOvertime(u, date, outMin, st) {
   const start = toMin(u.shift_start), end = toMin(u.shift_end);
@@ -236,4 +238,4 @@ async function computeMonth(user, month, st, tiers = []) {
   };
 }
 
-module.exports = { computeMonth, getPolicyCtx, getTiers, graceOf, holidayMap, invalidatePolicyCtx, otPayFor, policiesFor, policyLate, policyOvertime, profileOf, syncAutoOvertime, tierDeduction };
+module.exports = { isOffDay, computeMonth, getPolicyCtx, getTiers, graceOf, holidayMap, invalidatePolicyCtx, otPayFor, policiesFor, policyLate, policyOvertime, profileOf, syncAutoOvertime, tierDeduction };

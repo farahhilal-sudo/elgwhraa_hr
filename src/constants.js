@@ -47,8 +47,8 @@ const DEFAULT_SETTINGS = {
   signup_enabled: '1', // السماح بإنشاء حساب جديد من صفحة الدخول (بيحتاج موافقة المدير)
   late_factor: '1',
   absence_factor: '1',
-  overtime_factor: '1.5',
-  overtime_minute_rate: '2', // قيمة الدقيقة الإضافية بالجنيه (لو مفيش سياسة إضافي مربوطة بالوردية). صفر = أجر الساعة × المعامل
+  overtime_factor: '2', // الإضافي = سعر الدقيقة العادية × 2
+  overtime_minute_rate: '0', // قيمة الدقيقة الإضافية بالجنيه (لو مفيش سياسة إضافي مربوطة بالوردية). صفر = أجر الساعة × المعامل
   overtime_auto_approve: '1', // اعتماد الإضافي التلقائي لحظة تسجيل الانصراف
   country: 'Egypt',
   currency: 'EGP',

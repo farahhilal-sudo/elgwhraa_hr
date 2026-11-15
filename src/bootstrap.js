@@ -49,6 +49,12 @@ async function init() {
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     await db.run('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO NOTHING', k, v);
   }
+  // الإضافي بقى سعر الدقيقة العادية × 2 (مرة واحدة بس، ومبنلمسش لو اتغيّرت القيم يدويًا)
+  if (!(await db.get("SELECT 1 FROM settings WHERE key='ot_x2_migrated'"))) {
+    await db.run("UPDATE settings SET value='0' WHERE key='overtime_minute_rate' AND value='2'");
+    await db.run("UPDATE settings SET value='2' WHERE key='overtime_factor' AND value='1.5'");
+    await db.run("INSERT INTO settings(key,value) VALUES('ot_x2_migrated','1') ON CONFLICT DO NOTHING");
+  }
   let st = await settings();
   // ترحيل موقع العمل القديم (في الإعدادات) لأول موقع في جدول المواقع، مرة واحدة فقط
   if (st.work_lat !== '' && st.work_lng !== '' && isFinite(Number(st.work_lat)) && isFinite(Number(st.work_lng))) {
