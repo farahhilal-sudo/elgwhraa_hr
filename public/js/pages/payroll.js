@@ -36,26 +36,39 @@ PAGES.payroll = async (view) => {
     const q = f.q.trim().toLowerCase();
     const rows = data.rows.filter((r) => (!f.emp || String(r.user_id) === String(f.emp)) && (!f.dept || r.department === f.dept) && (!q || r.name.toLowerCase().includes(q)) && (!f.paid || (f.paid === 'paid') === !!r.paid));
     const tot = (k) => rows.reduce((x, r) => x + (r[k] || 0), 0);
+    const info = (k, r) => ` <button type="button" class="infob noprint" data-inf="${k}:${r.user_id}" title="عرض التفاصيل" aria-label="عرض التفاصيل">!</button>`;
     const earned = (r) => round2c(r.accrued_basic + r.accrued_allowances);
     const cols = [
       ['الأساسي', 'tb', (r) => money(r.base_salary), () => money(tot('base_salary'))],
-      ['البدلات', 'tb', (r) => money(r.allowances), () => money(tot('allowances'))],
+      ['البدلات', 'tb', (r) => money(r.allowances), () => money(tot('allowances')), (r) => `${money(r.allowances)}${r.allowances > 0 ? info('al', r) : ''}`],
       ['أيام محتسبة', 'tb', (r) => `${r.accrued_days} من 30`, () => ''],
       ['المستحق عن الأيام', 'tb', (r) => money(earned(r)), () => money(rows.reduce((x, r) => x + earned(r), 0))],
       ['المكافآت', 'tg', (r) => money(r.bonuses), () => money(tot('bonuses'))],
       ['الوقت الإضافي', 'tg', (r) => money(r.overtime_pay), () => money(tot('overtime_pay'))],
       ['خصم التأخير', 'tp', (r) => money(r.late_deduction), () => money(tot('late_deduction'))],
       ['خصم الغياب', 'tp', (r) => money(r.absence_deduction), () => money(tot('absence_deduction'))],
-      ['الجزاءات', 'tp', (r) => money(r.penalties), () => money(tot('penalties'))],
+      ['الجزاءات', 'tp', (r) => money(r.penalties), () => money(tot('penalties')), (r) => `${money(r.penalties)}${r.penalties > 0 ? info('pen', r) : ''}`],
       ['خصومات أخرى', 'tp', (r) => money(r.manual_deductions), () => money(tot('manual_deductions'))],
       ['مستحق الدفع', 'tn', (r) => money(r.net), () => money(tot('net'))],
     ];
     $('#pnote').textContent = `${MONTHS_AR[Number(mm) - 1]} ${yy} · محسوب لحد ${data.month === thisMonth() ? 'اليوم' : 'نهاية الشهر'}`;
     $('#pt').innerHTML = `<div class="tablewrap ptwrap"><table class="ptable"><tr><th class="who">الموظف</th>${cols.map(([h, c]) => `<th class="${c}">${h}</th>`).join('')}</tr>
       ${rows.map((r) => `<tr><td class="who"><b>${esc(r.name)}</b> ${r.paid ? '<span class="badge b-ok">مدفوع</span>' : data.ended ? '<span class="badge b-warn">بانتظار الصرف</span>' : ''}<div class="muted small">حضور ${r.present_days} · غياب ${r.absent_days} · تأخير ${r.late_days} يوم</div>
-        <div class="noprint pact2">${has('payroll.manage') && !r.paid ? `<button class="link" data-adj="${r.user_id}">+ بند</button>` : ''}<button class="link" data-sl="${r.user_id}">تفاصيل</button>${has('payroll.manage') && !r.paid && data.ended ? `<button class="link" data-pay="${r.user_id}">تسجيل الدفع</button>` : ''}${S.me.user.is_admin && r.paid ? `<button class="link" data-unpay="${r.user_id}">إلغاء الصرف</button>` : ''}</div></td>${cols.map(([, c, fn]) => `<td class="${c}">${fn(r)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length + 1}" class="empty">لا توجد بيانات</td></tr>`}
+        <div class="noprint pact2">${has('payroll.manage') && !r.paid ? `<button class="link" data-adj="${r.user_id}">+ بند</button>` : ''}<button class="link" data-sl="${r.user_id}">تفاصيل</button>${has('payroll.manage') && !r.paid && data.ended ? `<button class="link" data-pay="${r.user_id}">تسجيل الدفع</button>` : ''}${S.me.user.is_admin && r.paid ? `<button class="link" data-unpay="${r.user_id}">إلغاء الصرف</button>` : ''}</div></td>${cols.map(([, c, fn, , h]) => `<td class="${c}">${(h || fn)(r)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length + 1}" class="empty">لا توجد بيانات</td></tr>`}
       <tr class="totrow"><th class="who">الإجمالي (${rows.length})</th>${cols.map(([, c, , t]) => `<th class="${c}">${t()}</th>`).join('')}</tr></table></div>
       <p class="muted small">المرتب بيتحسب يوم بيوم: كل يوم بيعدّي بيستحق فيه الموظف أجر يوم = (الأساسي + البدلات) ÷ 30 (والشهر المنتهي = 30 يوم كاملين). بعدين بيتزود عليه المكافآت والوقت الإضافي، وبيتخصم منه التأخير (من شرائح خصم التأخير) والغياب (أيام الغياب × أجر اليوم) والجزاءات والخصومات. الناتج = مستحق الدفع.</p>`;
+    view.querySelectorAll('[data-inf]').forEach((b) => (b.onclick = () => {
+      const [k, id] = b.dataset.inf.split(':'), r = data.rows.find((x) => String(x.user_id) === id);
+      const head = `<h3>${k === 'pen' ? 'الجزاءات' : 'البدلات'}</h3><p class="muted small" style="margin:0 0 10px"><b>${esc(r.name)}</b> · ${MONTHS_AR[Number(mm) - 1]} ${yy}</p>`;
+      let body;
+      if (k === 'pen') {
+        const L = (r.adjustments || []).filter((a) => a.kind === 'penalty');
+        body = L.length ? `<div class="tablewrap"><table class="ptinfo"><tr><th>التاريخ</th><th>المبلغ</th><th>السبب</th></tr>${L.map((a) => `<tr><td>${esc(String(a.created_at || '').slice(0, 10))}</td><td>${money(a.amount)}</td><td>${esc(a.reason || '—')}</td></tr>`).join('')}<tr class="tot"><td>الإجمالي</td><td>${money(r.penalties)}</td><td></td></tr></table></div>` : '<p class="muted">لا توجد جزاءات.</p>';
+      } else {
+        body = `<div class="tablewrap"><table class="ptinfo"><tr><th>البند</th><th>القيمة</th></tr><tr><td>البدلات الشهرية</td><td>${money(r.allowances)}</td></tr><tr><td>أيام محتسبة</td><td>${r.accrued_days} من 30</td></tr><tr class="tot"><td>المستحق من البدلات</td><td>${money(r.accrued_allowances)}</td></tr></table></div>`;
+      }
+      modal(`${head}${body}<div class="actions" style="margin-top:12px"><button class="btn alt" data-close>إغلاق</button></div>`);
+    }));
     view.querySelectorAll('[data-adj]').forEach((b) => (b.onclick = () => adjForm(data.rows.find((r) => r.user_id == b.dataset.adj), data.month, load)));
     view.querySelectorAll('[data-sl]').forEach((b) => (b.onclick = () => {
       const r = data.rows.find((x) => x.user_id == b.dataset.sl);

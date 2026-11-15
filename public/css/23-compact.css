@@ -9,3 +9,16 @@ html:not(.is-app) .ptable .who { min-width: 170px; }
 html:not(.is-app) .ptable th.tn, html:not(.is-app) .ptable td.tn { font-size: 13px; }
 html:not(.is-app) table th, html:not(.is-app) table td { padding-top: 7px; padding-bottom: 7px; }
 html:not(.is-app) .ptable th, html:not(.is-app) .ptable td { padding: 6px 6px; }
+
+/* جدول المرتبات: صفوف مضغوطة + علامة التفاصيل (!) */
+html:not(.is-app) .ptable th, html:not(.is-app) .ptable td { padding: 4px 5px; font-size: 12px; }
+html:not(.is-app) .ptable th { font-size: 11.5px; padding: 7px 5px; }
+html:not(.is-app) .ptable .who { min-width: 160px; line-height: 1.35; }
+html:not(.is-app) .ptable .who .small, html:not(.is-app) .ptable .pact2 .link { font-size: 10.5px; }
+html:not(.is-app) .ptable .pact2 { gap: 8px; margin-top: 0; }
+html:not(.is-app) .ptable th.tn, html:not(.is-app) .ptable td.tn { font-size: 12.5px; }
+.infob { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; border: 1.3px solid currentColor; background: transparent; color: #374151; font: 700 10px/1 inherit; padding: 0; margin-inline-start: 6px; cursor: pointer; vertical-align: middle; }
+.infob:hover { background: #374151; color: #fff; }
+.ptinfo { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ptinfo th, .ptinfo td { padding: 7px 10px; text-align: start; border-bottom: 1px solid var(--line); }
+.ptinfo th { background: #f6f8fa; color: var(--muted); font-weight: 700; } .ptinfo .tot td { font-weight: 800; background: #f6f8fa; }
