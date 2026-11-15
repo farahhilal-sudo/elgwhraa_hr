@@ -3,7 +3,7 @@
 function payslip(m) {
   const line = (k, v, c) => `<tr><td>${k}</td><td class="num ${c || ''}">${money(v)}</td></tr>`;
   return `<div class="grid g2" style="align-items:start"><div class="tablewrap"><table style="min-width:0">
-    ${line(`الأساسي المستحق (${m.accrued_days} يوم من 30، أجر اليوم ${money(m.daily_rate)})`, m.accrued_basic)}${line('البدلات المستحقة', m.accrued_allowances)}${line('المكافآت', m.bonuses, 'pos')}${line(`وقت إضافي (${m.overtime_hours} س)`, m.overtime_pay, 'pos')}${m.compensation_pay ? line(`تعويض العمل في العطلات (${m.off_days_worked} يوم)`, m.compensation_pay, 'pos') : ''}${m.comp_days ? `<tr><td>أيام إجازة بدل مكتسبة</td><td class="num">${m.comp_days} يوم</td></tr>` : ''}
+    ${line(`الأساسي المستحق (${m.accrued_days} يوم من 30، أجر اليوم ${money3(m.daily_rate)})`, m.accrued_basic)}${line('البدلات المستحقة', m.accrued_allowances)}${line('المكافآت', m.bonuses, 'pos')}${line(`وقت إضافي (${m.overtime_hours} س)`, m.overtime_pay, 'pos')}${m.compensation_pay ? line(`تعويض العمل في العطلات (${m.off_days_worked} يوم)`, m.compensation_pay, 'pos') : ''}${m.comp_days ? `<tr><td>أيام إجازة بدل مكتسبة</td><td class="num">${m.comp_days} يوم</td></tr>` : ''}
     <tr><th>الإجمالي</th><th class="num">${money(m.gross)}</th></tr>
     ${line(`خصم تأخير (${m.late_days} يوم) وانصراف مبكر (${m.early_minutes} د)`, m.late_deduction, 'neg')}${line(`خصم غياب (${m.absent_days} يوم)`, m.absence_deduction, 'neg')}${line('جزاءات', m.penalties, 'neg')}${line('خصومات أخرى', m.manual_deductions, 'neg')}
     <tr><th>الصافي</th><th class="num">${money(m.net)}</th></tr></table></div>

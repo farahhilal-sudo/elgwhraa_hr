@@ -29,7 +29,7 @@ app.get('/api/att/penalties', auth, need('attendance.view_all'), wrap(async (req
   };
   const info = users.map((u) => {
     const { pen } = policiesFor(u, pctx), prof = profileOf(u, pctx), ub = prof && prof.break_paid === false ? Math.max(0, Number(prof.break_min) || 0) : 0;
-    const dailyRate = u.base_salary / 30, hourlyRate = dailyRate / Math.max(1, (toMin(u.shift_end) - toMin(u.shift_start) - ub) / 60);
+    const dailyRate = ((Number(u.base_salary) || 0) + (Number(u.allowances) || 0)) / 30, hourlyRate = dailyRate / Math.max(1, (toMin(u.shift_end) - toMin(u.shift_start) - ub) / 60);
     return { u, pen, dailyRate, hourlyRate, grace: pen && Number.isFinite(Number(pen.grace)) ? Number(pen.grace) : null };
   });
   for (const d of eachDay(from, to < today ? to : today)) {

@@ -65,7 +65,7 @@ app.get('/api/dash/agg', auth, need('dashboard.view'), wrap(async (req, res) => 
   const list = users.map((u) => {
     const { pen, ot } = policiesFor(u, pctx), polGrace = pen && Number.isFinite(Number(pen.grace)) ? Number(pen.grace) : null;
     const prof = profileOf(u, pctx), unpaidBreak = prof && prof.break_paid === false ? Math.max(0, Number(prof.break_min) || 0) : 0;
-    const shiftHours = Math.max(1, (shiftMinutes(u.shift_start, u.shift_end) - unpaidBreak) / 60), dailyRate = u.base_salary / 30, hourlyRate = dailyRate / shiftHours;
+    const shiftHours = Math.max(1, (shiftMinutes(u.shift_start, u.shift_end) - unpaidBreak) / 60), dailyRate = ((Number(u.base_salary) || 0) + (Number(u.allowances) || 0)) / 30, hourlyRate = dailyRate / shiftHours;
     let absentDays = 0, lateMinutes = 0, earlyMinutes = 0, tierTotal = 0, partialTotal = 0, worked = 0;
     if (from <= upto) for (const d of eachDay(from, upto)) {
       if (d < u.hire_date || isWeekendDay(st, d) || hmap.has(d)) continue;

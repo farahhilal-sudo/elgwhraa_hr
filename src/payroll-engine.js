@@ -151,7 +151,7 @@ async function computeMonth(user, month, st, tiers = []) {
   const prof = profileOf(user, pctx);
   const unpaidBreak = prof && prof.break_paid === false ? Math.max(0, Number(prof.break_min) || 0) : 0;
   const shiftHours = Math.max(1, (shiftMinutes(user.shift_start, user.shift_end) - unpaidBreak) / 60);
-  const dailyRate = user.base_salary / 30;
+  const dailyRate = ((Number(user.base_salary) || 0) + (Number(user.allowances) || 0)) / 30; // أجر اليوم = (الأساسي + الحافز/البدلات) ÷ 30 بالكسور
   const hourlyRate = dailyRate / shiftHours;
   const hmap = holidayMap(pctx, first, last);
   let absentCharge = 0, absentOvMoney = 0, lateOvMoney = 0, earlyOvMoney = 0;
@@ -225,7 +225,7 @@ async function computeMonth(user, month, st, tiers = []) {
   return {
     user_id: user.id, name: user.name, job_title: user.job_title, department: user.department, month,
     base_salary: user.base_salary, allowances: user.allowances, accrued_days: accruedDays, accrued_basic: accruedBasic, accrued_allowances: accruedAllowances,
-    daily_rate: round2(dailyRate),
+    daily_rate: Math.round(dailyRate * 1000) / 1000,
     work_days: workDays, present_days: presentDays, absent_days: absentDays, leave_days: leaveDays,
     late_days: lateDays, late_minutes: lateMinutes, early_minutes: earlyMinutes, partial_days: partialDays, overtime_hours: overtimeHours, permission_hours: permissionHours,
     penalty_policy: pen ? pen.name : null, overtime_policy: ot ? ot.name : null, leave_profile: prof ? prof.name : null,
