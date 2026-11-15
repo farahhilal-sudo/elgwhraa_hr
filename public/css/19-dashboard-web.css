@@ -28,11 +28,11 @@
 .dwf.two > * { flex: 1 1 calc(33% - 10px); }
 .dt { display: flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: #fff; border-radius: 10px; padding: 0 12px; color: var(--muted); }
 .dt .ico { width: 15px; height: 15px; order: 2; } .dt input { border: 0; outline: 0 !important; background: none; padding: 9px 0; flex: 1; min-width: 0; color: var(--ink); }
-.tg { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12.5px; }
-.tg input { display: none; }
-.tg i { width: 34px; height: 18px; border-radius: 99px; background: #bfe3f7; position: relative; }
-.tg i::after { content: ''; position: absolute; top: 2px; right: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--brand); transition: .2s; }
-.tg input:checked + i::after { right: auto; left: 2px; }
+label.tg { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12.5px; }
+label.tg input { display: none; }
+label.tg i { width: 34px; height: 18px; border-radius: 99px; background: #bfe3f7; position: relative; }
+label.tg i::after { content: ''; position: absolute; top: 2px; right: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--brand); transition: .2s; }
+label.tg input:checked + i::after { right: auto; left: 2px; }
 .lgd { display: flex; gap: 12px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); }
 .lgd span { display: inline-flex; align-items: center; gap: 5px; } .lgd i { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
 .chscroll { overflow-x: auto; padding-bottom: 6px; border-bottom: 2px solid #374151; }
@@ -77,3 +77,41 @@ table.drq th { font-size: 12px; } table.drq th .ico { width: 13px; height: 13px;
 
 
 
+
+/* ===== تصغير لوحة المعلومات + منع تداخل جداول الطلبات ===== */
+.dhead h2 { font-size: 16px; }
+.dgf .sel2 { flex: 0 0 165px; min-width: 130px; }
+.dstats { gap: 10px; }
+.dsc { flex: 1 0 165px; border-radius: 14px; padding: 12px 14px 10px; min-height: 104px; gap: 6px; }
+.dsh { font-size: 12.5px; } .dsi svg { width: 22px; height: 22px; }
+.dsc > b { font-size: 22px; } .dsc .link { font-size: 11px; }
+.dwh h3 { font-size: 14px; } .dwhead { font-size: 13.5px; }
+.dsq { width: 28px; height: 28px; border-radius: 8px; } .dsq svg { width: 16px; height: 16px; }
+.dsq.ok, .dsq.warn { width: 34px; height: 34px; }
+.dmrow b { font-size: 12px; } .dmrow span { font-size: 11px; }
+.dw { margin-top: 12px; padding: 12px 14px; border-radius: 14px; }
+.dwf { gap: 8px; margin: 10px 0; font-size: 12px; }
+.dwf > .sel2, .dwf > .dt, .dwf > .fl { flex: 1 1 130px; min-width: 120px; }
+.dwf select, .dwf input { font-size: 12px; }
+.dt { border-radius: 9px; padding: 0 10px; } .dt input { padding: 7px 0; }
+.tg { font-size: 11.5px; }
+.lgd { font-size: 10.5px; } .drc { font-size: 10.5px; padding: 2px 10px; }
+.dqwrap { gap: 12px; }
+.dqwrap > * { min-width: 0; }
+table.drq { table-layout: fixed; width: 100%; border-radius: 10px; }
+table.drq th, table.drq td { padding: 7px 4px; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; }
+table.drq th { font-size: 11px; } table.drq th .ico { width: 11px; height: 11px; }
+table.drq .c-name { width: 32%; min-width: 0; padding-inline-end: 36px; padding-inline-start: 6px; }
+table.drq .c-t, table.drq .c-p, table.drq .c-a, table.drq .c-r { width: 17%; }
+.dlk i { padding: 0 5px; margin-inline-start: 4px; }
+.dico { inset-inline-end: 6px; width: 22px; height: 22px; border-radius: 6px; } .dico .ico { width: 12px; height: 12px; }
+.dash3, .dash3x { padding: 14px; border-radius: 14px; gap: 10px; }
+.calc label { font-size: 11.5px; margin-bottom: 6px; }
+.pf span { padding: 6px 9px; font-size: 11.5px; }
+.gc { padding: 12px 14px 9px; border-radius: 12px; }
+.gbig b { font-size: 18px; } .gbig span { font-size: 13px; }
+.gi { width: 28px; height: 28px; border-radius: 7px; } .gi .ico { width: 14px; height: 14px; }
+.gcl { font-size: 11px; } .gcl b { font-size: 12.5px; }
+.gbar { margin-top: 10px; }
+.gstack, .gpen { gap: 10px; }
+.sh { font-size: 13px; }
