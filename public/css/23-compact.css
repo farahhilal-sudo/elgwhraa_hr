@@ -58,3 +58,8 @@ html:not(.is-app) .ptable th.tn, html:not(.is-app) .ptable td.tn { font-size: 12
 .pmrow { display: flex; align-items: center; gap: 22px; margin: 10px 20px 22px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 12px; font-size: 13px; }
 .pmrow > b:first-child { font-weight: 800; } .pmrow .pmamt { margin-inline-start: auto; font-weight: 700; } .pmapp { font-size: 12px; color: #374151; }
 @media (max-width: 700px) { .pmrow { flex-wrap: wrap; gap: 10px; } .pmio { padding: 16px; } }
+.pmrow.pmedit input[type=number] { width: 90px; text-align: center; padding: 7px 8px; }
+.pmrow.pmedit select { width: 150px; padding: 7px 10px; }
+.pmrow .pmgrow { flex: 1; }
+.sqb.bad { color: #dc2626; } .sqb.okb { color: #16a34a; }
+.pmtag { font-size: 10.5px; background: #fef3c7; color: #b45309; border-radius: 6px; padding: 1px 7px; margin-inline-start: 4px; }

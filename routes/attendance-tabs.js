@@ -18,11 +18,14 @@ app.get('/api/att/penalties', auth, need('attendance.view_all'), wrap(async (req
   const { att, covered } = await dashData(users, from, to), hmap = holidayMap(pctx, from, to);
   const flags = new Map((await db.all('SELECT * FROM penalty_flags WHERE date BETWEEN ? AND ?', from, to)).map((f) => [`${f.user_id}|${f.date}|${f.kind}`, f]));
   const lateFactor = parseFloat(st.late_factor || 1), rows = [];
+  const UNIT_AR = { days: 'الأيام', fixed: 'جنيه', hours: 'الساعات', minutes: 'الدقائق' };
   const push = (u, d, kind, reason, value, unit) => {
     const f = flags.get(`${u.id}|${d}|${kind}`);
     const inf = info.find((x) => x.u.id === u.id), at = att.get(u.id + '|' + d);
-    const amount = round2(unit === 'الأيام' ? value * inf.dailyRate : unit === 'الساعات' ? value * inf.hourlyRate : value);
-    rows.push({ user_id: u.id, user_name: u.name, department: u.department || '', date: d, kind, reason, value, unit, amount, check_in: at ? at.check_in : null, check_out: at ? at.check_out : null, from: 'المرتب', applied: f ? !!f.applied : true, by: f ? f.by_name : '', at: f ? f.at : null, note: f ? f.note : '' });
+    const orig = { value, unit };
+    if (f && f.ov_value !== null && f.ov_value !== undefined) { value = Number(f.ov_value); unit = UNIT_AR[f.ov_unit] || 'الأيام'; }
+    const amount = round2(unit === 'الأيام' ? value * inf.dailyRate : unit === 'الساعات' ? value * inf.hourlyRate : unit === 'الدقائق' ? (value / 60) * inf.hourlyRate : value);
+    rows.push({ user_id: u.id, user_name: u.name, department: u.department || '', date: d, kind, reason, value, unit, amount, edited: !!(f && f.ov_value !== null && f.ov_value !== undefined), orig_value: orig.value, orig_unit: orig.unit, check_in: at ? at.check_in : null, check_out: at ? at.check_out : null, from: 'المرتب', applied: f ? !!f.applied : true, by: f ? f.by_name : '', at: f ? f.at : null, note: f ? f.note : '' });
   };
   const info = users.map((u) => {
     const { pen } = policiesFor(u, pctx), prof = profileOf(u, pctx), ub = prof && prof.break_paid === false ? Math.max(0, Number(prof.break_min) || 0) : 0;
@@ -63,6 +66,9 @@ app.post('/api/att/penalties/flag', auth, need('attendance.edit'), wrap(async (r
       ON CONFLICT(user_id,date,kind) DO UPDATE SET applied=excluded.applied, note=excluded.note, by_user=excluded.by_user, by_name=excluded.by_name, at=excluded.at`,
       uid, it.date, it.kind, applied, note, req.user.id, req.user.name, new Date().toISOString());
   }
+  const b = req.body || {}, hasOv = b.value !== undefined && b.value !== null && b.value !== '';
+  if (hasOv && (!(Number(b.value) >= 0) || !['days', 'fixed', 'hours', 'minutes'].includes(b.unit))) return res.status(400).json({ error: 'قيمة التعديل غير صحيحة' });
+  if (hasOv || b.reset) for (const it of items) await db.run('UPDATE penalty_flags SET ov_value=?, ov_unit=? WHERE user_id=? AND date=? AND kind=?', hasOv ? Number(b.value) : null, hasOv ? b.unit : null, toId(it.user_id), it.date, it.kind);
   res.json({ ok: true, count: items.length });
 }));
 // تقويم العمل: حالة كل يوم في الشهر + العطلات الأسبوعية والرسمية

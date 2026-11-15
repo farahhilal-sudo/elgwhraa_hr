@@ -111,20 +111,21 @@ function adjForm(r, month, done, preset = {}) {
 async function penModal(r, month, done) {
   const [y, m] = month.split('-').map(Number), last = `${month}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`;
   let rows;
-  try { rows = (await api(`/att/penalties?from=${month}-01&to=${last}&user_id=${r.user_id}`)).rows; } catch (e) { return toast(e.message || 'تعذّر تحميل الجزاءات', true); }
+  const fetchRows = async () => (await api(`/att/penalties?from=${month}-01&to=${last}&user_id=${r.user_id}`)).rows;
+  try { rows = await fetchRows(); } catch (e) { return toast(e.message || 'تعذّر تحميل الجزاءات', true); }
   const canEdit = has('attendance.edit');
   const manual = (r.adjustments || []).filter((a) => a.kind === 'penalty').map((a) => ({ manual: true, date: String(a.created_at || '').slice(0, 10), value: 1, unit: 'جنيه', amount: a.amount, reason: a.reason || 'جزاء يدوي', applied: true }));
   const all = () => [...rows, ...manual].sort((p, q) => (p.date < q.date ? -1 : p.date > q.date ? 1 : 0));
   const o = modal('<div id="pmb"></div>');
   const box = o.querySelector('.modal'); box.classList.add('pmodal');
   const q2 = (n) => Number(n).toFixed(2), dm = (d) => `${d.slice(8, 10)}-${d.slice(5, 7)}-${d.slice(0, 4)}`;
-  const post = async (row, applied, note = '') => { await api('/att/penalties/flag', 'POST', { items: [{ user_id: row.user_id, date: row.date, kind: row.kind }], applied, note }); Object.assign(row, { applied, note }); done(); };
+  const post = async (row, applied, note = '', extra = {}) => { await api('/att/penalties/flag', 'POST', { items: [{ user_id: row.user_id, date: row.date, kind: row.kind }], applied, note, ...extra }); Object.assign(row, { applied, note }); done(); };
   const draw = () => {
     const L = all(), tot = L.filter((x) => x.applied).reduce((t, x) => t + (x.amount || 0), 0);
     $('#pmb', o).innerHTML = `<div class="pmh"><h3>الجزاء</h3><button class="pmx" data-close aria-label="إغلاق">✕</button></div>
       <div class="pmname"><b>${esc(r.name)}</b><span dir="ltr">${last}</span></div>
       <div class="pmbody"><table class="pmt"><thead><tr><th>التاريخ</th><th>الكمية</th><th>الوحدة</th><th>المبلغ</th><th>السبب</th><th></th></tr></thead><tbody>
-        ${L.map((x, i) => `<tr><td dir="ltr">${dm(x.date)}</td><td>${typeof x.value === 'number' && !x.manual ? q2(x.value) : '—'}</td><td>${x.unit}</td><td>${q2(x.amount || 0)}</td><td>${esc(x.reason)}</td>
+        ${L.map((x, i) => `<tr><td dir="ltr">${dm(x.date)}</td><td>${typeof x.value === 'number' && !x.manual ? q2(x.value) : '—'}</td><td>${x.unit}</td><td>${q2(x.amount || 0)}</td><td>${esc(x.reason)}${x.edited ? ' <span class="pmtag">معدَّل</span>' : ''}</td>
           <td><div class="pmact">${x.manual ? '' : `<button class="sqb" data-pe="${i}" title="تفاصيل / تعديل">${ico('edit')}</button><label class="tgl"><input type="checkbox" data-pt="${i}" ${x.applied ? 'checked' : ''} ${canEdit ? '' : 'disabled'}><i></i></label>`}</div></td></tr>`).join('') || '<tr><td colspan="6" class="empty">لا توجد جزاءات في هذا الشهر</td></tr>'}
       </tbody></table></div><div class="pmfoot"><span class="muted">إجمالي الجزاءات المطبّقة</span><b>${money(tot)}</b></div>`;
     o.querySelectorAll('[data-close]').forEach((b) => (b.onclick = o.close));
@@ -142,10 +143,16 @@ async function penModal(r, month, done) {
     $('#dpt', d).onchange = (e) => run(null, async () => { try { await post(x, e.target.checked, x.note || ''); toast(e.target.checked ? 'تم تطبيق الجزاء على المرتب' : 'تم إلغاء تطبيق الجزاء'); d.close(); draw(); } catch (er) { e.target.checked = !e.target.checked; throw er; } });
     const pe = $('#dpe', d);
     if (pe) pe.onclick = () => {
-      const e2 = modal(`<h3>تعديل الجزاء</h3><p class="muted small" style="margin:0 0 10px">${esc(r.name)} · ${x.date} · ${esc(x.reason)}</p><form class="form" id="pf"><label class="perm full"><input type="checkbox" name="applied" ${x.applied ? 'checked' : ''}>تطبيق الجزاء على المرتب</label>
-        <label class="f full">ملاحظة (سبب الإلغاء أو التعديل)<input name="note" value="${esc(x.note || '')}" maxlength="200"></label><div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
-      const pf = $('#pf', e2);
-      pf.onsubmit = (ev) => { ev.preventDefault(); run($('.btn:not(.alt)', pf), async () => { await post(x, pf.applied.checked, pf.note.value); e2.close(); d.close(); toast('تم الحفظ'); draw(); }); };
+      const UN = { 'الأيام': 'days', 'جنيه': 'fixed', 'الساعات': 'hours', 'الدقائق': 'minutes' }, cur = UN[x.unit] || 'days';
+      const row = $('.pmrow', d), tgl = row.querySelector('.tgl'), app = row.querySelector('.pmapp');
+      row.classList.add('pmedit');
+      row.innerHTML = `<b>${esc(x.reason)}</b><span>خصم من <b class="bl">${x.from}</b></span><input type="number" id="ev" min="0" step="any" value="${x.value}"><select id="eu">${[['days', 'أيام'], ['fixed', 'مبلغ ثابت'], ['hours', 'ساعات'], ['minutes', 'دقائق']].map(([k, l]) => `<option value="${k}" ${k === cur ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        ${x.edited ? '<button type="button" class="link" id="ers">استرجاع الأصلي</button>' : ''}<span class="pmgrow"></span><button type="button" class="sqb bad" id="etr" title="حذف الجزاء (إعفاء من المرتب)">${ico('trash')}</button><button type="button" class="sqb okb" id="eok" title="حفظ">${ico('check')}</button>`;
+      row.append(tgl, app);
+      const refresh = async () => { rows = await fetchRows(); d.close(); draw(); done(); };
+      $('#eok', d).onclick = () => run(null, async () => { const v = $('#ev', d).value; if (v === '' || !(Number(v) >= 0)) throw new Error('اكتبي رقم صحيح (صفر أو أكتر)'); await api('/att/penalties/flag', 'POST', { items: [{ user_id: x.user_id, date: x.date, kind: x.kind }], applied: true, note: x.note || '', value: Number(v), unit: $('#eu', d).value }); toast('تم تعديل الجزاء'); await refresh(); });
+      $('#etr', d).onclick = () => { if (confirm('حذف الجزاء ده (إعفاء الموظف منه في المرتب)؟')) run(null, async () => { await api('/att/penalties/flag', 'POST', { items: [{ user_id: x.user_id, date: x.date, kind: x.kind }], applied: false, note: x.note || '' }); toast('تم حذف الجزاء من المرتب'); await refresh(); }); };
+      const rs = $('#ers', d); if (rs) rs.onclick = () => run(null, async () => { await api('/att/penalties/flag', 'POST', { items: [{ user_id: x.user_id, date: x.date, kind: x.kind }], applied: x.applied, note: x.note || '', reset: true }); toast('تم استرجاع القيمة الأصلية'); await refresh(); });
     };
   };
   draw();

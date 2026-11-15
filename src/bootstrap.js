@@ -28,6 +28,8 @@ async function init() {
   // حسابات التسجيل الذاتي: pending=1 يعني بانتظار موافقة المدير (ومش بيقدر يدخل)
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS pending INTEGER NOT NULL DEFAULT 0');
   await pool.query("ALTER TABLE adjustments ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT ''");
+  await pool.query('ALTER TABLE penalty_flags ADD COLUMN IF NOT EXISTS ov_value DOUBLE PRECISION');
+  await pool.query('ALTER TABLE penalty_flags ADD COLUMN IF NOT EXISTS ov_unit TEXT');
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT');
   // مواقع الحضور المسموحة لكل موظف (قائمة ids). لو فاضية، الموظف يقدر يسجل من أي موقع معرّف.
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS location_ids TEXT NOT NULL DEFAULT '[]'");

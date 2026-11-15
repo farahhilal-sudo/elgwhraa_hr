@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS penalty_flags (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   date TEXT NOT NULL, kind TEXT NOT NULL,
-  applied INTEGER NOT NULL DEFAULT 1, note TEXT DEFAULT '',
+  applied INTEGER NOT NULL DEFAULT 1, note TEXT DEFAULT '', ov_value DOUBLE PRECISION, ov_unit TEXT,
   by_user INTEGER, by_name TEXT DEFAULT '',
   at TEXT NOT NULL DEFAULT (${NOW}),
   UNIQUE(user_id, date, kind)

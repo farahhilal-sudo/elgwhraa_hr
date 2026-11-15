@@ -86,6 +86,11 @@ function holidayMap(pctx, first, last) {
   }
   return m;
 }
+// مبلغ جزاء معدَّل يدويًا: أيام × أجر اليوم، أو مبلغ ثابت، أو ساعات/دقائق × أجر الساعة
+function ovMoney(f, dailyRate, hourlyRate) {
+  const v = Number(f.ov_value) || 0;
+  return f.ov_unit === 'fixed' ? v : f.ov_unit === 'hours' ? v * hourlyRate : f.ov_unit === 'minutes' ? (v / 60) * hourlyRate : v * dailyRate;
+}
 // قاعدة التعويض المناسبة ليوم عمل فيه الموظف في عطلة رسمية أو إجازة أسبوعية (الأخص أولاً ثم "الاثنين")
 function compRuleFor(pctx, kinds) {
   const rules = pctx.comp || [];
@@ -129,7 +134,10 @@ async function computeMonth(user, month, st, tiers = []) {
   const { pen, ot } = policiesFor(user, pctx);
   const polGrace = pen && Number.isFinite(Number(pen.grace)) ? Number(pen.grace) : null;
   const attByDate = Object.fromEntries(att.map((a) => [a.date, a]));
-  const waived = new Set((await db.all('SELECT date,kind FROM penalty_flags WHERE user_id=? AND applied=0 AND date BETWEEN ? AND ?', user.id, first, last)).map((f) => f.date + '|' + f.kind));
+  const flagRows = await db.all('SELECT date,kind,applied,ov_value,ov_unit FROM penalty_flags WHERE user_id=? AND date BETWEEN ? AND ?', user.id, first, last);
+  const waived = new Set(flagRows.filter((f) => !f.applied).map((f) => f.date + '|' + f.kind));
+  // تعديل يدوي لقيمة جزاء يوم معيّن (بدل القيمة اللي بتطلع من السياسة): بيتحسب مبلغه بدل الحساب العادي
+  const ovMap = new Map(flagRows.filter((f) => f.applied && f.ov_value !== null && f.ov_value !== undefined).map((f) => [f.date + '|' + f.kind, f]));
   const covered = new Set();
   let overtimeHours = 0, permissionHours = 0;
   for (const r of reqs) {
@@ -144,6 +152,7 @@ async function computeMonth(user, month, st, tiers = []) {
   const dailyRate = user.base_salary / 30;
   const hourlyRate = dailyRate / shiftHours;
   const hmap = holidayMap(pctx, first, last);
+  let absentCharge = 0, absentOvMoney = 0, lateOvMoney = 0, earlyOvMoney = 0;
   let presentDays = 0, absentDays = 0, leaveDays = 0, lateMinutes = 0, earlyMinutes = 0, workDays = 0, lateDays = 0, lateTierTotal = 0, partialDays = 0, partialTotal = 0;
   let holidayDays = 0, offDaysWorked = 0, compDays = 0, compPay = 0;
   if (first <= upto) {
@@ -174,15 +183,17 @@ async function computeMonth(user, month, st, tiers = []) {
         const lm = polGrace !== null && a.late_minutes <= polGrace ? 0 : a.late_minutes;
         const em = pen && a.early_minutes <= (Number(pen.early_grace) || 0) ? 0 : a.early_minutes;
         const wl = waived.has(d + '|late'), we = waived.has(d + '|early');
-        lateMinutes += wl ? 0 : lm; earlyMinutes += we ? 0 : em;
-        if (lm > 0) { lateDays++; if (!wl) lateTierTotal += pen ? policyLate(pen, lm, dailyRate, hourlyRate) : tierDeduction(tiers, lm, dailyRate); }
+        const ol = lm > 0 ? ovMap.get(d + '|late') : null, oe = em > 0 ? ovMap.get(d + '|early') : null;
+        if (ol) lateOvMoney += ovMoney(ol, dailyRate, hourlyRate); if (oe) earlyOvMoney += ovMoney(oe, dailyRate, hourlyRate);
+        lateMinutes += wl || ol ? 0 : lm; earlyMinutes += we || oe ? 0 : em;
+        if (lm > 0) { lateDays++; if (!wl && !ol) lateTierTotal += pen ? policyLate(pen, lm, dailyRate, hourlyRate) : tierDeduction(tiers, lm, dailyRate); }
         // انصراف ناقص: يوم فات فيه حضور من غير انصراف
         if (pen && pen.partial_on && !a.check_out && d < today) {
           partialDays++; partialTotal += pen.partial_kind === 'fixed' ? Number(pen.partial_value) || 0 : (Number(pen.partial_value) || 0) * dailyRate;
         }
       }
       else if (covered.has(d)) leaveDays++;
-      else if (d < today) { if (!waived.has(d + '|absent')) absentDays++; }
+      else if (d < today) { if (!waived.has(d + '|absent')) { absentDays++; const oa = ovMap.get(d + '|absent'); if (oa) absentOvMoney += ovMoney(oa, dailyRate, hourlyRate); else absentCharge++; } }
     }
   }
   const lateFactor = parseFloat(st.late_factor || 1);
@@ -190,8 +201,8 @@ async function computeMonth(user, month, st, tiers = []) {
   // لو الموظف وردية مربوطة بسياسة جزاءات: السياسة هي اللي بتحكم (شرائحها + تفعيل كل بند). غير كده: الإعدادات العامة زي ما كانت.
   const lateOnly = pen ? (pen.late_on ? lateTierTotal : 0) : (tiers.length ? lateTierTotal : (lateMinutes / 60) * hourlyRate * lateFactor);
   const earlyDeduction = pen ? (pen.early_on ? (earlyMinutes / 60) * hourlyRate * (Number(pen.early_factor) || 0) : 0) : (earlyMinutes / 60) * hourlyRate * lateFactor;
-  const lateDeduction = round2(lateOnly + earlyDeduction + partialTotal);
-  const absenceDeduction = round2(absentDays * dailyRate * (pen ? Number(pen.absence_factor) || 0 : parseFloat(st.absence_factor || 1)));
+  const lateDeduction = round2(lateOnly + earlyDeduction + partialTotal + lateOvMoney + earlyOvMoney);
+  const absenceDeduction = round2(absentCharge * dailyRate * (pen ? Number(pen.absence_factor) || 0 : parseFloat(st.absence_factor || 1)) + absentOvMoney);
   const overtimePay = otPayFor(ot, overtimeHours, hourlyRate, st);
   const sumKind = (k) => round2(adj.filter((a) => a.kind === k).reduce((s, a) => s + a.amount, 0));
   const bonuses = sumKind('bonus'), manualDeductions = sumKind('deduction'), penalties = sumKind('penalty');
