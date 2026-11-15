@@ -49,6 +49,7 @@ async function init() {
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     await db.run('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO NOTHING', k, v);
   }
+  await db.run("UPDATE settings SET value='GWHRAA HR' WHERE key='company_name' AND value='شركتي'"); // الاسم الافتراضي الجديد
   // الإضافي بقى سعر الدقيقة العادية × 2 (مرة واحدة بس، ومبنلمسش لو اتغيّرت القيم يدويًا)
   if (!(await db.get("SELECT 1 FROM settings WHERE key='ot_x2_migrated'"))) {
     await db.run("UPDATE settings SET value='0' WHERE key='overtime_minute_rate' AND value='2'");

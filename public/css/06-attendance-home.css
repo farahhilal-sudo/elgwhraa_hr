@@ -9,7 +9,7 @@
 .day { flex: 1; border: 0; background: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0; border-radius: 22px; cursor: pointer; }
 .day b { font-size: 15.5px; font-weight: 600; color: var(--muted); }
 .day i { width: 9px; height: 9px; border-radius: 50%; display: block; }
-.day.on { background: #0ea5e9; }
+.day.on { background: #f7d84a; }
 .day.on b { color: #fff; }
 .day.on i { background: #fff !important; }
 .punchcard { padding: 24px 18px; }
@@ -22,8 +22,8 @@
 .prow b { font-size: 15.5px; }
 .prow .ploc { color: var(--muted); margin-inline-start: auto; }
 .pi { width: 22px; text-align: center; font-weight: 700; }
-.pi.in { color: #0ea5e9; } .pi.out { color: var(--bad); }
-.pbtn { width: 100%; margin-top: 18px; border: 0; border-radius: 12px; padding: 14px; background: #0ea5e9; color: #fff; font-size: 15.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.pi.in { color: #f7d84a; } .pi.out { color: var(--bad); }
+.pbtn { width: 100%; margin-top: 18px; border: 0; border-radius: 12px; padding: 14px; background: #f7d84a; color: #fff; font-size: 15.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 10px; }
 .pbtn.out { background: var(--bad); }
 .pbtn:disabled { opacity: .55; cursor: not-allowed; }
 

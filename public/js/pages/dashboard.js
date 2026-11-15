@@ -3,12 +3,12 @@
 
 /* --- لوحة المعلومات (على شكل الشاشات المرجعية) --- */
 const DSVG = {
-  users: '<svg viewBox="0 0 32 32"><circle cx="11" cy="10" r="4.5" fill="#38bdf8"/><circle cx="22" cy="12" r="4.5" fill="#0ea5e9"/><circle cx="12" cy="22" r="4.5" fill="#0ea5e9"/><circle cx="23" cy="23" r="3.5" fill="#7dd3fc"/></svg>',
+  users: '<svg viewBox="0 0 32 32"><circle cx="11" cy="10" r="4.5" fill="#fde047"/><circle cx="22" cy="12" r="4.5" fill="#f7d84a"/><circle cx="12" cy="22" r="4.5" fill="#f7d84a"/><circle cx="23" cy="23" r="3.5" fill="#fde047"/></svg>',
   present: '<svg viewBox="0 0 32 32"><circle cx="16" cy="18" r="11" fill="#86efac"/><circle cx="16" cy="18" r="8" fill="#fff" opacity=".55"/><path d="M13 4h6M16 4v3M12.5 18.5l2.5 2.5 5-5.5" stroke="#16a34a" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   late: '<svg viewBox="0 0 32 32"><circle cx="16" cy="18" r="11" fill="#fecaca"/><path d="M4 9l5-4M28 9l-5-4" stroke="#ef4444" stroke-width="3" stroke-linecap="round"/><path d="M16 12v6l4 2" stroke="#dc2626" stroke-width="2.4" fill="none" stroke-linecap="round"/></svg>',
   absent: '<svg viewBox="0 0 32 32"><circle cx="16" cy="9" r="6" fill="#f87171"/><path d="M5 28c0-7 5-11 11-11s11 4 11 11z" fill="#fca5a5"/><rect x="11" y="21" width="10" height="3" rx="1.5" fill="#dc2626"/></svg>',
   not_yet: '<svg viewBox="0 0 32 32"><path d="M8 4h16M8 28h16" stroke="#d97706" stroke-width="3" stroke-linecap="round"/><path d="M10 4c0 7 6 8 6 12s-6 5-6 12h12c0-7-6-8-6-12s6-5 6-12z" fill="#fdba74" stroke="#d97706" stroke-width="1.5"/></svg>',
-  leave: '<svg viewBox="0 0 32 32"><circle cx="19" cy="6" r="3.5" fill="#38bdf8"/><path d="M17 12l-5 6 3 3-3 7M17 12l5 5 5-1M15 21l5 7" stroke="#0ea5e9" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  leave: '<svg viewBox="0 0 32 32"><circle cx="19" cy="6" r="3.5" fill="#fde047"/><path d="M17 12l-5 6 3 3-3 7M17 12l5 5 5-1M15 21l5 7" stroke="#f7d84a" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   cal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18M9 15.5l2 2 4-4"/></svg>',
 };
 const DASH_WN = { att: 'سجل الحضور', req: 'الطلبات الشهرية', hour: 'الحضور بالساعة', sav: 'التوفير', ot: 'الوقت الإضافي', hrs: 'ساعات العمل لكل قسم', pen: 'الجزاءات', bon: 'المكافآت / الخصومات', leg: 'حضور اليوم (التفصيل)' };
@@ -75,7 +75,7 @@ PAGES.dashboard = async (view) => {
 
   /* --- اللي كان في اللوحة القديمة (توزيع الحضور اليوم + جدول الحضور) — محفوظ زي ما هو --- */
   const drawLegacy = (d) => {
-    const SL = { present: ['في الموعد', 'b-ok', '#15803d'], late: ['متأخر', 'b-warn', '#d97706'], absent: ['غائب', 'b-bad', '#dc2626'], leave: ['إجازة', 'b-info', '#2563eb'], not_yet: ['لم يسجّل بعد', '', '#94a3b8'], off: ['عطلة', '', '#cbd5e1'] };
+    const SL = { present: ['في الموعد', 'b-ok', '#15803d'], late: ['متأخر', 'b-warn', '#d97706'], absent: ['غائب', 'b-bad', '#dc2626'], leave: ['إجازة', 'b-info', '#ca8a04'], not_yet: ['لم يسجّل بعد', '', '#94a3b8'], off: ['عطلة', '', '#cbd5e1'] };
     $('#dleg', view).innerHTML = `<div class="card" style="margin-top:16px"><h3 style="margin-bottom:10px">توزيع الحضور اليوم <span class="muted small">${fmtDate(d.date)}</span></h3>
       <div class="bar">${['present', 'late', 'absent', 'leave', 'not_yet', 'off'].map((k) => (d[k] ? `<i style="width:${(d[k] / Math.max(1, d.total)) * 100}%;background:${SL[k][2]}"></i>` : '')).join('')}</div>
       <div class="legend">${['present', 'late', 'absent', 'leave', 'not_yet'].map((k) => `<span style="--c:${SL[k][2]}">${SL[k][0]} (${d[k]})</span>`).join('')}</div></div>
@@ -191,7 +191,7 @@ PAGES.dashboard = async (view) => {
     render: (d, s) => {
       const g = byDept(d.users);
       return s.mode === 'table' ? T(['القسم', 'عدد الموظفين', 'ساعات العمل'], g.map(([k, a]) => [esc(k), a.length, hrs2(sum(a, (u) => u.worked_minutes))]))
-        : barChart(g.map(([k]) => k), [{ name: 'ساعات العمل', color: '#0ea5e9', data: g.map(([, a]) => +hrs2(sum(a, (u) => u.worked_minutes))) }], { rot: true, minW: 420 });
+        : barChart(g.map(([k]) => k), [{ name: 'ساعات العمل', color: '#f7d84a', data: g.map(([, a]) => +hrs2(sum(a, (u) => u.worked_minutes))) }], { rot: true, minW: 420 });
     } });
 
   widget({ id: 'pen', title: 'الجزاءات', toggle: true, mode: 'table', filters: ['office', 'dept', 'job', 'from', 'to'], fcls: 'two', state: { from: monthStart(), to: monthEnd() }, fetch: aggFetch,
@@ -206,7 +206,7 @@ PAGES.dashboard = async (view) => {
       const ms = monthsBetween(s.from, s.to), val = (m, ks) => sum(d.adj.filter((a) => a.month === m && ks.includes(a.kind)), (a) => a.amount);
       const lab = ms.map((m) => `${m.slice(5)}-${m.slice(0, 4)}`), bon = ms.map((m) => val(m, ['bonus'])), ded = ms.map((m) => val(m, ['deduction', 'penalty']));
       return s.mode === 'table' ? T(['الشهر', 'المكافآت', 'الخصومات'], lab.map((l, i) => [l, money(bon[i]), money(ded[i])]))
-        : legendHtml([{ name: 'مكافآت', color: '#0ea5e9' }, { name: 'خصومات', color: '#f43f5e' }]) + barChart(lab, [{ name: 'خصومات', color: '#f43f5e', data: ded }, { name: 'مكافآت', color: '#0ea5e9', data: bon }], { rot: true, minW: 520 });
+        : legendHtml([{ name: 'مكافآت', color: '#f7d84a' }, { name: 'خصومات', color: '#f43f5e' }]) + barChart(lab, [{ name: 'خصومات', color: '#f43f5e', data: ded }, { name: 'مكافآت', color: '#f7d84a', data: bon }], { rot: true, minW: 520 });
     } });
 
   drawStats().catch((e) => toast(e.message, true));
