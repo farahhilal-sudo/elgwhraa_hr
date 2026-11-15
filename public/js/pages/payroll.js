@@ -38,18 +38,26 @@ PAGES.payroll = async (view) => {
     const tot = (k) => rows.reduce((x, r) => x + (r[k] || 0), 0);
     const info = (k, r) => ` <button type="button" class="infob noprint" data-inf="${k}:${r.user_id}" title="عرض التفاصيل" aria-label="عرض التفاصيل">!</button>`;
     const earned = (r) => round2c(r.accrued_basic + r.accrued_allowances);
+    const penAll = (r) => round2c((r.late_deduction || 0) + (r.absence_deduction || 0) + (r.penalties || 0));
+    const mk = (r, k) => (r.manual_social === undefined ? (k === 'other' ? r.manual_deductions : 0) : r['manual_' + k]) || 0;
+    const canAdj = (r) => has('payroll.manage') && !r.paid;
+    const pen = (r, cat) => `${money(mk(r, cat))}${canAdj(r) ? ` <button type="button" class="pencil noprint" data-cat="${cat}:${r.user_id}" title="إضافة خصم" aria-label="إضافة خصم">${ico('edit')}</button>` : ''}`;
     const cols = [
       ['الأساسي', 'tb', (r) => money(r.base_salary), () => money(tot('base_salary'))],
       ['البدلات', 'tb', (r) => money(r.allowances), () => money(tot('allowances')), (r) => `${money(r.allowances)}${r.allowances > 0 ? info('al', r) : ''}`],
-      ['أيام محتسبة', 'tb', (r) => `${r.accrued_days} من 30`, () => ''],
-      ['المستحق عن الأيام', 'tb', (r) => money(earned(r)), () => money(rows.reduce((x, r) => x + earned(r), 0))],
-      ['المكافآت', 'tg', (r) => money(r.bonuses), () => money(tot('bonuses'))],
+      ['الإجمالي', 'tb', (r) => money(earned(r)), () => money(rows.reduce((x, r) => x + earned(r), 0))],
+      ['العلاوات', 'tg', (r) => money(r.bonuses), () => money(tot('bonuses'))],
       ['الوقت الإضافي', 'tg', (r) => money(r.overtime_pay), () => money(tot('overtime_pay'))],
-      ['خصم التأخير', 'tp', (r) => money(r.late_deduction), () => money(tot('late_deduction'))],
-      ['خصم الغياب', 'tp', (r) => money(r.absence_deduction), () => money(tot('absence_deduction'))],
-      ['الجزاءات', 'tp', (r) => money(r.penalties), () => money(tot('penalties')), (r) => `${money(r.penalties)}${r.penalties > 0 ? info('pen', r) : ''}`],
-      ['خصومات أخرى', 'tp', (r) => money(r.manual_deductions), () => money(tot('manual_deductions'))],
-      ['مستحق الدفع', 'tn', (r) => money(r.net), () => money(tot('net'))],
+      ['غير ذلك', 'tg', (r) => money(r.compensation_pay || 0), () => money(tot('compensation_pay'))],
+      ['الجزاءات', 'tp', (r) => money(penAll(r)), () => money(rows.reduce((x, r) => x + penAll(r), 0)), (r) => `${money(penAll(r))}${penAll(r) > 0 ? info('pen', r) : ''}`],
+      ['اجتماعي', 'tp', (r) => money(mk(r, 'social')), () => money(rows.reduce((x, r) => x + mk(r, 'social'), 0)), (r) => pen(r, 'social')],
+      ['طبي', 'tp', (r) => money(mk(r, 'medical')), () => money(rows.reduce((x, r) => x + mk(r, 'medical'), 0)), (r) => pen(r, 'medical')],
+      ['الضرائب', 'tp', (r) => money(mk(r, 'tax')), () => money(rows.reduce((x, r) => x + mk(r, 'tax'), 0)), (r) => pen(r, 'tax')],
+      ['أخرى', 'tp', (r) => money(mk(r, 'other')), () => money(rows.reduce((x, r) => x + mk(r, 'other'), 0)), (r) => pen(r, 'other')],
+      ['مستحق الدفع', 'tw', (r) => money(r.net), () => money(tot('net'))],
+      ['قيد الانتظار', 'tw', (r) => money(r.paid ? 0 : r.net), () => money(rows.reduce((x, r) => x + (r.paid ? 0 : r.net), 0))],
+      ['مدفوع', 'tw', (r) => money(r.paid ? r.net : 0), () => money(rows.reduce((x, r) => x + (r.paid ? r.net : 0), 0)), (r) => `${money(r.paid ? r.net : 0)}${has('payroll.manage') && !r.paid && data.ended ? ` <button type="button" class="pencil noprint" data-pay="${r.user_id}" title="تسجيل الدفع" aria-label="تسجيل الدفع">${ico('edit')}</button>` : ''}`],
+      ['الطريقة', 'tw', () => '—', () => ''],
     ];
     $('#pnote').textContent = `${MONTHS_AR[Number(mm) - 1]} ${yy} · محسوب لحد ${data.month === thisMonth() ? 'اليوم' : 'نهاية الشهر'}`;
     $('#pt').innerHTML = `<div class="tablewrap ptwrap"><table class="ptable"><tr><th class="who">الموظف</th>${cols.map(([h, c]) => `<th class="${c}">${h}</th>`).join('')}</tr>
@@ -63,12 +71,14 @@ PAGES.payroll = async (view) => {
       let body;
       if (k === 'pen') {
         const L = (r.adjustments || []).filter((a) => a.kind === 'penalty');
-        body = L.length ? `<div class="tablewrap"><table class="ptinfo"><tr><th>التاريخ</th><th>المبلغ</th><th>السبب</th></tr>${L.map((a) => `<tr><td>${esc(String(a.created_at || '').slice(0, 10))}</td><td>${money(a.amount)}</td><td>${esc(a.reason || '—')}</td></tr>`).join('')}<tr class="tot"><td>الإجمالي</td><td>${money(r.penalties)}</td><td></td></tr></table></div>` : '<p class="muted">لا توجد جزاءات.</p>';
+        const rowsH = [['خصم التأخير', r.late_deduction, ''], ['خصم الغياب', r.absence_deduction, ''], ...L.map((a) => ['جزاء يدوي', a.amount, a.reason || '—'])].filter((x) => x[1] > 0);
+        body = rowsH.length ? `<div class="tablewrap"><table class="ptinfo"><tr><th>البند</th><th>المبلغ</th><th>السبب</th></tr>${rowsH.map(([n, v, w]) => `<tr><td>${n}</td><td>${money(v)}</td><td>${esc(w)}</td></tr>`).join('')}<tr class="tot"><td>الإجمالي</td><td>${money(penAll(r))}</td><td></td></tr></table></div>` : '<p class="muted">لا توجد جزاءات.</p>';
       } else {
         body = `<div class="tablewrap"><table class="ptinfo"><tr><th>البند</th><th>القيمة</th></tr><tr><td>البدلات الشهرية</td><td>${money(r.allowances)}</td></tr><tr><td>أيام محتسبة</td><td>${r.accrued_days} من 30</td></tr><tr class="tot"><td>المستحق من البدلات</td><td>${money(r.accrued_allowances)}</td></tr></table></div>`;
       }
       modal(`${head}${body}<div class="actions" style="margin-top:12px"><button class="btn alt" data-close>إغلاق</button></div>`);
     }));
+    view.querySelectorAll('[data-cat]').forEach((b) => (b.onclick = () => { const [c, id] = b.dataset.cat.split(':'); adjForm(data.rows.find((r) => String(r.user_id) === id), data.month, load, { kind: 'deduction', category: c }); }));
     view.querySelectorAll('[data-adj]').forEach((b) => (b.onclick = () => adjForm(data.rows.find((r) => r.user_id == b.dataset.adj), data.month, load)));
     view.querySelectorAll('[data-sl]').forEach((b) => (b.onclick = () => {
       const r = data.rows.find((x) => x.user_id == b.dataset.sl);
@@ -83,12 +93,15 @@ PAGES.payroll = async (view) => {
   load();
 };
 const round2c = (n) => Math.round(n * 100) / 100;
-function adjForm(r, month, done) {
+function adjForm(r, month, done, preset = {}) {
   const o = modal(`<h3>مكافأة / جزاء / خصم — ${esc(r.name)}</h3><form class="form" id="af">
     <label class="f">النوع<select name="kind"><option value="bonus">مكافأة</option><option value="penalty">جزاء</option><option value="deduction">خصم</option></select></label>
+    <label class="f" id="catw" hidden>التصنيف<select name="category"><option value="">أخرى</option><option value="social">اجتماعي</option><option value="medical">طبي</option><option value="tax">الضرائب</option></select></label>
     <label class="f">المبلغ<input type="number" step="0.01" min="0.01" name="amount" required></label>
     <label class="f full">السبب<input name="reason" maxlength="200" required></label>
     <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">إضافة</button></div></form>`);
   const f = $('#af', o);
-  f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => { await api('/adjustments', 'POST', { user_id: r.user_id, month, kind: f.kind.value, amount: f.amount.value, reason: f.reason.value }); o.close(); toast('تمت الإضافة'); done(); }); };
+  const syncCat = () => { $('#catw', o).hidden = f.kind.value !== 'deduction'; };
+  if (preset.kind) f.kind.value = preset.kind; if (preset.category) f.category.value = preset.category; f.kind.onchange = syncCat; syncCat();
+  f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => { await api('/adjustments', 'POST', { user_id: r.user_id, month, kind: f.kind.value, category: f.kind.value === 'deduction' ? f.category.value : '', amount: f.amount.value, reason: f.reason.value }); o.close(); toast('تمت الإضافة'); done(); }); };
 }

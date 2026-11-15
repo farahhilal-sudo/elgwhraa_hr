@@ -195,6 +195,8 @@ async function computeMonth(user, month, st, tiers = []) {
   const overtimePay = otPayFor(ot, overtimeHours, hourlyRate, st);
   const sumKind = (k) => round2(adj.filter((a) => a.kind === k).reduce((s, a) => s + a.amount, 0));
   const bonuses = sumKind('bonus'), manualDeductions = sumKind('deduction'), penalties = sumKind('penalty');
+  const sumCat = (c) => round2(adj.filter((x) => x.kind === 'deduction' && (x.category || '') === c).reduce((t, x) => t + x.amount, 0));
+  const manualSocial = sumCat('social'), manualMedical = sumCat('medical'), manualTax = sumCat('tax'), manualOther = round2(manualDeductions - manualSocial - manualMedical - manualTax);
   // المرتب بيتحسب يوم بيوم: كل يوم بيعدّي (من أول الشهر أو من تاريخ التعيين) بيستحق فيه الموظف أجر يوم = (الأساسي + البدلات) ÷ 30
   // الشهر المنتهي = 30 يوم كاملين، والشهر الجاري = الأيام اللي عدّت لحد النهارده (بما فيها اليوم)
   const startAcc = user.hire_date > first ? user.hire_date : first;
@@ -213,7 +215,7 @@ async function computeMonth(user, month, st, tiers = []) {
     penalty_policy: pen ? pen.name : null, overtime_policy: ot ? ot.name : null, leave_profile: prof ? prof.name : null,
     holiday_days: holidayDays, off_days_worked: offDaysWorked, comp_days: compDays, compensation_pay: compensationPay,
     overtime_pay: overtimePay, bonuses, late_deduction: lateDeduction, absence_deduction: absenceDeduction,
-    manual_deductions: manualDeductions, penalties, gross, total_deductions: totalDeductions,
+    manual_deductions: manualDeductions, manual_social: manualSocial, manual_medical: manualMedical, manual_tax: manualTax, manual_other: manualOther, penalties, gross, total_deductions: totalDeductions,
     net: round2(gross - totalDeductions), adjustments: adj,
   };
 }

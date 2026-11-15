@@ -75,11 +75,12 @@ app.get('/api/adjustments', auth, need('payroll.view'), wrap(async (req, res) =>
 }));
 app.post('/api/adjustments', auth, need('payroll.manage'), wrap(async (req, res) => {
   const { user_id, month, kind, amount, reason = '' } = req.body || {};
+  const category = kind === 'deduction' && ['social', 'medical', 'tax'].includes((req.body || {}).category) ? req.body.category : '';
   const uid = toId(user_id);
   if (!uid || !(await db.get('SELECT 1 FROM users WHERE id=?', uid)) || !isMonth(month) || !['deduction', 'bonus', 'penalty'].includes(kind) || !(Number(amount) > 0))
     return res.status(400).json({ error: 'بيانات غير صحيحة' });
   if (await db.get('SELECT 1 FROM payslips WHERE user_id=? AND month=?', uid, month)) return res.status(400).json({ error: 'تم صرف مرتب هذا الشهر، لا يمكن إضافة بنود عليه' });
-  await db.run('INSERT INTO adjustments(user_id,month,kind,amount,reason,created_by) VALUES(?,?,?,?,?,?)', uid, month, kind, Number(amount), String(reason).slice(0, 200), req.user.id);
+  await db.run('INSERT INTO adjustments(user_id,month,kind,amount,reason,created_by,category) VALUES(?,?,?,?,?,?,?)', uid, month, kind, Number(amount), String(reason).slice(0, 200), req.user.id, category);
   await audit(req, 'adjustment.add', `user_id=${uid} ${month}`, `${kind} ${Number(amount)}`);
   await notify(uid, `تمت إضافة ${{ bonus: 'مكافأة', penalty: 'جزاء', deduction: 'خصم' }[kind]} بقيمة ${Number(amount)} عن شهر ${month}`);
   res.json({ ok: true });

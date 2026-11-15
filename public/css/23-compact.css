@@ -22,3 +22,17 @@ html:not(.is-app) .ptable th.tn, html:not(.is-app) .ptable td.tn { font-size: 12
 .ptinfo { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .ptinfo th, .ptinfo td { padding: 7px 10px; text-align: start; border-bottom: 1px solid var(--line); }
 .ptinfo th { background: #f6f8fa; color: var(--muted); font-weight: 700; } .ptinfo .tot td { font-weight: 800; background: #f6f8fa; }
+
+/* ===== شكل جدول المرتبات المرجعي ===== */
+.ptable { min-width: 1250px; }
+.ptable th { background: #fafbfd; font-weight: 600; }
+.ptable th.tb { background: #fafbfd; color: #2b8fd0; } .ptable td.tb { background: #dff0fb; }
+.ptable th.tg { background: #fafbfd; color: #1fa04a; } .ptable td.tg { background: #d9f0d5; }
+.ptable th.tp { background: #fafbfd; color: #d4382c; } .ptable td.tp { background: #fff0f0; }
+.ptable th.tw { background: #fafbfd; color: #7b8794; } .ptable td.tw { background: #fff; }
+.ptable td { font-weight: 400; color: #3b3b3b; }
+.ptable tr.totrow th { background: #f1f5f9; font-weight: 700; }
+.ptable tr.totrow th.tb { color: #1d6fa8; } .ptable tr.totrow th.tg { color: #15803d; } .ptable tr.totrow th.tp { color: #b91c1c; } .ptable tr.totrow th.tw { color: #334155; }
+.pencil { display: inline-grid; place-items: center; border: 0; background: transparent; color: #4b5563; padding: 0 2px; margin-inline-start: 8px; cursor: pointer; vertical-align: middle; }
+.pencil .ico { width: 14px; height: 14px; } .pencil:hover { color: var(--brand); }
+[hidden] { display: none !important; }
