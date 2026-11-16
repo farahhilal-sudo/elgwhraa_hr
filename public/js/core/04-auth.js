@@ -11,9 +11,9 @@ async function renderLogin() {
   let pub = { signup_enabled: true };
   try { pub = await api('/public'); } catch { /* نكمل بالافتراضي */ }
   $('#app').innerHTML = `<div class="login"><form class="card" id="lf">
-    <img class="logo" src="/icon.svg" alt="">
+    <img class="logo" src="/logo.png" alt="GWHRAA HR">
     <h2 style="text-align:center;margin-bottom:4px">تسجيل الدخول</h2>
-    <p class="muted" style="text-align:center;margin:0 0 16px">نظام الحضور والموارد البشرية</p>
+    <p class="muted" style="text-align:center;margin:0 0 16px">GWHRAA HR</p>
     <div class="grid">
       <label class="f">اسم المستخدم<input name="u" autocomplete="username" autocapitalize="none" required></label>
       <label class="f">كلمة المرور<input name="p" type="password" autocomplete="current-password" required></label>

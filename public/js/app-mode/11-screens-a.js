@@ -95,7 +95,7 @@ PAGES.home = async (view) => {
     const days = Array.from({ length: 7 }, (_, i) => addDays(sel, i - 3));
     $('#smon').innerHTML = `<b>${esc(mName(sel))}</b> <span>${sel.slice(0, 4)}</span>`;
     $('#sdow').textContent = `(${dowName(sel)})`;
-    $('#strip').innerHTML = days.map((d) => `<button class="day ${d === sel ? 'on' : ''}" data-d="${d}"><b>${Number(d.slice(8))}</b><i style="background:${d === sel ? '#0b9bea' : dotColor(d)}"></i></button>`).join('');
+    $('#strip').innerHTML = days.map((d) => `<button class="day ${d === sel ? 'on' : ''}" data-d="${d}"><b>${Number(d.slice(8))}</b><i style="background:${d === sel ? '#c99a00' : dotColor(d)}"></i></button>`).join('');
     view.querySelectorAll('.day').forEach((b) => (b.onclick = async () => { sel = b.dataset.d; await loadMonth(sel.slice(0, 7)); draw(); }));
   };
   const row = (kind, iso, loc) => `<div class="prow"><span class="pi ${kind}">${fi(kind === 'in' ? 'sq_in' : 'sq_out')}</span><b>${isoTime(iso)}</b><span class="ploc">${esc(loc || t('No location'))}</span></div>`;
@@ -170,7 +170,7 @@ appDashboard = async function (view) {
     <div class="xhours"><b>${hrs.toFixed(hrs % 1 ? 2 : 0)}</b><span>${t('Hours Worked This Month')}</span></div>
     <div class="xtiles2">
       <div class="card"><div class="xt1"><b>${pm ? pm.absent_days : 0}</b><small>${t('Days')}</small>${ci('absent')}</div><span>${t('Absent')}</span></div>
-      <div class="card"><div class="xt1"><b>${remote}</b><small>${t('Days')}</small><svg class="cic wifi" viewBox="0 0 24 24" fill="none" stroke="#0b9bea" stroke-width="2" stroke-linecap="round"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.3" r="1.1" fill="#0b9bea"/></svg></div><span>${t('Used Remote Days')}</span></div>
+      <div class="card"><div class="xt1"><b>${remote}</b><small>${t('Days')}</small><svg class="cic wifi" viewBox="0 0 24 24" fill="none" stroke="#c99a00" stroke-width="2" stroke-linecap="round"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.3" r="1.1" fill="#c99a00"/></svg></div><span>${t('Used Remote Days')}</span></div>
       <div class="card"><div class="xt1"><b>${penDays.toFixed(1)}</b>${ci('hourglass')}</div><span>${t('Penalties')}</span></div>
       <div class="card"><div class="xt1"><b>${Number(attended).toFixed(2)}</b>${ci('present')}</div><span>${t('Attended Days')}</span></div>
     </div>${team}`;
@@ -247,7 +247,7 @@ PAGES.a_newreq = (view) => {
 const ICX = {
   history: CI.att, penalties: CI.penalty, breaks: '<path d="M5 8h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z" fill="#e4cfcf"/><path d="M16 9.5h1.8a2.2 2.2 0 0 1 0 4.4H16" fill="none" stroke="#5a2d2d" stroke-width="1.8"/><path d="M8 3.5v2M11 3v2.5M14 3.5v2" stroke="#5a2d2d" stroke-width="1.6" stroke-linecap="round"/>',
   claims: '<path d="M4 9.5A3.5 3.5 0 0 1 7.5 6H17l1.5 2.5V17a3 3 0 0 1-3 3H7.5A3.5 3.5 0 0 1 4 16.5z" fill="#d6efd9"/><path d="M5 6.2l8.5-3.2 1 3" fill="none" stroke="#27b24a" stroke-width="1.8" stroke-linejoin="round"/><circle cx="7.2" cy="17.2" r="3.4" fill="#27b24a"/><path d="M5.6 17.2l1.2 1.2 2-2.2" fill="none" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
-  assign: '<rect x="5" y="4" width="14" height="17" rx="3" fill="#cdeef2"/><rect x="8.5" y="2" width="7" height="4" rx="1.6" fill="#14a9b7"/><path d="M9 12h6M9 16h4" stroke="#14a9b7" stroke-width="1.8" stroke-linecap="round"/>',
+  assign: '<rect x="5" y="4" width="14" height="17" rx="3" fill="#fef9d9"/><rect x="8.5" y="2" width="7" height="4" rx="1.6" fill="#14a9b7"/><path d="M9 12h6M9 16h4" stroke="#14a9b7" stroke-width="1.8" stroke-linecap="round"/>',
   dir: CI.list, payroll: CI.money,
   adjust: '<rect x="3" y="19" width="18" height="2" rx="1" fill="#f6d78f"/><path d="M5 17l1-4 9.5-9.5a2 2 0 0 1 2.8 0l.7.7a2 2 0 0 1 0 2.8L9.5 16.5z" fill="#f2b23c"/><path d="M14 5l3.5 3.5" stroke="#fff" stroke-width="1.4"/>',
 };

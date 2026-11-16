@@ -1,8 +1,8 @@
 :root {
   --bg: #f3f6fb; --card: #fff; --ink: #14201f; --muted: #62716f; --line: #e1e8e6;
-  --brand: #0ea5e9; --brand-d: #0284c7; --brand-l: #e0f2fe;
+  --brand: #f7d84a; --brand-d: #a16207; --brand-l: #fef9d9;
   --ok: #15803d; --ok-l: #dcfce7; --warn: #b45309; --warn-l: #fef3c7;
-  --bad: #b91c1c; --bad-l: #fee2e2; --info: #1d4ed8; --info-l: #dbeafe;
+  --bad: #b91c1c; --bad-l: #fee2e2; --info: #a16207; --info-l: #fdf3c4;
   --r: 14px;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }

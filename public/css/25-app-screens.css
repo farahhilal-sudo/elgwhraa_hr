@@ -1,6 +1,6 @@
 /* ===== شاشات تطبيق الموظف (الشكل المرجعي) — بتشتغل في وضع التطبيق بس (is-app) ===== */
-html.is-app { --xb: #0a9bf5; --xb2: #25aaff; --xbl: #e3f3fe; --xg: #8b9097; --xl: #eceef1; --xt: #2b2f36; }
-html.is-app body { font-family: 'Poppins', 'Cairo', system-ui, sans-serif; background: #e9eef4; }
+html.is-app { --xb: #0a9bf5; --xb2: #25aaff; --xbl: #fef9d9; --xg: #8b9097; --xl: #eceef1; --xt: #2b2f36; }
+html.is-app body { font-family: 'Poppins', 'Cairo', system-ui, sans-serif; background: #fef9d9; }
 html.is-app .shell { background: #f9f9f9; }
 html.is-app .content { padding: 4px 16px calc(112px + env(safe-area-inset-bottom)); }
 html.is-app[dir=rtl] .content { direction: rtl; }
@@ -55,7 +55,7 @@ html.is-app .xreq { background: #fff; padding: 14px 16px; border-radius: 12px; }
 html.is-app .xr1 { display: flex; justify-content: space-between; align-items: center; gap: 8px; } html.is-app .xr1 b { font-size: 15px; font-weight: 500; }
 html.is-app .xr2 { color: var(--xg); font-size: 13px; margin-top: 6px; } html.is-app .xr3 { color: #555; font-size: 13px; margin-top: 6px; }
 html.is-app .xpill { border-radius: 999px; padding: 4px 14px; font-size: 13px; background: #eceef1; color: #555; white-space: nowrap; }
-html.is-app .xpill.ok { background: #dcf5e1; color: #1f9d3a; } html.is-app .xpill.warn { background: #fbe8c9; color: #b9770e; } html.is-app .xpill.bad { background: #fde1e1; color: #d33; } html.is-app .xpill.info { background: #dbeafe; color: #1d4ed8; }
+html.is-app .xpill.ok { background: #dcf5e1; color: #1f9d3a; } html.is-app .xpill.warn { background: #fbe8c9; color: #b9770e; } html.is-app .xpill.bad { background: #fde1e1; color: #d33; } html.is-app .xpill.info { background: #fdf3c4; color: #a16207; }
 html.is-app .xlink { border: 0; background: none; font-size: 13px; padding: 8px 0 0; cursor: pointer; font-family: inherit; } html.is-app .xlink.bad { color: #d33; }
 html.is-app .xcenter { position: fixed; inset: 0; display: grid; place-items: center; font-size: 15px; color: #000; pointer-events: none; padding-bottom: 60px; }
 html.is-app .xaddbar { position: fixed; bottom: calc(76px + env(safe-area-inset-bottom)); inset-inline: 10px; max-width: 500px; margin-inline: auto; z-index: 5; height: 46px; border: 0; border-radius: 9px; background: var(--xb); color: #fff; font-size: 17px; display: flex; align-items: center; justify-content: center; gap: 10px; box-shadow: 0 3px 8px rgba(10, 155, 245, .35); cursor: pointer; font-family: inherit; }
@@ -97,7 +97,7 @@ html.is-app .xbal { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px
 html.is-app .xbal .card { flex: 0 0 auto; min-width: 118px; padding: 16px 18px; border-radius: 10px; } html.is-app .xbal b { display: block; font-size: 19px; font-weight: 500; margin-bottom: 8px; color: #333; } html.is-app .xbal span { color: #555; font-size: 15px; }
 html.is-app .xstat-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
 html.is-app .xmonsel { position: relative; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #d9dce1; border-radius: 10px; background: #fff; padding: 9px 12px; font-size: 15px; } html.is-app .xmonsel select { position: absolute; inset: 0; opacity: 0; width: 100%; } html.is-app .xmonsel .ico { width: 16px; height: 16px; }
-html.is-app .xhours { background: linear-gradient(90deg, #0a76bd, #019fff); color: #fff; border-radius: 10px; padding: 14px 18px; margin-bottom: 12px; } html.is-app .xhours b { display: block; font-size: 26px; font-weight: 500; line-height: 1.2; } html.is-app .xhours span { font-size: 18px; font-weight: 500; }
+html.is-app .xhours { background: linear-gradient(90deg, #a16207, #c99a00); color: #fff; border-radius: 10px; padding: 14px 18px; margin-bottom: 12px; } html.is-app .xhours b { display: block; font-size: 26px; font-weight: 500; line-height: 1.2; } html.is-app .xhours span { font-size: 18px; font-weight: 500; }
 html.is-app .xtiles2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } html.is-app .xtiles2 .card { padding: 18px 16px; border-radius: 12px; font-size: 16px; color: #666; }
 html.is-app .xt1 { display: flex; align-items: baseline; gap: 6px; margin-bottom: 18px; } html.is-app .xt1 b { font-size: 24px; font-weight: 500; color: #333; } html.is-app .xt1 small { font-size: 14px; color: #777; } html.is-app .xt1 .cic { margin-inline-start: auto; width: 30px; height: 30px; align-self: center; }
 html.is-app .xtiles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; } html.is-app .xtile { border: 0; padding: 14px 10px; text-align: start; cursor: pointer; font-family: inherit; } html.is-app .xtile b { font-size: 22px; font-weight: 500; } html.is-app .xtile span { color: #666; font-size: 12.5px; }
@@ -114,7 +114,7 @@ html.is-app .xstack { display: flex; } html.is-app .xstack .xav { width: 30px; h
 
 /* الإشعارات */
 html.is-app .xpanel { background: #fff; border-radius: 4px; box-shadow: 0 1px 4px rgba(20, 30, 50, .15); overflow: hidden; margin-top: 4px; }
-html.is-app .xtabs2 { display: flex; } html.is-app .xtabs2 button { flex: 1; height: 56px; border: 0; border-top: 3px solid transparent; background: #eff5fc; font-size: 16px; font-weight: 600; color: #111; cursor: pointer; font-family: inherit; }
+html.is-app .xtabs2 { display: flex; } html.is-app .xtabs2 button { flex: 1; height: 56px; border: 0; border-top: 3px solid transparent; background: #fef9d9; font-size: 16px; font-weight: 600; color: #111; cursor: pointer; font-family: inherit; }
 html.is-app .xtabs2 button.on { background: #fff; border-top-color: #27a2ea; color: #2aa0e6; }
 html.is-app .xpbody { padding: 14px 4px 100px; min-height: 60vh; }
 html.is-app .xnotify { margin: 4px 0 0 14px; padding: 6px 0 12px; font-size: 16px; font-weight: 600; border-inline-start: 4px solid #b4b8bd; padding-inline-start: 4px; margin-inline-start: 14px; }
@@ -147,10 +147,10 @@ html.is-app .xline { height: 2px; background: linear-gradient(90deg, #1e8fe0 0 2
 html.is-app .xh { padding: 14px 0 12px; border-bottom: 1px solid #dfe2e6; }
 html.is-app .xhist .xh1 { display: grid; grid-template-columns: 110px 1fr; align-items: start; }
 html.is-app .xhd b { display: block; font-size: 23px; font-weight: 600; color: #333; line-height: 1.1; } html.is-app .xhd span { font-size: 16.5px; color: #555; }
-html.is-app .xhs { font-size: 19px; color: #6f747b; text-align: center; padding-inline-end: 110px; } html.is-app .xhs.present { color: #1f9d3a; } html.is-app .xhs.late { color: #b9770e; } html.is-app .xhs.leave { color: #1d4ed8; }
+html.is-app .xhs { font-size: 19px; color: #6f747b; text-align: center; padding-inline-end: 110px; } html.is-app .xhs.present { color: #1f9d3a; } html.is-app .xhs.late { color: #b9770e; } html.is-app .xhs.leave { color: #a16207; }
 html.is-app .xh2 { display: flex; gap: 12px; margin-top: 16px; align-items: center; }
 html.is-app .xchip { display: inline-flex; align-items: center; gap: 8px; background: #f0f2f5; border-radius: 6px; padding: 0 12px; height: 38px; font-size: 17px; color: #333; } html.is-app .xchip .ico { width: 20px; height: 20px; color: #a0a5ac; } html.is-app .xchip b { font-weight: 400; letter-spacing: .5px; } html.is-app .xchip.tm { flex: 1; min-width: 0; } html.is-app .xchip.br { flex: 1; min-width: 0; } html.is-app .xchip.br .ico { color: #6b6260; }
-html.is-app .xic { width: 38px; height: 38px; border-radius: 6px; border: 0; display: grid; place-items: center; cursor: pointer; flex: none; padding: 0; } html.is-app .xic.dark { background: none; color: #4a5362; } html.is-app .xic.dark .ico { width: 30px; height: 30px; } html.is-app .xic.blue { background: #dcefff; color: #1e8fe0; } html.is-app .xic.blue .ico { width: 20px; height: 20px; }
+html.is-app .xic { width: 38px; height: 38px; border-radius: 6px; border: 0; display: grid; place-items: center; cursor: pointer; flex: none; padding: 0; } html.is-app .xic.dark { background: none; color: #4a5362; } html.is-app .xic.dark .ico { width: 30px; height: 30px; } html.is-app .xic.blue { background: #fef9d9; color: #1e8fe0; } html.is-app .xic.blue .ico { width: 20px; height: 20px; }
 
 /* الجزاءات */
 html.is-app .xpen { padding: 16px 18px; border-radius: 10px; }

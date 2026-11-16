@@ -72,7 +72,7 @@ function renderShell() {
   $('#app').innerHTML = `<div class="shell">
     <header class="topbar">
       <button class="iconbtn hmb" id="hmb" aria-label="القائمة">${ico('menu')}</button>
-      <div class="brand"><img src="/icon.svg" alt=""><span>${esc(S.me.settings.company_name)}</span></div>
+      <div class="brand"><img src="/logo.png" alt=""><span>GWHRAA HR</span></div>
       ${canSearch ? `<form class="search" id="srch">${ico('search')}<input id="sq" placeholder="ابحثي عن موظف بالاسم أو اسم المستخدم أو الهاتف..." autocomplete="off"></form>` : '<div class="grow"></div>'}
       <div class="chip" id="cdate">${ico('calendar')}<span dir="ltr"></span></div>
       <div class="chip" id="cclk">${ico('clock')}<span dir="ltr">--:--:--</span></div>

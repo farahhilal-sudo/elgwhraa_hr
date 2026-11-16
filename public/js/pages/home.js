@@ -36,7 +36,7 @@ PAGES.home = async (view) => {
     if (IS_APP) { const pp = mon.split(' '); $('#smon').innerHTML = `<b>${esc(pp[0])}</b> <span class="yr">${esc(pp.slice(1).join(' '))}</span>`; } else $('#smon').textContent = mon;
     $('#sdow').textContent = `(${dt.toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long' })})`;
     if (IS_APP) return paintStrip($('#strip'), days, sel, dotColor, (d) => { sel = d; draw(); });
-    $('#strip').innerHTML = days.map((d) => `<button class="day ${d === sel ? 'on' : ''}" data-d="${d}"><b>${Number(d.slice(8))}</b><i style="background:${d === sel ? '#0ea5e9' : dotColor(d)}"></i></button>`).join('');
+    $('#strip').innerHTML = days.map((d) => `<button class="day ${d === sel ? 'on' : ''}" data-d="${d}"><b>${Number(d.slice(8))}</b><i style="background:${d === sel ? '#f7d84a' : dotColor(d)}"></i></button>`).join('');
     view.querySelectorAll('.day').forEach((b) => (b.onclick = () => { sel = b.dataset.d; draw(); }));
   };
   const row = (kind, iso, loc) => `<div class="prow"><span class="pi ${kind}">${kind === 'in' ? '⇥' : '⇤'}</span><b>${timeAr(iso)}</b><span class="ploc">${esc(loc || 'بدون موقع')}</span></div>`;

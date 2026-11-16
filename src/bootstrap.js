@@ -75,6 +75,7 @@ async function init() {
     console.log('تم إنشاء حساب المدير: admin');
   }
   // طوارئ: لو المدير نسي كلمة المرور ومفيش مدير تاني، حطي RESET_ADMIN_PASSWORD وأعيدي التشغيل (وبعدها شيليه)
+  await db.run("UPDATE settings SET value='GWHRAA HR' WHERE key='company_name' AND value='شركتي'"); // الاسم الافتراضي الجديد
   if (process.env.RESET_ADMIN_PASSWORD) {
     await db.run('UPDATE users SET password_hash=?, must_change=1, active=1, pending=0 WHERE username=? AND is_admin=1', bcrypt.hashSync(process.env.RESET_ADMIN_PASSWORD, 10), process.env.RESET_ADMIN_USERNAME || 'admin');
     console.log('تمت إعادة تعيين كلمة مرور المدير (RESET_ADMIN_PASSWORD). شيلي المتغير بعد الدخول.');

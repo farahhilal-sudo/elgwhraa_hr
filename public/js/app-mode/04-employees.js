@@ -2,7 +2,7 @@
 /* app-mode/04-employees.js — وضع التطبيق: شاشة الموظفين */
 
 /* شاشة الموظفون (تتشغّل من جوّه PAGES.employees وبتستخدم نفس دوالها: التعديل، القائمة، البيانات) */
-const EM_ST = { present: ['حاضر', '#22c55e'], late: ['متأخر', '#f59e0b'], absent: ['غائب', '#ef4444'], leave: ['إجازة', '#3b82f6'], not_yet: ['لم يسجل الحضور', '#9ca3af'], off: ['عطلة', '#cbd5e1'] };
+const EM_ST = { present: ['حاضر', '#22c55e'], late: ['متأخر', '#f59e0b'], absent: ['غائب', '#ef4444'], leave: ['إجازة', '#f2c811'], not_yet: ['لم يسجل الحضور', '#9ca3af'], off: ['عطلة', '#cbd5e1'] };
 function empMobileUI(c) {
   const { view, body, people, manage, again, byId, menuFor, infoModal, f } = c;
   const today = S.me.today_date;

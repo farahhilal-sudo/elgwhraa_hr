@@ -18,7 +18,7 @@ function slipHtml(m) {
   return `<div class="slipcard"><div class="slhead"><div><div class="muted small">${esc(S.me.settings.company_name)}</div><h3>${esc(m.name)}</h3><div class="muted small">${esc([m.job_title, m.department].filter(Boolean).join(' · '))}</div></div>
       <div class="slper"><div class="muted small">فترة الصرف</div><b dir="ltr">${dmy(mo + '-01')} - ${dmy(last)}</b><div class="muted small">${m.paid ? 'مدفوع ' + dmy(String(m.paid_at).slice(0, 10)) : 'قيد الحساب (لم يُصرف بعد)'}</div></div></div>
     <div class="slsec">المستحقات</div>
-    ${L(`المرتب الأساسي المستحق <small class="muted">(${m.accrued_days} يوم من 30 · أجر اليوم ${money(m.daily_rate)})</small>`, gbp(m.accrued_basic))}${L('البدلات المستحقة', gbp(m.accrued_allowances))}${L('إجمالي المرتب', gbp(earned), 'tot')}
+    ${L(`المرتب الأساسي المستحق <small class="muted">(${m.accrued_days} يوم من 30 · أجر اليوم ${money3(m.daily_rate)})</small>`, gbp(m.accrued_basic))}${L('البدلات المستحقة', gbp(m.accrued_allowances))}${L('إجمالي المرتب', gbp(earned), 'tot')}
     ${L('المكافآت', gbp(m.bonuses))}${L(`وقت إضافي <small class="muted">(${m.overtime_hours} س)</small>`, gbp(m.overtime_pay))}${m.compensation_pay ? L('تعويض العمل في العطلات', gbp(m.compensation_pay)) : ''}
     <div class="slsec">الاستقطاعات</div>
     ${L(`خصم التأخير <small class="muted">(${m.late_days} يوم${m.early_minutes ? ' + انصراف مبكر ' + m.early_minutes + ' د' : ''})</small>`, `(${gbp(m.late_deduction)})`, 'neg')}${L(`خصم الغياب <small class="muted">(${m.absent_days} يوم)</small>`, `(${gbp(m.absence_deduction)})`, 'neg')}

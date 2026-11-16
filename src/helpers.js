@@ -10,7 +10,8 @@ function faceDistance(a, b) {
   return Math.sqrt(s);
 }
 const validDescriptor = (d) => Array.isArray(d) && d.length === 128 && d.every((x) => typeof x === 'number' && isFinite(x));
-const round2 = (n) => Math.round(n * 100) / 100;
+// بدون تقريب للجنيه/القرش: بنشيل بس ضجيج الفاصلة العائمة (٨ خانات) عشان أي كسر (حتى نص جنيه أو 0.7396) يتحسب زي ما هو
+const round2 = (n) => Math.round(n * 1e8) / 1e8;
 // رقم صحيح موجب صالح كـ id، أو null
 const toId = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 && n < 2147483647 ? n : null; };
 function userPerms(u) {

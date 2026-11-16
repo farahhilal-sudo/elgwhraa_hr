@@ -36,7 +36,7 @@ const AMOUNT_TYPES = ['expense', 'loan', 'bonus_req', 'deduction_req', 'allowanc
 const ON_BEHALF = ['bonus_req', 'deduction_req', 'allowance_req', 'suspend_req', 'transfer_req', 'schedule_req'];
 
 const DEFAULT_SETTINGS = {
-  company_name: 'شركتي',
+  company_name: 'GWHRAA HR',
   timezone: 'Africa/Cairo',
   work_lat: '',
   work_lng: '',
