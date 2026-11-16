@@ -7,20 +7,16 @@ PAGES.payroll = async (view) => {
   const cur = S.paym || thisMonth();
   const [yy, mm] = cur.split('-');
   const nowY = Number(thisMonth().slice(0, 4));
-  const f = S.payf = S.payf || { emp: '', dept: '', q: '', paid: 'unpaid' };
-  const sel = S.paysel = S.paysel || new Set(); let pageNo = 1;
+  const f = S.payf = S.payf || { emp: '', dept: '', q: '', paid: '' };
   view.innerHTML = `${financeTabs('payroll')}
-    <div class="pay2 pfilters"><div class="pf-row">
+    <div class="card filters"><div class="frow">
       <select id="pmo">${MONTHS_AR.map((m, i) => `<option value="${String(i + 1).padStart(2, '0')}" ${Number(mm) === i + 1 ? 'selected' : ''}>${m}</option>`).join('')}</select>
       <select id="pyr">${[nowY - 2, nowY - 1, nowY, nowY + 1].map((y) => `<option ${Number(yy) === y ? 'selected' : ''}>${y}</option>`).join('')}</select>
-      <select id="pcur"><option value="">العملات</option><option value="EGP">جنيه مصري</option></select>
-      <select id="pdep"></select>
-      <select id="ppaid"><option value="">كل الحالات</option><option value="unpaid">غير مدفوع</option><option value="paid">مدفوع</option><option value="locked">مقفول</option></select>
-      <select id="pemp"></select>
-      <button class="btn alt pf-add" id="padd" type="button">${ico('search')} اضف تصفيه</button>
-      <label class="fsearch pf-q" id="pqw" ${f.q ? '' : 'hidden'}>${ico('search')}<input id="pq" placeholder="اسم الموظف" value="${esc(f.q)}"></label></div>
-    <div class="pf-act noprint"><button class="btn" id="payall" disabled>${ico('check')} إتمام عملية الدفع</button><button class="btn alt" id="lockall" disabled>${ico('shield')} قفل الدفع</button><button class="btn alt" id="exp">${ico('download')} تصدير تقرير المرتبات</button><button class="btn alt" id="expi" disabled>${ico('download')} تصدير مفردات المرتب</button><button class="link" id="prst">${ico('search')} إعادة تعيين المرشحات</button><button class="btn alt" id="prt">${ico('print')} طباعة</button>
-      <span class="muted small" id="pnote" style="margin-inline-start:auto"></span></div></div><div id="pt"></div>`;
+      <select id="pemp"></select><select id="pdep"></select>
+      <select id="ppaid"><option value="">كل الحالات</option><option value="paid" ${f.paid === 'paid' ? 'selected' : ''}>مدفوع</option><option value="unpaid" ${f.paid === 'unpaid' ? 'selected' : ''}>غير مدفوع</option></select>
+      <label class="fsearch">${ico('search')}<input id="pq" placeholder="اسم الموظف" value="${esc(f.q)}"></label></div></div>
+    <div class="row actionbar"><button class="btn alt" id="exp">${ico('download')} تصدير تقرير المرتبات</button><button class="btn alt" id="prt">${ico('print')} طباعة</button>${has('payroll.manage') ? `<button class="btn" id="payall">${ico('check')} إتمام عملية الدفع</button>` : ''}
+      <span class="muted small" id="pnote" style="margin-inline-start:auto"></span></div><div id="pt"></div>`;
   bindTabs(view, (t) => go(t));
   let data;
   const reload = () => { S.paym = `${$('#pyr').value}-${$('#pmo').value}`; PAGES.payroll(view); };
@@ -29,18 +25,16 @@ PAGES.payroll = async (view) => {
   const load = async () => {
     data = await api('/payroll?month=' + cur);
     const depts = [...new Set(data.rows.map((r) => r.department).filter(Boolean))];
-    $('#pemp').innerHTML = `<option value="">اختر الموظف</option>${data.rows.map((r) => `<option value="${r.user_id}" ${String(f.emp) === String(r.user_id) ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}`;
-    $('#pdep').innerHTML = `<option value="">تحديد القسم</option>${depts.map((d) => `<option ${f.dept === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}`;
-    $('#ppaid').value = f.paid; $('#ppaid').onchange = () => { f.paid = $('#ppaid').value; pageNo = 1; draw(); };
-    $('#padd').onclick = () => { $('#pqw').hidden = false; $('#pq').focus(); };
-    $('#prst').onclick = () => { Object.assign(f, { emp: '', dept: '', q: '', paid: '' }); sel.clear(); pageNo = 1; PAGES.payroll(view); };
-    $('#pemp').onchange = () => { f.emp = $('#pemp').value; pageNo = 1; draw(); }; $('#pdep').onchange = () => { f.dept = $('#pdep').value; pageNo = 1; draw(); };
-    $('#pq').oninput = () => { f.q = $('#pq').value; pageNo = 1; draw(); };
+    $('#pemp').innerHTML = `<option value="">كل الموظفين</option>${data.rows.map((r) => `<option value="${r.user_id}" ${String(f.emp) === String(r.user_id) ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}`;
+    $('#pdep').innerHTML = `<option value="">كل الأقسام</option>${depts.map((d) => `<option ${f.dept === d ? 'selected' : ''}>${esc(d)}</option>`).join('')}`;
+    $('#ppaid').onchange = () => { f.paid = $('#ppaid').value; draw(); };
+    $('#pemp').onchange = () => { f.emp = $('#pemp').value; draw(); }; $('#pdep').onchange = () => { f.dept = $('#pdep').value; draw(); };
+    $('#pq').oninput = () => { f.q = $('#pq').value; draw(); };
     draw();
   };
   const draw = () => {
     const q = f.q.trim().toLowerCase();
-    const rows = data.rows.filter((r) => (!f.emp || String(r.user_id) === String(f.emp)) && (!f.dept || r.department === f.dept) && (!q || r.name.toLowerCase().includes(q)) && (!f.paid || (f.paid === 'paid' ? !!r.paid : f.paid === 'locked' ? !!r.locked && !r.paid : !r.paid)));
+    const rows = data.rows.filter((r) => (!f.emp || String(r.user_id) === String(f.emp)) && (!f.dept || r.department === f.dept) && (!q || r.name.toLowerCase().includes(q)) && (!f.paid || (f.paid === 'paid') === !!r.paid));
     const tot = (k) => rows.reduce((x, r) => x + (r[k] || 0), 0);
     const info = (k, r) => ` <button type="button" class="infob noprint" data-inf="${k}:${r.user_id}" title="عرض التفاصيل" aria-label="عرض التفاصيل">!</button>`;
     const earned = (r) => round2c(r.accrued_basic + r.accrued_allowances);
@@ -50,8 +44,8 @@ PAGES.payroll = async (view) => {
     const canAdj = (r) => has('payroll.manage') && !r.paid;
     const pen = (r, cat) => `${money(cat === 'other' ? otherAmt(r) : mk(r, cat))}${cat === 'other' && r.loan_deduction > 0 ? info('lo', r) : ''}${canAdj(r) ? ` <button type="button" class="pencil noprint" data-cat="${cat}:${r.user_id}" title="إضافة خصم" aria-label="إضافة خصم">${ico('edit')}</button>` : ''}`;
     const cols = [
-      ['الأساسي', 'tb', (r) => money(r.accrued_basic), () => money(tot('accrued_basic'))],
-      ['البدلات', 'tb', (r) => money(r.accrued_allowances), () => money(tot('accrued_allowances')), (r) => `${money(r.accrued_allowances)}${r.allowances > 0 ? info('al', r) : ''}`],
+      ['الأساسي', 'tb', (r) => money(r.base_salary), () => money(tot('base_salary'))],
+      ['البدلات', 'tb', (r) => money(r.allowances), () => money(tot('allowances')), (r) => `${money(r.allowances)}${r.allowances > 0 ? info('al', r) : ''}`],
       ['الإجمالي', 'tb', (r) => money(earned(r)), () => money(rows.reduce((x, r) => x + earned(r), 0))],
       ['العلاوات', 'tg', (r) => money(r.bonuses), () => money(tot('bonuses'))],
       ['الوقت الإضافي', 'tg', (r) => money(r.overtime_pay), () => money(tot('overtime_pay'))],
@@ -64,29 +58,14 @@ PAGES.payroll = async (view) => {
       ['مستحق الدفع', 'tw', (r) => money(r.net), () => money(tot('net'))],
       ['قيد الانتظار', 'tw', (r) => money(r.paid ? 0 : r.net), () => money(rows.reduce((x, r) => x + (r.paid ? 0 : r.net), 0))],
       ['مدفوع', 'tw', (r) => money(r.paid ? r.net : 0), () => money(rows.reduce((x, r) => x + (r.paid ? r.net : 0), 0)), (r) => `${money(r.paid ? r.net : 0)}${has('payroll.manage') && !r.paid && data.ended ? ` <button type="button" class="pencil noprint" data-pay="${r.user_id}" title="تسجيل الدفع" aria-label="تسجيل الدفع">${ico('edit')}</button>` : ''}`],
+      ['الطريقة', 'tw', () => '—', () => ''],
     ];
     $('#pnote').textContent = `${MONTHS_AR[Number(mm) - 1]} ${yy} · محسوب لحد ${data.month === thisMonth() ? 'اليوم' : 'نهاية الشهر'}`;
-    const PS = 10, pages = Math.max(1, Math.ceil(rows.length / PS)); if (pageNo > pages) pageNo = pages;
-    const pr = rows.slice((pageNo - 1) * PS, pageNo * PS), allOn = rows.length && rows.every((r) => sel.has(r.user_id));
-    const stb = (r) => (r.paid ? '<span class="pbadge ok">مدفوع</span>' : r.locked ? '<span class="pbadge lk">مقفول</span>' : '');
-    const acts = (r) => `<div class="noprint pact3"><button class="link" data-sl="${r.user_id}">تفاصيل</button>${has('payroll.manage') && !r.paid && !r.locked ? `<button class="link" data-adj="${r.user_id}">+ بند</button>` : ''}${has('payroll.manage') && r.locked && !r.paid ? `<button class="link" data-unlock="${r.user_id}">فتح القفل</button>` : ''}${has('payroll.manage') && !r.paid && data.ended ? `<button class="link" data-pay="${r.user_id}">دفع</button>` : ''}${S.me.user.is_admin && r.paid ? `<button class="link" data-unpay="${r.user_id}">إلغاء الصرف</button>` : ''}</div>`;
-    $('#pt').innerHTML = `<div class="pay2 ptbox"><div class="tablewrap ptwrap"><table class="ptable pt2"><thead><tr><th class="who"><label class="ck"><input type="checkbox" id="selall" ${allOn ? 'checked' : ''}><i></i></label>الموظف</th>${cols.map(([h, c]) => `<th class="${c}">${h}</th>`).join('')}<th class="noprint"></th></tr></thead><tbody>
-      ${pr.map((r) => `<tr class="${sel.has(r.user_id) ? 'on' : ''}"><td class="who"><label class="ck"><input type="checkbox" data-sel="${r.user_id}" ${sel.has(r.user_id) ? 'checked' : ''}><i></i></label><span class="nm" title="${esc(r.name)}">${esc(r.name)}</span>${stb(r)}</td>${cols.map(([, c, fn, , h]) => `<td class="${c}">${(h || fn)(r)}</td>`).join('')}<td class="noprint">${acts(r)}</td></tr>`).join('') || `<tr><td colspan="${cols.length + 2}" class="empty">لا توجد بيانات</td></tr>`}
-      <tr class="totrow"><th class="who">الإجمالي (${rows.length})</th>${cols.map(([, c, , t]) => `<th class="${c}">${t()}</th>`).join('')}<th class="noprint"></th></tr></tbody></table></div>
-      <div class="pgbar noprint"><span class="muted small">عرض ${rows.length ? (pageNo - 1) * PS + 1 : 0} إلى ${Math.min(pageNo * PS, rows.length)} من ${rows.length} إدخالات</span><div class="pgs"><button data-pg="${pageNo - 1}" ${pageNo <= 1 ? 'disabled' : ''}>›</button>${Array.from({ length: pages }, (_, i) => `<button data-pg="${i + 1}" class="${i + 1 === pageNo ? 'on' : ''}">${i + 1}</button>`).join('')}<button data-pg="${pageNo + 1}" ${pageNo >= pages ? 'disabled' : ''}>‹</button></div></div></div>`;
-    const selRows = () => data.rows.filter((r) => sel.has(r.user_id));
-    const sync = () => {
-      const sr = selRows(), canM = has('payroll.manage');
-      $('#payall').disabled = !canM || !sr.some((r) => !r.paid); $('#lockall').disabled = !canM || !sr.some((r) => !r.paid && !r.locked); $('#expi').disabled = !sr.length;
-      $('#payall').style.display = $('#lockall').style.display = canM ? '' : 'none';
-    };
-    view.querySelectorAll('[data-sel]').forEach((c) => (c.onchange = () => { const id = Number(c.dataset.sel); c.checked ? sel.add(id) : sel.delete(id); c.closest('tr').classList.toggle('on', c.checked); const sa = $('#selall'); if (sa) sa.checked = rows.length && rows.every((r) => sel.has(r.user_id)); sync(); }));
-    $('#selall').onchange = (e) => { rows.forEach((r) => (e.target.checked ? sel.add(r.user_id) : sel.delete(r.user_id))); draw(); };
-    view.querySelectorAll('[data-pg]').forEach((b) => (b.onclick = () => { pageNo = Number(b.dataset.pg); draw(); }));
-    view.querySelectorAll('[data-unlock]').forEach((b) => (b.onclick = () => run(b, async () => { await api('/payroll/unlock', 'POST', { user_id: b.dataset.unlock, month: data.month }); toast('تم فتح القفل'); load(); })));
-    sync();
-    $('#lockall').onclick = () => { const ids = selRows().filter((r) => !r.paid && !r.locked).map((r) => r.user_id); if (ids.length && confirm(`قفل مرتبات ${ids.length} موظف لشهر ${data.month}؟ (هتتجمّد الأرقام ومش هينفع تضيفي بنود)`)) run($('#lockall'), async () => { const x = await api('/payroll/lock', 'POST', { user_ids: ids, month: data.month }); toast(`تم قفل ${x.locked} مرتب`); load(); }); };
-    $('#expi').onclick = () => { const sr = selRows(); csv(`payroll-items-${data.month}.csv`, [['الموظف', 'الشهر', 'الأساسي', 'البدلات', 'العلاوات', 'الوقت الإضافي', 'غير ذلك', 'خصم التأخير', 'خصم الغياب', 'الجزاءات اليدوية', 'اجتماعي', 'طبي', 'الضرائب', 'أخرى', 'أقساط القروض', 'الصافي'], ...sr.map((r) => [r.name, data.month, r.accrued_basic, r.accrued_allowances, r.bonuses, r.overtime_pay, r.compensation_pay || 0, r.late_deduction || 0, r.absence_deduction || 0, r.penalties || 0, mk(r, 'social'), mk(r, 'medical'), mk(r, 'tax'), mk(r, 'other'), r.loan_deduction || 0, r.net])]); };
+    $('#pt').innerHTML = `<div class="tablewrap ptwrap"><table class="ptable"><tr><th class="who">الموظف</th>${cols.map(([h, c]) => `<th class="${c}">${h}</th>`).join('')}</tr>
+      ${rows.map((r) => `<tr><td class="who"><b>${esc(r.name)}</b> ${r.paid ? '<span class="badge b-ok">مدفوع</span>' : data.ended ? '<span class="badge b-warn">بانتظار الصرف</span>' : ''}<div class="muted small">حضور ${r.present_days} · غياب ${r.absent_days} · تأخير ${r.late_days} يوم</div>
+        <div class="noprint pact2">${has('payroll.manage') && !r.paid ? `<button class="link" data-adj="${r.user_id}">+ بند</button>` : ''}<button class="link" data-sl="${r.user_id}">تفاصيل</button>${has('payroll.manage') && !r.paid && data.ended ? `<button class="link" data-pay="${r.user_id}">تسجيل الدفع</button>` : ''}${S.me.user.is_admin && r.paid ? `<button class="link" data-unpay="${r.user_id}">إلغاء الصرف</button>` : ''}</div></td>${cols.map(([, c, fn, , h]) => `<td class="${c}">${(h || fn)(r)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length + 1}" class="empty">لا توجد بيانات</td></tr>`}
+      <tr class="totrow"><th class="who">الإجمالي (${rows.length})</th>${cols.map(([, c, , t]) => `<th class="${c}">${t()}</th>`).join('')}</tr></table></div>
+      `;
     view.querySelectorAll('[data-inf]').forEach((b) => (b.onclick = () => {
       const [k, id] = b.dataset.inf.split(':'), r = data.rows.find((x) => String(x.user_id) === id);
       if (k === 'pen') return penModal(r, data.month, load);
@@ -111,12 +90,12 @@ PAGES.payroll = async (view) => {
     }));
     view.querySelectorAll('[data-pay]').forEach((b) => (b.onclick = () => { if (confirm('تسجيل صرف مرتب الموظف لشهر ' + data.month + '؟ هيتقفل الكشف ومش هينفع تضيفي عليه بنود.')) run(b, async () => { await api('/payroll/pay', 'POST', { user_id: b.dataset.pay, month: data.month }); toast('تم تسجيل الصرف'); load(); }); }));
     view.querySelectorAll('[data-unpay]').forEach((b) => (b.onclick = () => { if (confirm('إلغاء صرف المرتب؟ هيتحسب الشهر من جديد.')) run(b, async () => { await api('/payroll/unpay', 'POST', { user_id: b.dataset.unpay, month: data.month }); toast('تم إلغاء الصرف'); load(); }); }));
-    $('#payall').onclick = () => { const ids = selRows().filter((r) => !r.paid).map((r) => r.user_id); if (ids.length && confirm(`تسجيل صرف مرتبات ${ids.length} موظف لشهر ${data.month}؟`)) run($('#payall'), async () => { const x = await api('/payroll/pay', 'POST', { user_ids: ids, month: data.month }); ids.forEach((i) => sel.delete(i)); toast(`تم صرف ${x.paid} مرتب`); load(); }); };
+    if ($('#payall')) $('#payall').onclick = () => { const ids = rows.filter((r) => !r.paid).map((r) => r.user_id); if (!ids.length) return toast('كل المرتبات المعروضة مدفوعة'); if (confirm(`تسجيل صرف مرتبات ${ids.length} موظف لشهر ${data.month}؟`)) run($('#payall'), async () => { const x = await api('/payroll/pay', 'POST', { user_ids: ids, month: data.month }); toast(`تم صرف ${x.paid} مرتب`); load(); }); };
     $('#exp').onclick = () => csv(`payroll-${data.month}.csv`, [['الموظف', ...cols.map((c) => c[0]), 'الحالة'], ...rows.map((r) => [r.name, ...cols.map((c) => c[2](r)), r.paid ? 'مدفوع' : 'غير مدفوع']), ['الإجمالي', ...cols.map((c) => c[3]())]]);
   };
   load();
 };
-const round2c = (n) => Math.round(n * 1e8) / 1e8;
+const round2c = (n) => Math.round(n * 100) / 100;
 function adjForm(r, month, done, preset = {}) {
   const o = modal(`<h3>مكافأة / جزاء / خصم — ${esc(r.name)}</h3><form class="form" id="af">
     <label class="f">النوع<select name="kind"><option value="bonus">مكافأة</option><option value="penalty">جزاء</option><option value="deduction">خصم</option></select></label>
@@ -141,7 +120,7 @@ async function penModal(r, month, done) {
   const all = () => [...rows, ...manual].sort((p, q) => (p.date < q.date ? -1 : p.date > q.date ? 1 : 0));
   const o = modal('<div id="pmb"></div>');
   const box = o.querySelector('.modal'); box.classList.add('pmodal');
-  const q2 = (n) => money(n), dm = (d) => `${d.slice(8, 10)}-${d.slice(5, 7)}-${d.slice(0, 4)}`;
+  const q2 = (n) => Number(n).toFixed(2), dm = (d) => `${d.slice(8, 10)}-${d.slice(5, 7)}-${d.slice(0, 4)}`;
   const post = async (row, applied, note = '', extra = {}) => { await api('/att/penalties/flag', 'POST', { items: [{ user_id: row.user_id, date: row.date, kind: row.kind }], applied, note, ...extra }); Object.assign(row, { applied, note }); done(); };
   const draw = () => {
     const L = all(), tot = L.filter((x) => x.applied).reduce((t, x) => t + (x.amount || 0), 0);

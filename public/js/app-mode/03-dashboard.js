@@ -2,7 +2,7 @@
 /* app-mode/03-dashboard.js — وضع التطبيق: لوحة المعلومات */
 
 /* لوحة المعلومات */
-const GRAD = { blue: 'linear-gradient(90deg,#a16207,#c99a00)', red: 'linear-gradient(90deg,#e0443f,#f46f6f)', green: 'linear-gradient(90deg,#2fb81f,#74c99b)', yellow: 'linear-gradient(90deg,#d5d828,#fbfbac)', orange: 'linear-gradient(90deg,#f07a22,#f8b277)', grey: 'linear-gradient(90deg,#55575a,#8c8c8c)' };
+const GRAD = { blue: 'linear-gradient(90deg,#0a76bd,#019fff)', red: 'linear-gradient(90deg,#e0443f,#f46f6f)', green: 'linear-gradient(90deg,#2fb81f,#74c99b)', yellow: 'linear-gradient(90deg,#d5d828,#fbfbac)', orange: 'linear-gradient(90deg,#f07a22,#f8b277)', grey: 'linear-gradient(90deg,#55575a,#8c8c8c)' };
 async function appDashboard(view) {
   view.innerHTML = '<div class="empty"><span class="spin"></span></div>';
   const u = S.me.user, today = S.me.today_date, nowM = thisMonth();

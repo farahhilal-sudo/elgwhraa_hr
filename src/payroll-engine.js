@@ -106,8 +106,6 @@ function otPayFor(ot, hours, hourlyRate, st) {
   const rate = parseFloat(st.overtime_minute_rate);
   return rate > 0 ? round2(Math.round(hours * 60) * rate) : round2(hours * hourlyRate * parseFloat(st.overtime_factor || 1.5));
 }
-// يوم عطلة (أسبوعية أو رسمية)؟ في العطل مفيش قيد على ساعات التسجيل
-async function isOffDay(st, date) { return isWeekendDay(st, date) || holidayMap(await getPolicyCtx(), date, date).has(date); }
 // الإضافي التلقائي: انصراف بعد معاد نهاية الشفت (مثلاً 5:05 والشفت بينتهي 5:00) = 5 دقايق إضافي في طلب وقت إضافي تلقائي
 async function syncAutoOvertime(u, date, outMin, st) {
   const start = toMin(u.shift_start), end = toMin(u.shift_end);
@@ -153,7 +151,7 @@ async function computeMonth(user, month, st, tiers = []) {
   const prof = profileOf(user, pctx);
   const unpaidBreak = prof && prof.break_paid === false ? Math.max(0, Number(prof.break_min) || 0) : 0;
   const shiftHours = Math.max(1, (shiftMinutes(user.shift_start, user.shift_end) - unpaidBreak) / 60);
-  const dailyRate = ((Number(user.base_salary) || 0) + (Number(user.allowances) || 0)) / 30; // أجر اليوم = (الأساسي + الحافز/البدلات) ÷ 30 بالكسور
+  const dailyRate = user.base_salary / 30;
   const hourlyRate = dailyRate / shiftHours;
   const hmap = holidayMap(pctx, first, last);
   let absentCharge = 0, absentOvMoney = 0, lateOvMoney = 0, earlyOvMoney = 0;
@@ -227,7 +225,7 @@ async function computeMonth(user, month, st, tiers = []) {
   return {
     user_id: user.id, name: user.name, job_title: user.job_title, department: user.department, month,
     base_salary: user.base_salary, allowances: user.allowances, accrued_days: accruedDays, accrued_basic: accruedBasic, accrued_allowances: accruedAllowances,
-    daily_rate: dailyRate,
+    daily_rate: round2(dailyRate),
     work_days: workDays, present_days: presentDays, absent_days: absentDays, leave_days: leaveDays,
     late_days: lateDays, late_minutes: lateMinutes, early_minutes: earlyMinutes, partial_days: partialDays, overtime_hours: overtimeHours, permission_hours: permissionHours,
     penalty_policy: pen ? pen.name : null, overtime_policy: ot ? ot.name : null, leave_profile: prof ? prof.name : null,
@@ -238,4 +236,4 @@ async function computeMonth(user, month, st, tiers = []) {
   };
 }
 
-module.exports = { isOffDay, computeMonth, getPolicyCtx, getTiers, graceOf, holidayMap, invalidatePolicyCtx, otPayFor, policiesFor, policyLate, policyOvertime, profileOf, syncAutoOvertime, tierDeduction };
+module.exports = { computeMonth, getPolicyCtx, getTiers, graceOf, holidayMap, invalidatePolicyCtx, otPayFor, policiesFor, policyLate, policyOvertime, profileOf, syncAutoOvertime, tierDeduction };

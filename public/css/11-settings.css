@@ -32,7 +32,7 @@
 .sqb { width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--line); background: #fff; display: grid; place-items: center; cursor: pointer; color: var(--muted); }
 .sqb:hover { background: var(--bg); color: var(--brand-d); }
 .sqb .ico { width: 15px; height: 15px; }
-.vchip { border: 1px solid #f3e08a; background: var(--brand-l); color: var(--brand-d); border-radius: 9px; padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.vchip { border: 1px solid #bfe3f7; background: var(--brand-l); color: var(--brand-d); border-radius: 9px; padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .vchip:disabled { background: none; border: 0; color: var(--muted); font-weight: 400; font-style: italic; cursor: default; }
 .vrow { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .pager { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 14px 0; }

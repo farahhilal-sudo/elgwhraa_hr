@@ -31,7 +31,7 @@
 .cpill.ok { background: #effcf3; border-color: #bbf7d0; color: #166534; }
 .cpill.late { background: #fffbeb; border-color: #fde68a; color: #92400e; }
 .cpill.abs { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
-.cpill.leave { background: #fffbe6; border-color: #f3e08a; color: #a16207; }
+.cpill.leave { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
 .cpill.off { background: #f8fafc; border-color: var(--line); color: var(--muted); }
 .cpill .cs { color: var(--ink); font-weight: 600; font-size: 11px; } .cpill .cl { color: var(--muted); display: flex; align-items: center; gap: 4px; font-size: 11px; }
 .cpill .cl .ico { width: 13px; height: 13px; }

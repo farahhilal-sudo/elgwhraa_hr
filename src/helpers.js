@@ -10,8 +10,7 @@ function faceDistance(a, b) {
   return Math.sqrt(s);
 }
 const validDescriptor = (d) => Array.isArray(d) && d.length === 128 && d.every((x) => typeof x === 'number' && isFinite(x));
-// بدون تقريب للجنيه/القرش: بنشيل بس ضجيج الفاصلة العائمة (٨ خانات) عشان أي كسر (حتى نص جنيه أو 0.7396) يتحسب زي ما هو
-const round2 = (n) => Math.round(n * 1e8) / 1e8;
+const round2 = (n) => Math.round(n * 100) / 100;
 // رقم صحيح موجب صالح كـ id، أو null
 const toId = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 && n < 2147483647 ? n : null; };
 function userPerms(u) {
@@ -37,8 +36,8 @@ function publicUser(u) {
     employee_code: u.employee_code || '', birth_date: u.birth_date || '', gender: u.gender || '', marital_status: u.marital_status || '',
   };
 }
-function notify(userId, text) {
-  return db.run('INSERT INTO notifications(user_id,text) VALUES(?,?)', userId, text);
+function notify(userId, text, cat = '') {
+  return db.run('INSERT INTO notifications(user_id,text,cat) VALUES(?,?,?)', userId, text, cat);
 }
 async function notifyManagers(text, exceptId, perm = 'requests.approve', adminsOnly = false) {
   const rows = await db.all('SELECT * FROM users WHERE active=1');

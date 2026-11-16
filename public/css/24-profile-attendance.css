@@ -17,7 +17,7 @@
 /* كروت الأرصدة بأيقونة */
 .epf-stat.v2 { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; }
 .epf-stat.v2 .top { display: flex; align-items: center; justify-content: space-between; }
-.epf-stat.v2 .sic { width: 34px; height: 34px; border-radius: 10px; background: #fef9d9; color: #c99a00; display: grid; place-items: center; }
+.epf-stat.v2 .sic { width: 34px; height: 34px; border-radius: 10px; background: #e8f4ff; color: #2a8ff0; display: grid; place-items: center; }
 .epf-stat.v2 .sic .ico { width: 18px; height: 18px; }
 /* التابات بأيقونات */
 .epf-tabs.v2 { gap: 4px; padding: 8px; }
@@ -35,7 +35,7 @@
 .alog-row .mid { text-align: center; font-size: 14px; }
 .alog-io { display: flex; align-items: center; gap: 10px; }
 .alog-io .arr { width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font-size: 14px; flex: none; }
-.alog-io .arr.in { color: #f2c811; } .alog-io .arr.out { color: #ef5350; }
+.alog-io .arr.in { color: #1e90ff; } .alog-io .arr.out { color: #ef5350; }
 .alog-io b { font-size: 12px; direction: ltr; display: block; } .alog-io small { color: var(--muted); font-size: 11px; }
 .alog-io.none { color: var(--muted); }
 .alog-dur { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: #555; direction: ltr; }
@@ -52,7 +52,7 @@
 .am-ico { width: 46px; height: 46px; border-radius: 14px; background: var(--brand-l); color: var(--brand-d); display: grid; place-items: center; flex: none; }
 .am-t { flex: 1; min-width: 0; } .am-t h3 { margin: 0 0 4px; font-size: 20px; } .am-t .sub { color: var(--muted); font-size: 12.5px; }
 .am-x { width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--line); background: #fff; font-size: 20px; cursor: pointer; }
-.am-tag { background: #fef9d9; color: #a16207; border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
+.am-tag { background: #e6f4ff; color: #1177cc; border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
 .am-body { background: #f6f8fb; padding: 22px 28px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 16px; }
 .am-card { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 18px 22px; }
 .am-card h4 { margin: 0 0 8px; font-size: 15px; } .am-card .sub { color: var(--muted); font-size: 12px; font-weight: 400; margin-inline-start: 8px; }
@@ -69,12 +69,12 @@
 .am-tr .nv { font-weight: 700; font-size: 14px; }
 .am-days { display: flex; align-items: center; gap: 8px; flex-wrap: nowrap; }
 .am-day { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 12px; border: 1px solid transparent; font-size: 13px; font-weight: 700; cursor: pointer; }
-.am-day.on { background: #fef9d9; border-color: #f3e08a; color: #a16207; }
-.am-day input { accent-color: #f2c811; width: 16px; height: 16px; margin: 0; }
+.am-day.on { background: #e8f4ff; border-color: #bfe0fb; color: #1177cc; }
+.am-day input { accent-color: #1e90ff; width: 16px; height: 16px; margin: 0; }
 .am-day.dis { opacity: .5; cursor: not-allowed; }
 .am-time { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; height: 44px; background: #fff; }
 .am-time input { border: 0; outline: 0; font-family: inherit; font-size: 14px; background: transparent; direction: ltr; }
-.am-pill { border: 1px solid #f3e08a; background: #fffbe6; color: #a16207; border-radius: 12px; padding: 11px 14px; font-weight: 700; font-size: 13.5px; }
+.am-pill { border: 1px solid #bfe0fb; background: #f2f9ff; color: #1177cc; border-radius: 12px; padding: 11px 14px; font-weight: 700; font-size: 13.5px; }
 .am-kv2 { display: flex; flex-direction: column; gap: 4px; font-size: 13px; } .am-kv2 b { font-weight: 400; }
 .am-maps { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
 .am-map h5 { margin: 0 0 12px; font-size: 14px; }

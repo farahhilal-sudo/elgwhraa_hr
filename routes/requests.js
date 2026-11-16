@@ -160,7 +160,7 @@ app.post('/api/requests/:id/decide', auth, need('requests.approve'), wrap(async 
     decision, req.user.id, String(note).slice(0, 300), r.id);
   await audit(req, 'request.' + decision, `#${r.id} ${REQUEST_TYPES[r.type]}`, `user_id=${r.user_id}`);
   if (decision === 'approved' && r.status !== 'approved') await applyRequestEffect(r, req.user);
-  await notify(r.user_id, `تم ${decision === 'approved' ? 'قبول' : 'رفض'} طلبك (${ALL_TYPES[r.type] || r.type})`);
+  await notify(r.user_id, `تم ${decision === 'approved' ? 'قبول' : 'رفض'} طلبك (${ALL_TYPES[r.type] || r.type})`, 'req_decision');
   res.json({ ok: true });
 }));
 };

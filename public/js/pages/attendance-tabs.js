@@ -25,7 +25,7 @@ ATT_VIEWS.att_calendar = async (body) => {
     const names = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
     const title = new Date(month + '-01T00:00:00Z').toLocaleDateString('ar-EG-u-nu-latn', { month: 'long', year: 'numeric', timeZone: 'UTC' });
     body.innerHTML = `<div class="card calcard"><div class="dwh"><button class="sqb" id="cprev" title="الشهر السابق">${ico('chev', 'rot90')}</button><h3>${title}</h3><button class="sqb" id="cnext" title="الشهر التالي">${ico('chev', 'rotm90')}</button>
-      <button class="btn alt sm" id="ctoday">الشهر الحالي</button><span class="grow"></span>${legendHtml([{ name: 'حضور', color: '#16a34a' }, { name: 'متأخر', color: '#d97706' }, { name: 'غائب', color: '#dc2626' }, { name: 'إجازة', color: '#ca8a04' }])}</div>
+      <button class="btn alt sm" id="ctoday">الشهر الحالي</button><span class="grow"></span>${legendHtml([{ name: 'حضور', color: '#16a34a' }, { name: 'متأخر', color: '#d97706' }, { name: 'غائب', color: '#dc2626' }, { name: 'إجازة', color: '#2563eb' }])}</div>
       <div class="calgrid">${names.map((n) => `<div class="calh">${n}</div>`).join('')}${'<div class="cald off"></div>'.repeat(off)}
       ${d.days.map((x) => `<button class="cald ${x.weekend ? 'wk' : ''} ${x.holidays.length ? 'hol' : ''} ${x.date === today ? 'now' : ''}" data-d="${x.date}"><b>${Number(x.date.slice(8))}</b>
         ${x.holidays.map((h) => `<em class="hn">${esc(h)}</em>`).join('')}${x.weekend && !x.holidays.length ? '<em class="wn">عطلة أسبوعية</em>' : ''}

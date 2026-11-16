@@ -16,7 +16,7 @@ html.is-app .dg b { font-size: 31.5px; font-weight: 600; line-height: 1.05; }
 html.is-app .dg > span { font-size: 14.5px; opacity: .95; line-height: 1.35; }
 html.is-app .dg .all { margin-top: auto; align-self: flex-end; min-width: 92px; white-space: nowrap; border: 1.5px solid rgba(255, 255, 255, .95); background: transparent; color: #fff; border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
 html.is-app .dg.wide .all { margin-top: 10px; }
-html.is-app .dg.blue { background: linear-gradient(90deg, #a16207, #c99a00); }
+html.is-app .dg.blue { background: linear-gradient(90deg, #0a76bd, #019fff); }
 html.is-app .dg.red { background: linear-gradient(90deg, #e0443f, #f46f6f); }
 html.is-app .dg.green { background: linear-gradient(90deg, #2fb81f, #74c99b); }
 html.is-app .dg.yellow { background: linear-gradient(90deg, #d5d828, #fbfbac); color: #5b5d1b; }
@@ -69,17 +69,17 @@ html.is-app .mrow .grow { flex: 1; }
 html.is-app .msq { width: 40px; height: 38px; border-radius: 11px; border: 0; display: grid; place-items: center; flex: none; padding: 0; }
 html.is-app button.msq { cursor: pointer; }
 html.is-app .msq .ico { width: 22px; height: 22px; }
-html.is-app .msq.in { background: #fdf3c4; color: #c99a00; }
+html.is-app .msq.in { background: #dff1fd; color: #1a9be6; }
 html.is-app .msq.out { background: #fde4e4; color: #e24141; }
 html.is-app .mlines { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 html.is-app .mline { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #444; min-width: 0; }
 html.is-app .mline b { font-weight: 400; min-width: 58px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 html.is-app .mi .ico { width: 18px; height: 18px; }
-html.is-app .mi.in { color: #c99a00; } html.is-app .mi.out { color: #e24141; }
+html.is-app .mi.in { color: #1a9be6; } html.is-app .mi.out { color: #e24141; }
 html.is-app .mloc { display: inline-flex; align-items: center; gap: 5px; color: #666; font-size: 12px; min-width: 0; margin-inline-start: 6px; }
 html.is-app .mloc > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 html.is-app .mloc .ico { width: 16px; height: 16px; flex: none; }
-html.is-app .mline:first-child .mloc .ico { color: #c99a00; } html.is-app .mline:last-child:not(:first-child) .mloc .ico { color: #e24141; }
+html.is-app .mline:first-child .mloc .ico { color: #1a9be6; } html.is-app .mline:last-child:not(:first-child) .mloc .ico { color: #e24141; }
 html.is-app .minfo { border: 0; background: none; color: #4b5563; padding: 0; cursor: pointer; display: grid; }
 html.is-app .minfo .ico { width: 22px; height: 22px; }
 html.is-app .mchev { width: 42px; height: 36px; border-radius: 10px; border: 0; background: #e9eaed; color: #3b4048; display: grid; place-items: center; cursor: pointer; padding: 0; flex: none; }

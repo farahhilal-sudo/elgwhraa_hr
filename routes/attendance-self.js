@@ -5,7 +5,7 @@ const { auth, wrap } = require('../src/middleware');
 const { settings, tzParts } = require('../src/bootstrap');
 const { allowedLocations, can, faceDistance, parsePhoto, toId, validDescriptor } = require('../src/helpers');
 const { db } = require('../src/db');
-const { getPolicyCtx, graceOf, isOffDay, syncAutoOvertime } = require('../src/payroll-engine');
+const { getPolicyCtx, graceOf, syncAutoOvertime } = require('../src/payroll-engine');
 
 
 module.exports = function register(app) {
@@ -41,12 +41,6 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
   const iso = new Date().toISOString();
   if (type === 'in') {
     if (rec && rec.check_in) return res.status(409).json({ error: 'تم تسجيل الحضور اليوم بالفعل' });
-    // تسجيل الحضور بيتم جوه ساعات العمل بس: من ساعتين قبل بداية الشفت لحد نهايته (إلا في العطل)
-    const s0 = toMin(u.shift_start), e0 = toMin(u.shift_end);
-    if (e0 > s0 && !(await isOffDay(st, now.date))) {
-      if (now.minutes < s0 - 120) return res.status(403).json({ error: `لسه بدري على التسجيل. شغلك بيبدأ ${u.shift_start}` });
-      if (now.minutes > e0) return res.status(403).json({ error: `انتهى وقت عملك اليوم (${u.shift_end}). لو اشتغلتِ بعده، كلّمي المدير يسجّل حضورك` });
-    }
     const start = toMin(u.shift_start), grace = graceOf(u, st, await getPolicyCtx());
     const late = now.minutes > start + grace ? now.minutes - start : 0;
     try {

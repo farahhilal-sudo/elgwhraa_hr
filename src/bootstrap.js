@@ -44,17 +44,14 @@ async function init() {
   // بيانات الملف الشخصي: كود الموظف وتاريخ الميلاد والنوع والحالة الاجتماعية والهوية الوطنية
   for (const c of ['employee_code', 'birth_date', 'gender', 'marital_status', 'national_id']) await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${c} TEXT DEFAULT ''`);
   await pool.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_code ON users(employee_code) WHERE employee_code <> ''");
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS notif_prefs TEXT NOT NULL DEFAULT '{}'");
+  await pool.query("ALTER TABLE notifications ADD COLUMN IF NOT EXISTS cat TEXT NOT NULL DEFAULT ''");
+  await pool.query('CREATE TABLE IF NOT EXISTS breaks (id SERIAL PRIMARY KEY, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, date TEXT NOT NULL, start_at TEXT NOT NULL, end_at TEXT)');
+  await pool.query('CREATE INDEX IF NOT EXISTS idx_breaks_user_date ON breaks(user_id, date)');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS in_loc TEXT');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS out_loc TEXT');
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     await db.run('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO NOTHING', k, v);
-  }
-  await db.run("UPDATE settings SET value='GWHRAA HR' WHERE key='company_name' AND value='شركتي'"); // الاسم الافتراضي الجديد
-  // الإضافي بقى سعر الدقيقة العادية × 2 (مرة واحدة بس، ومبنلمسش لو اتغيّرت القيم يدويًا)
-  if (!(await db.get("SELECT 1 FROM settings WHERE key='ot_x2_migrated'"))) {
-    await db.run("UPDATE settings SET value='0' WHERE key='overtime_minute_rate' AND value='2'");
-    await db.run("UPDATE settings SET value='2' WHERE key='overtime_factor' AND value='1.5'");
-    await db.run("INSERT INTO settings(key,value) VALUES('ot_x2_migrated','1') ON CONFLICT DO NOTHING");
   }
   let st = await settings();
   // ترحيل موقع العمل القديم (في الإعدادات) لأول موقع في جدول المواقع، مرة واحدة فقط

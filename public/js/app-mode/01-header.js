@@ -8,6 +8,7 @@ const FI = {
   b_dash: '<rect x="3" y="3" width="8" height="8" rx="2.2" fill="currentColor" opacity=".45"/><rect x="13" y="3" width="8" height="13" rx="2.2" fill="currentColor"/><rect x="3" y="13" width="8" height="8" rx="2.2" fill="currentColor"/><rect x="13" y="18" width="8" height="3" rx="1.5" fill="currentColor" opacity=".45"/>',
   b_team: '<circle cx="12" cy="8" r="3.6" fill="currentColor"/><path d="M5.5 20c0-3.6 2.7-5.8 6.5-5.8s6.5 2.2 6.5 5.8z" fill="currentColor"/><circle cx="4.8" cy="9.6" r="2.3" fill="currentColor" opacity=".5"/><circle cx="19.2" cy="9.6" r="2.3" fill="currentColor" opacity=".5"/><path d="M1 18c0-2.3 1.6-3.8 4-3.8.5 0 1 .1 1.4.2-1 .9-1.6 2.1-1.8 3.6H1zM23 18c0-2.3-1.6-3.8-4-3.8-.5 0-1 .1-1.4.2 1 .9 1.6 2.1 1.8 3.6H23z" fill="currentColor" opacity=".5"/>',
   b_menu: '<rect x="2.5" y="2.5" width="19" height="19" rx="5.5" fill="currentColor" opacity=".22"/><path d="M7 9h10M7 12.5h10M7 16h10" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>',
+  b_req: '<path d="M6.5 3H14l5 5v10.5A2.5 2.5 0 0 1 16.5 21h-10A2.5 2.5 0 0 1 4 18.5v-13A2.5 2.5 0 0 1 6.5 3z" fill="currentColor" opacity=".28"/><path d="M14 3l5 5h-3a2 2 0 0 1-2-2z" fill="currentColor"/><text x="8.2" y="17.2" font-size="9" font-weight="700" fill="currentColor" font-family="Poppins,Arial,sans-serif">?</text>',
   b_clock: '<circle cx="12" cy="12" r="9.5" fill="currentColor" opacity=".25"/><path d="M12 6.5V12l3.5 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   plus: G('<path d="M12 4.5v15M4.5 12h15"/>'),
   bell: G('<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/>'),
@@ -37,29 +38,29 @@ const fi = (n, cls = '') => `<svg class="ico fi ${cls}" viewBox="0 0 24 24" xmln
 // أيقونات كروت القائمة الملوّنة
 const CI = {
   att: '<circle cx="12" cy="12" r="9.2" fill="none" stroke="#2c3138" stroke-width="1.8"/><path d="M12 7.2v5.6" stroke="#2c3138" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="16.5" r="1.15" fill="#2c3138"/>',
-  req: '<path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H13l6 6v9.5A2.5 2.5 0 0 1 16.5 21h-9A2.5 2.5 0 0 1 5 18.5z" fill="#f7e9a8"/><path d="M13 3l6 6h-3.5A2.5 2.5 0 0 1 13 6.5z" fill="#a16207"/><text x="11.5" y="17.4" font-size="9.5" font-weight="800" fill="#a16207" text-anchor="middle" font-family="Arial,sans-serif">?</text>',
-  inbox: '<rect x="3" y="6.5" width="18" height="13" rx="3.2" fill="#f7e9a8"/><path d="M6.5 11l5.5 3.4 5.5-3.4" fill="none" stroke="#a16207" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="19" cy="5.5" r="3" fill="#a16207"/>',
-  list: '<rect x="3" y="3" width="18" height="18" rx="5" fill="#f7e9a8"/><path d="M7 9.2l1.4 1.4L10.8 8M13 9.4h4M7 15.4l1.4 1.4 2.4-2.6M13 15.6h4" fill="none" stroke="#c99a00" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>',
+  req: '<path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H13l6 6v9.5A2.5 2.5 0 0 1 16.5 21h-9A2.5 2.5 0 0 1 5 18.5z" fill="#cfe2f6"/><path d="M13 3l6 6h-3.5A2.5 2.5 0 0 1 13 6.5z" fill="#2d6cc4"/><text x="11.5" y="17.4" font-size="9.5" font-weight="800" fill="#2d6cc4" text-anchor="middle" font-family="Arial,sans-serif">?</text>',
+  inbox: '<rect x="3" y="6.5" width="18" height="13" rx="3.2" fill="#cddff2"/><path d="M6.5 11l5.5 3.4 5.5-3.4" fill="none" stroke="#2d6cc4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="19" cy="5.5" r="3" fill="#2d6cc4"/>',
+  list: '<rect x="3" y="3" width="18" height="18" rx="5" fill="#cdeaf9"/><path d="M7 9.2l1.4 1.4L10.8 8M13 9.4h4M7 15.4l1.4 1.4 2.4-2.6M13 15.6h4" fill="none" stroke="#0e8fd0" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>',
   money: '<circle cx="12" cy="12" r="9.5" fill="#cdeed6"/><text x="12" y="16.6" font-size="12.5" font-weight="800" fill="#1fa545" text-anchor="middle" font-family="Arial,sans-serif">$</text>',
   slip: '<path d="M6 3h12v17.5l-3-1.8-3 1.8-3-1.8-3 1.8z" fill="#d6f0dd"/><path d="M9 8h6M9 11.5h6M9 15h3.5" stroke="#1fa545" stroke-width="1.6" stroke-linecap="round"/>',
   penalty: '<circle cx="10" cy="8" r="4" fill="#a6b222"/><path d="M3 21c0-4 3-6.5 7-6.5s7 2.5 7 6.5z" fill="#eaedc0"/><circle cx="18" cy="16.6" r="3.7" fill="#a6b222"/><path d="M16.3 16.6h3.4" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/>',
   calendar: '<rect x="3" y="5" width="18" height="16" rx="3.5" fill="#fde5c8"/><path d="M3 10h18" stroke="#f08a1c" stroke-width="1.8"/><path d="M8 3v4M16 3v4" stroke="#f08a1c" stroke-width="2" stroke-linecap="round"/><rect x="7" y="13" width="3.2" height="3.2" rx=".8" fill="#f08a1c"/><rect x="13.5" y="13" width="3.2" height="3.2" rx=".8" fill="#f08a1c" opacity=".55"/>',
-  users: '<circle cx="9" cy="8" r="3.6" fill="#14a9b7"/><path d="M2 20c0-3.6 3-5.8 7-5.8s7 2.2 7 5.8z" fill="#fef9d9"/><circle cx="17.5" cy="9" r="2.6" fill="#7fd0d9"/><path d="M17.5 14.2c2.6 0 4.5 1.6 4.5 4.3v1.5h-4" fill="#fef9d9"/>',
-  user: '<circle cx="12" cy="8" r="4.2" fill="#f2c811"/><path d="M4 21c0-4.2 3.6-6.8 8-6.8s8 2.6 8 6.8z" fill="#f7e9a8"/>',
-  userplus: '<circle cx="10" cy="8" r="4" fill="#f2c811"/><path d="M2.5 21c0-4 3.4-6.5 7.5-6.5 1 0 2 .1 2.8.4a5.2 5.2 0 0 0-.8 2.9c0 1.2.4 2.3 1.1 3.2z" fill="#f7e9a8"/><circle cx="18" cy="17" r="4" fill="#f2c811"/><path d="M18 15v4M16 17h4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>',
-  key: '<circle cx="8.5" cy="14.5" r="4.5" fill="#fef9d9"/><circle cx="8.5" cy="14.5" r="1.4" fill="#7c4ddb"/><path d="M12 11.5L20 3.5M16.5 7l3 3M14.3 9.2l2.2 2.2" stroke="#7c4ddb" stroke-width="2" stroke-linecap="round"/>',
-  lock: '<rect x="4.5" y="10.5" width="15" height="10.5" rx="3" fill="#fef9d9"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" fill="none" stroke="#7c4ddb" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="15.7" r="1.5" fill="#7c4ddb"/>',
-  doc: '<path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H13l6 6v9.5A2.5 2.5 0 0 1 16.5 21h-9A2.5 2.5 0 0 1 5 18.5z" fill="#fef9d9"/><path d="M13 3l6 6h-3.5A2.5 2.5 0 0 1 13 6.5z" fill="#5468d6"/><path d="M8.5 13h7M8.5 16.5h5" stroke="#5468d6" stroke-width="1.6" stroke-linecap="round"/>',
+  users: '<circle cx="9" cy="8" r="3.6" fill="#14a9b7"/><path d="M2 20c0-3.6 3-5.8 7-5.8s7 2.2 7 5.8z" fill="#c9eef2"/><circle cx="17.5" cy="9" r="2.6" fill="#7fd0d9"/><path d="M17.5 14.2c2.6 0 4.5 1.6 4.5 4.3v1.5h-4" fill="#c9eef2"/>',
+  user: '<circle cx="12" cy="8" r="4.2" fill="#3b82f6"/><path d="M4 21c0-4.2 3.6-6.8 8-6.8s8 2.6 8 6.8z" fill="#cfe0fb"/>',
+  userplus: '<circle cx="10" cy="8" r="4" fill="#3b82f6"/><path d="M2.5 21c0-4 3.4-6.5 7.5-6.5 1 0 2 .1 2.8.4a5.2 5.2 0 0 0-.8 2.9c0 1.2.4 2.3 1.1 3.2z" fill="#cfe0fb"/><circle cx="18" cy="17" r="4" fill="#3b82f6"/><path d="M18 15v4M16 17h4" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>',
+  key: '<circle cx="8.5" cy="14.5" r="4.5" fill="#e7defc"/><circle cx="8.5" cy="14.5" r="1.4" fill="#7c4ddb"/><path d="M12 11.5L20 3.5M16.5 7l3 3M14.3 9.2l2.2 2.2" stroke="#7c4ddb" stroke-width="2" stroke-linecap="round"/>',
+  lock: '<rect x="4.5" y="10.5" width="15" height="10.5" rx="3" fill="#e7defc"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" fill="none" stroke="#7c4ddb" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="15.7" r="1.5" fill="#7c4ddb"/>',
+  doc: '<path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H13l6 6v9.5A2.5 2.5 0 0 1 16.5 21h-9A2.5 2.5 0 0 1 5 18.5z" fill="#dfe4fb"/><path d="M13 3l6 6h-3.5A2.5 2.5 0 0 1 13 6.5z" fill="#5468d6"/><path d="M8.5 13h7M8.5 16.5h5" stroke="#5468d6" stroke-width="1.6" stroke-linecap="round"/>',
   org: '<rect x="9" y="3" width="6" height="5" rx="1.5" fill="#14a9b7"/><rect x="2.5" y="16" width="6" height="5" rx="1.5" fill="#7fd0d9"/><rect x="15.5" y="16" width="6" height="5" rx="1.5" fill="#7fd0d9"/><path d="M12 8v4M5.5 16v-4h13v4" fill="none" stroke="#14a9b7" stroke-width="1.7" stroke-linejoin="round"/>',
-  swap: '<path d="M4 8h13l-3.2-3.2M20 16H7l3.2 3.2" fill="none" stroke="#c99a00" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
+  swap: '<path d="M4 8h13l-3.2-3.2M20 16H7l3.2 3.2" fill="none" stroke="#1d9bf0" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>',
   pause: '<circle cx="12" cy="12" r="9.5" fill="#fcd9d9"/><path d="M10 8.8v6.4M14 8.8v6.4" stroke="#e24141" stroke-width="2.2" stroke-linecap="round"/>',
   timer: '<circle cx="12" cy="13.2" r="8" fill="#fde5c8"/><path d="M12 8.8v4.8l3 1.8M9.5 2.8h5" fill="none" stroke="#f08a1c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   chart: '<rect x="3.5" y="12" width="4.6" height="8.5" rx="1.3" fill="#f6b04a"/><rect x="9.7" y="4" width="4.6" height="16.5" rx="1.3" fill="#f08a1c"/><rect x="15.9" y="9" width="4.6" height="11.5" rx="1.3" fill="#f9cd86"/>',
   building: '<path d="M4.5 20.5V6.5A2 2 0 0 1 6.5 4.5H13a2 2 0 0 1 2 2v14z" fill="#c4ecd0"/><path d="M15 9.5h2.5a2 2 0 0 1 2 2v9H15z" fill="#27b24a"/><path d="M8 8.5h3M8 12h3M8 15.5h3" stroke="#27b24a" stroke-width="1.7" stroke-linecap="round"/><path d="M2.5 20.5h19" stroke="#27b24a" stroke-width="1.8" stroke-linecap="round"/>',
   bolt: '<path d="M13.5 2.5L5 13.2h6L10 21.5l9-11.2h-6.2z" fill="#f9cd86" stroke="#f08a1c" stroke-width="1.6" stroke-linejoin="round"/>',
   bellx: '<path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z" fill="#fcd9d9"/><path d="M10 20a2 2 0 0 0 4 0" fill="none" stroke="#e24141" stroke-width="1.8" stroke-linecap="round"/><path d="M4 4l16 16" stroke="#e24141" stroke-width="2" stroke-linecap="round"/>',
-  sliders: '<rect x="3" y="3" width="18" height="18" rx="5" fill="#f7e9a8"/><path d="M7 9h6M17 9h0M7 15h0M11 15h6" stroke="#c99a00" stroke-width="1.8" stroke-linecap="round"/><circle cx="15.5" cy="9" r="1.9" fill="#fff" stroke="#c99a00" stroke-width="1.6"/><circle cx="8.5" cy="15" r="1.9" fill="#fff" stroke="#c99a00" stroke-width="1.6"/>',
-  clock: '<circle cx="12" cy="12" r="9.5" fill="#f7e9a8"/><path d="M12 6.8V12l3.5 2.1" fill="none" stroke="#c99a00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  sliders: '<rect x="3" y="3" width="18" height="18" rx="5" fill="#cdeaf9"/><path d="M7 9h6M17 9h0M7 15h0M11 15h6" stroke="#0e8fd0" stroke-width="1.8" stroke-linecap="round"/><circle cx="15.5" cy="9" r="1.9" fill="#fff" stroke="#0e8fd0" stroke-width="1.6"/><circle cx="8.5" cy="15" r="1.9" fill="#fff" stroke="#0e8fd0" stroke-width="1.6"/>',
+  clock: '<circle cx="12" cy="12" r="9.5" fill="#cdeaf9"/><path d="M12 6.8V12l3.5 2.1" fill="none" stroke="#0e8fd0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   absent: '<circle cx="12" cy="12" r="9.5" fill="#fcd9d9"/><path d="M5.5 5.5l13 13" stroke="#e24141" stroke-width="2.2" stroke-linecap="round"/>',
   late: '<circle cx="12" cy="13" r="8.2" fill="#fde5c8"/><path d="M12 8.5v5l3 1.7M9.5 3h5" fill="none" stroke="#f08a1c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   present: '<rect x="3" y="5" width="18" height="16" rx="3.5" fill="#c4ecd0"/><path d="M3 10h18" stroke="#27b24a" stroke-width="1.8"/><path d="M8 3v4M16 3v4" stroke="#27b24a" stroke-width="2" stroke-linecap="round"/><path d="M8.5 15.2l2.4 2.4 4.6-4.8" fill="none" stroke="#27b24a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -108,6 +109,6 @@ function paintStrip(el, days, sel, dotFn, onPick) {
   el.querySelectorAll('.day').forEach((b) => {
     const d = b.dataset.d, on = d === sel;
     b.classList.toggle('on', on);
-    b.lastChild.style.background = on ? '#f7d84a' : dotFn(d);
+    b.lastChild.style.background = on ? '#0ea5e9' : dotFn(d);
   });
 }

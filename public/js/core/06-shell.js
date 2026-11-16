@@ -61,16 +61,18 @@ function menuSheet() {
 }
 function renderShell() {
   S.open = S.open || {};
-  if (!allPages().includes(S.page) && !(IS_APP && (S.page === 'menu' || S.page === 'dashboard'))) S.page = IS_APP ? 'home' : (allPages().includes('dashboard') ? 'dashboard' : allPages()[0] || 'me'); // الويب مفيهوش صفحة تسجيل حضور
+  if (!allPages().includes(S.page) && !(IS_APP && (S.page === 'menu' || S.page === 'dashboard' || (typeof APP_PAGES !== 'undefined' && APP_PAGES.includes(S.page))))) S.page = IS_APP ? 'home' : (allPages().includes('dashboard') ? 'dashboard' : allPages()[0] || 'me'); // الويب مفيهوش صفحة تسجيل حضور
   S.pg = {};
   const u = S.me.user, canSearch = has('employees.view');
-  const third = has('employees.view') ? ['employees', 'الموظفون', 'b_team'] : ['me:attendance', 'سجلي', 'b_clock'];
-  const bnav = [['home', 'الجدول', 'b_sched'], ['dashboard', 'لوحة المعلومات', 'b_dash'], null, third, ['menu', 'القائمة', 'b_menu']];
-  const isOn = (k) => (k === 'menu' ? !['home', 'dashboard', third[0] === 'employees' ? 'employees' : 'me'].includes(S.page) : (k === S.page || (k === 'me:attendance' && S.page === 'me')));
+  // التطبيق (الشكل المرجعي): الجدول · لوحة المعلومات · طلباتي · القائمة. الموقع زي ما هو.
+  const third = IS_APP ? ['a_requests', t('My Requests'), 'b_req'] : has('employees.view') ? ['employees', 'الموظفون', 'b_team'] : ['me:attendance', 'سجلي', 'b_clock'];
+  const bnav = IS_APP ? [['home', t('Schedule'), 'b_sched'], ['dashboard', t('Dashboard'), 'b_dash'], null, third, ['menu', t('Menu'), 'b_menu']]
+    : [['home', 'الجدول', 'b_sched'], ['dashboard', 'لوحة المعلومات', 'b_dash'], null, third, ['menu', 'القائمة', 'b_menu']];
+  const isOn = (k) => (k === 'menu' ? !['home', 'dashboard', third[0] === 'employees' ? 'employees' : third[0] === 'a_requests' ? 'a_requests' : 'me'].includes(S.page) : (k === S.page || (k === 'me:attendance' && S.page === 'me')));
   $('#app').innerHTML = `<div class="shell">
     <header class="topbar">
       <button class="iconbtn hmb" id="hmb" aria-label="القائمة">${ico('menu')}</button>
-      <div class="brand"><img src="/logo.png" alt=""><span>GWHRAA HR</span></div>
+      <div class="brand"><img src="/icon.svg" alt=""><span>${esc(S.me.settings.company_name)}</span></div>
       ${canSearch ? `<form class="search" id="srch">${ico('search')}<input id="sq" placeholder="ابحثي عن موظف بالاسم أو اسم المستخدم أو الهاتف..." autocomplete="off"></form>` : '<div class="grow"></div>'}
       <div class="chip" id="cdate">${ico('calendar')}<span dir="ltr"></span></div>
       <div class="chip" id="cclk">${ico('clock')}<span dir="ltr">--:--:--</span></div>
@@ -84,7 +86,7 @@ function renderShell() {
       <button class="iconbtn" id="mbell">${ico('bell')}${S.me.unread ? `<span class="dot">${S.me.unread}</span>` : ''}</button></header>`}
     <main class="content" id="view"></main>
     <nav class="bottom"><div class="bbg" aria-hidden="true"><i></i><svg viewBox="0 0 128 66" preserveAspectRatio="none"><path d="M0 0C26 0 30 31 64 31S102 0 128 0V66H0z"/></svg><i></i></div>${bnav.map((n) => (n ? `<button data-b="${n[0]}" class="${isOn(n[0]) ? 'on' : ''}"><span class="bi">${fi(n[2])}</span><span>${n[1]}</span></button>` : '<span class="gap"></span>')).join('')}
-      <button class="fab" id="fab" aria-label="إضافة">${fi('plus')}</button></nav>
+      <button class="fab" id="fab" aria-label="+">${fi('plus')}</button></nav>
   </div>`;
   const bind = (root) => {
     root.querySelectorAll('[data-p]').forEach((b) => (b.onclick = () => go(b.dataset.p)));

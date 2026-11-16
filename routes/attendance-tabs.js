@@ -11,7 +11,7 @@ const { getPolicyCtx, getTiers, holidayMap, policiesFor, policyLate, profileOf }
 
 module.exports = function register(app) {
 // جزاءات الحضور (غياب/تأخير/انصراف مبكر) يوم بيوم، مع حالة التطبيق على المرتب (بنفس سياسات الجزاءات والعطلات)
-app.get('/api/att/penalties', auth, need('attendance.view_all'), wrap(async (req, res) => {
+const penHandler = wrap(async (req, res) => {
   const { from, to, today } = dashRange(req.query);
   const [st, tiers, all, pctx] = await Promise.all([settings(), getTiers(), dashUsers(req.query), getPolicyCtx()]);
   const uid = toId(req.query.user_id), users = uid ? all.filter((u) => u.id === uid) : all;
@@ -29,7 +29,7 @@ app.get('/api/att/penalties', auth, need('attendance.view_all'), wrap(async (req
   };
   const info = users.map((u) => {
     const { pen } = policiesFor(u, pctx), prof = profileOf(u, pctx), ub = prof && prof.break_paid === false ? Math.max(0, Number(prof.break_min) || 0) : 0;
-    const dailyRate = ((Number(u.base_salary) || 0) + (Number(u.allowances) || 0)) / 30, hourlyRate = dailyRate / Math.max(1, (toMin(u.shift_end) - toMin(u.shift_start) - ub) / 60);
+    const dailyRate = u.base_salary / 30, hourlyRate = dailyRate / Math.max(1, (toMin(u.shift_end) - toMin(u.shift_start) - ub) / 60);
     return { u, pen, dailyRate, hourlyRate, grace: pen && Number.isFinite(Number(pen.grace)) ? Number(pen.grace) : null };
   });
   for (const d of eachDay(from, to < today ? to : today)) {
@@ -53,7 +53,10 @@ app.get('/api/att/penalties', auth, need('attendance.view_all'), wrap(async (req
   }
   const reason = ['absent', 'late', 'early'].includes(req.query.reason) ? req.query.reason : null;
   res.json({ rows: rows.filter((r) => !reason || r.kind === reason).sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.user_name.localeCompare(b.user_name))).slice(0, 3000) });
-}));
+});
+app.get('/api/att/penalties', auth, need('attendance.view_all'), penHandler);
+// جزاءاتي (تطبيق الموظف): نفس الحساب بالظبط لكن لحساب الموظف نفسه بس
+app.get('/api/att/penalties/mine', auth, (req, res, next) => { req.query = { ...req.query, user_id: String(req.user.id) }; next(); }, penHandler);
 app.post('/api/att/penalties/flag', auth, need('attendance.edit'), wrap(async (req, res) => {
   const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 500) : [];
   const applied = req.body.applied === false || req.body.applied === 0 ? 0 : 1, note = String(req.body.note || '').slice(0, 200);

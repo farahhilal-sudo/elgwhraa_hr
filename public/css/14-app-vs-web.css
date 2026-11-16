@@ -1,5 +1,5 @@
 /* ===== وضع التطبيق مقابل وضع الموقع ===== */
-html.is-app body { background: #fef9d9; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: contain; user-select: none; -webkit-user-select: none; }
+html.is-app body { background: #e9eef4; -webkit-tap-highlight-color: transparent; overscroll-behavior-y: contain; user-select: none; -webkit-user-select: none; }
 html.is-app input, html.is-app textarea, html.is-app select, html.is-app td { user-select: text; -webkit-user-select: text; }
 html.is-app .shell { max-width: 520px; margin: 0 auto; min-height: 100vh; background: var(--bg); box-shadow: 0 0 40px rgba(15,30,60,.08); }
 html.is-app .mtop { padding-top: calc(14px + env(safe-area-inset-top)); }
@@ -19,5 +19,5 @@ html:not(.is-app) .hmb { display: none; }
   html:not(.is-app) .search, html:not(.is-app) #cdate, html:not(.is-app) #cclk, html:not(.is-app) .uname { display: none; }
   html:not(.is-app) .content { padding: 12px 0 30px; }
 }
-@media (display-mode: standalone) { body { background: #fef9d9; } }
+@media (display-mode: standalone) { body { background: #e9eef4; } }
 

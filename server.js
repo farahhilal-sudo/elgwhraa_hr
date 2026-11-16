@@ -83,6 +83,7 @@ require('./routes/late-tiers')(app);
 require('./routes/reports')(app);
 require('./routes/config')(app);
 require('./routes/settings')(app);
+require('./routes/employee-app')(app);
 
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'المسار غير موجود' }));

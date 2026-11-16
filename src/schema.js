@@ -117,15 +117,6 @@ CREATE TABLE IF NOT EXISTS payslips (
   paid_at TEXT NOT NULL DEFAULT (${NOW}),
   UNIQUE(user_id, month)
 );
-CREATE TABLE IF NOT EXISTS payroll_locks (
-  id SERIAL PRIMARY KEY,
-  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  month TEXT NOT NULL,
-  data TEXT NOT NULL,
-  locked_by INTEGER,
-  locked_at TEXT NOT NULL DEFAULT (${NOW}),
-  UNIQUE(user_id, month)
-);
 CREATE TABLE IF NOT EXISTS password_resets (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
