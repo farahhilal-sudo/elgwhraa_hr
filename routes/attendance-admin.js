@@ -38,6 +38,23 @@ app.post('/api/attendance', auth, need('attendance.edit'), wrap(async (req, res)
   await audit(req, 'attendance.edit', `${u.name} ${date}`, `in=${check_in || '-'} out=${check_out || '-'}`);
   res.json({ ok: true });
 }));
+// تسجيل انصراف موظف نيابةً عنه (لمن عنده attendance.edit): بالوقت الحالي، ونفس حساب الانصراف المبكر والوقت الإضافي التلقائي زي بصمته
+app.post('/api/attendance/checkout', auth, need('attendance.edit'), wrap(async (req, res) => {
+  const uid = toId((req.body || {}).user_id);
+  const u = uid && await db.get('SELECT * FROM users WHERE id=?', uid);
+  if (!u || u.is_admin) return res.status(404).json({ error: 'الموظف غير موجود' });
+  const now = tzParts(), st = await settings();
+  const rec = await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date);
+  if (!rec || !rec.check_in) return res.status(400).json({ error: 'الموظف لم يسجّل حضوراً اليوم' });
+  if (rec.check_out) return res.status(409).json({ error: 'تم تسجيل الانصراف بالفعل' });
+  const early = Math.max(0, toMin(u.shift_end) - now.minutes);
+  const note = ((rec.note ? rec.note + ' · ' : '') + 'انصراف سجّله ' + req.user.name).slice(0, 200);
+  const up = await db.run('UPDATE attendance SET check_out=?, early_minutes=?, note=? WHERE id=? AND check_out IS NULL', new Date().toISOString(), early, note, rec.id);
+  if (!up.rowCount) return res.status(409).json({ error: 'تم تسجيل الانصراف بالفعل' });
+  await syncAutoOvertime(u, now.date, now.minutes, st);
+  await audit(req, 'attendance.manual_checkout', `${u.name} ${now.date}`);
+  res.json({ ok: true });
+}));
 app.delete('/api/attendance/:id', auth, need('attendance.edit'), wrap(async (req, res) => {
   const id = toId(req.params.id);
   if (id) {

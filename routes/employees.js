@@ -43,7 +43,7 @@ async function todayStatusMap(users) {
     else if (leaves.has(u.id)) status = 'leave';
     else if (weekendToday) status = 'off';
     else if (now.minutes < toMin(u.shift_start) + graceOf(u, st, pctx)) status = 'not_yet';
-    out[u.id] = { status, check_in: a?.check_in || null, check_out: a?.check_out || null, late_minutes: a?.late_minutes || 0 };
+    out[u.id] = { status, check_in: a?.check_in || null, check_out: a?.check_out || null, late_minutes: a?.late_minutes || 0, in_loc: a?.in_loc || '', out_loc: a?.out_loc || '' };
   }
   return out;
 }
