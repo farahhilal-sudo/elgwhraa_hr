@@ -53,6 +53,11 @@ async function init() {
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     await db.run('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO NOTHING', k, v);
   }
+  // مرة واحدة: الإضافي التلقائي يتحول لطلب بيستنى موافقة المدير (بدل الاعتماد الفوري)
+  if (!(await db.get("SELECT 1 FROM settings WHERE key='ot_manual_v1'"))) {
+    await db.run("UPDATE settings SET value='0' WHERE key='overtime_auto_approve'");
+    await db.run("INSERT INTO settings(key,value) VALUES('ot_manual_v1','1') ON CONFLICT(key) DO NOTHING");
+  }
   let st = await settings();
   // ترحيل موقع العمل القديم (في الإعدادات) لأول موقع في جدول المواقع، مرة واحدة فقط
   if (st.work_lat !== '' && st.work_lng !== '' && isFinite(Number(st.work_lat)) && isFinite(Number(st.work_lng))) {

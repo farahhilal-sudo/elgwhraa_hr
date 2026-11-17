@@ -6,7 +6,7 @@ const { db, pool } = require('./db');
 const { parseCfg, truthy } = require('./shared');
 const { tzParts } = require('./bootstrap');
 const { LEAVE_TYPES } = require('./constants');
-const { round2 } = require('./helpers');
+const { notifyManagers, round2 } = require('./helpers');
 const { isWeekendDay } = require('./dash-data');
 
 
@@ -117,6 +117,7 @@ async function syncAutoOvertime(u, date, outMin, st) {
   const auto = st.overtime_auto_approve !== '0';
   await db.run('INSERT INTO requests(user_id,type,from_date,to_date,hours,reason,status,auto,decision_note,decided_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
     u.id, 'overtime', date, date, extra / 60, `وقت إضافي تلقائي: ${extra} دقيقة بعد نهاية الشفت`, auto ? 'approved' : 'pending', 1, auto ? 'اعتماد تلقائي' : '', auto ? new Date().toISOString() : null);
+  if (!auto) await notifyManagers(`طلب وقت إضافي تلقائي من ${u.name}: ${extra} دقيقة بعد نهاية الشفت (${date}) — محتاج موافقتك`, u.id);
   return extra;
 }
 

@@ -49,7 +49,7 @@ const DEFAULT_SETTINGS = {
   absence_factor: '1',
   overtime_factor: '1.5',
   overtime_minute_rate: '2', // قيمة الدقيقة الإضافية بالجنيه (لو مفيش سياسة إضافي مربوطة بالوردية). صفر = أجر الساعة × المعامل
-  overtime_auto_approve: '1', // اعتماد الإضافي التلقائي لحظة تسجيل الانصراف
+  overtime_auto_approve: '0', // 0 (الافتراضي) = الإضافي بعد نهاية الشفت بيتبعت طلب للمدير يقبله/يرفضه. 1 = اعتماد تلقائي فوراً
   country: 'Egypt',
   currency: 'EGP',
   language: 'arabic',
