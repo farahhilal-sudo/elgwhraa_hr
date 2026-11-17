@@ -87,20 +87,22 @@ app.post('/api/requests', auth, wrap(async (req, res) => {
   const isMgr = !!MGR_TYPES[type];
   if (isMgr && !can(req.user, 'requests.approve')) return res.status(403).json({ error: 'ليس لديك صلاحية لهذا النوع من الطلبات' });
   let target = req.user;
-  if (ON_BEHALF.includes(type)) {
+  // طلب بالنيابة عن موظف: أنواع الإدارة دايماً، وأي نوع تاني لمن عنده صلاحية الموافقة (شاشة «تقديم طلب نيابة عن» في التطبيق)
+  if (ON_BEHALF.includes(type) || (toId(user_id) && toId(user_id) !== req.user.id && can(req.user, 'requests.approve'))) {
     target = toId(user_id) && await db.get('SELECT * FROM users WHERE id=? AND active=1', toId(user_id));
     if (!target || (target.is_admin && !req.user.is_admin)) return res.status(400).json({ error: 'اختاري الموظف' });
   }
   if (AMOUNT_TYPES.includes(type) && !(Number(amount) > 0)) return res.status(400).json({ error: 'اكتبي المبلغ' });
   if (!isDate(from_date) || !isDate(to_date) || to_date < from_date) return res.status(400).json({ error: 'التواريخ غير صحيحة' });
   if (daysBetween(from_date, to_date) > 366) return res.status(400).json({ error: 'مدة الطلب لا تزيد عن 366 يوم' });
-  const ruleErr = await checkLeaveRules(req.user, type, from_date, to_date);
+  const ruleErr = await checkLeaveRules(target, type, from_date, to_date);
   if (ruleErr) return res.status(400).json({ error: ruleErr });
   if (['overtime', 'permission'].includes(type) && !(Number(hours) > 0 && Number(hours) <= 24)) return res.status(400).json({ error: 'حددي عدد الساعات' });
   const metaStr = JSON.stringify(meta && typeof meta === 'object' ? meta : {}).slice(0, 800);
   const id = await db.insert('INSERT INTO requests(user_id,type,from_date,to_date,hours,reason,amount,created_by,meta) VALUES(?,?,?,?,?,?,?,?,?)',
     target.id, type, from_date, ['overtime', 'permission', 'attendance_edit', 'expense', 'loan', ...Object.keys(MGR_TYPES)].includes(type) ? from_date : to_date, Number(hours) || 0, String(reason).slice(0, 500), Number(amount) || 0, req.user.id, metaStr);
   await notifyManagers(`طلب جديد (${ALL_TYPES[type]}) من ${req.user.name}${target.id !== req.user.id ? ' بخصوص ' + target.name : ''}`, req.user.id);
+  if (target.id !== req.user.id) await notify(target.id, `تم تقديم طلب (${ALL_TYPES[type]}) نيابةً عنك بواسطة ${req.user.name}`, 'req_decision');
   res.json({ id });
 }));
 

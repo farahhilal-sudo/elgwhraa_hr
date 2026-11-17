@@ -1,0 +1,56 @@
+/* 26-app-admin.css — شاشات الأدمن في التطبيق (نماذج الخصم/المكافأة/الطلب/السجل/الوردية/التكليف/الموظف) — مقاس مرجعي 360px */
+html.is-app .ahs { margin: 14px 2px 8px; font-size: 15px; font-weight: 400; color: #555; }
+html.is-app .acard { padding: 12px 15px 14px; border-radius: 8px; margin-bottom: 14px; }
+html.is-app .alab { font-size: 13px; color: #222; margin: 12px 0 6px; }
+html.is-app .acard > .alab:first-child { margin-top: 2px; }
+html.is-app .ah { font-size: 14px; font-weight: 400; color: #222; margin: 6px 0 8px; } html.is-app .ah.mt { margin-top: 14px; }
+html.is-app .ainp, html.is-app .asel, html.is-app .adt { width: 100%; height: 40px; border: 1px solid #cfd4da; border-radius: 10px; background: #fff; font: inherit; font-size: 14px; color: #222; padding: 0 12px; box-sizing: border-box; display: flex; align-items: center; }
+html.is-app .ainp::placeholder { color: #bcc0c6; }
+html.is-app input.ainp[type=number] { -moz-appearance: textfield; }
+html.is-app .asel { justify-content: space-between; text-align: start; cursor: pointer; gap: 8px; margin: 0; }
+html.is-app .asel.ph, html.is-app .adt .ph { color: #b9bdc3; } html.is-app .asel.dis { background: #fafafa; border-color: #e6e8eb; cursor: default; }
+html.is-app .asel span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+html.is-app .asel .ico { width: 15px; height: 15px; color: #444; flex: none; }
+html.is-app .adt { position: relative; gap: 10px; overflow: hidden; margin: 0; } html.is-app .adt .aic { color: #b0b4ba; display: flex; } html.is-app .adt .aic .ico { width: 19px; height: 19px; }
+html.is-app .adt .atx { flex: 1; font-size: 14px; } html.is-app .adt input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; }
+html.is-app .agrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; } html.is-app .agrid2 .alab { margin-top: 12px; }
+/* راديو ومربعات */
+html.is-app .arad, html.is-app .achk { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 30px; background: none; border: 0; padding: 0; font: inherit; font-size: 14px; color: #222; text-align: start; cursor: pointer; }
+html.is-app .arad i { width: 16px; height: 16px; border-radius: 50%; background: #e6e6e6; flex: none; box-sizing: border-box; }
+html.is-app .arad.on i { background: #c99a00; box-shadow: inset 0 0 0 3px #fff, 0 0 0 1px #c99a00; width: 16px; height: 16px; border: 0; }
+html.is-app .arad.on i { background: radial-gradient(circle, #c99a00 0 4px, #fff 4px 5.4px, #c99a00 5.4px); box-shadow: none; }
+html.is-app .achk i { width: 16px; height: 16px; border-radius: 3px; background: #e3e3e3; flex: none; display: flex; align-items: center; justify-content: center; color: #fff; }
+html.is-app .achk i .ico { width: 12px; height: 12px; opacity: 0; } html.is-app .achk.on i { background: #c99a00; } html.is-app .achk.on i .ico { opacity: 1; }
+html.is-app .achk span, html.is-app .arad span { flex: 1; line-height: 1.35; }
+html.is-app .arow2 { display: flex; gap: 22px; } html.is-app .arow2 .arad { width: auto; } html.is-app .arow2.wide { flex-direction: column; gap: 0; }
+html.is-app .achks { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; } html.is-app .achks .achk { align-items: flex-start; }
+html.is-app .abox { background: #fff; border-radius: 8px; box-shadow: 0 1px 6px rgba(20, 30, 50, .16); margin: 12px 8px 4px; padding: 12px 14px 14px; }
+html.is-app .abox .achk { margin-top: 6px; align-items: flex-start; } html.is-app .aspec { padding: 4px 0; }
+html.is-app .aalt { margin-top: 10px; } html.is-app .aaltb { display: flex; justify-content: space-between; width: 100%; background: none; border: 0; padding: 8px 4px; font: inherit; align-items: center; cursor: pointer; }
+html.is-app .aaltb b { font-weight: 500; font-size: 15px; color: #222; } html.is-app .aaltb .ico { width: 24px; height: 24px; color: #c99a00; }
+html.is-app .aaltr { display: flex; gap: 8px; align-items: center; margin-top: 8px; } html.is-app .aaltr input { flex: 1; height: 36px; border: 1px solid #cfd4da; border-radius: 8px; padding: 0 8px; font: inherit; } html.is-app .aaltr button { border: 0; background: #f1f2f4; border-radius: 50%; width: 28px; height: 28px; font-size: 18px; }
+/* حفظ / إعادة تعيين */
+html.is-app .abtns { display: flex; gap: 10px; margin: 16px 0 0; } html.is-app .abtns .xsubmit { flex: 1; margin: 0; }
+html.is-app .xreset { flex: 1; height: 50px; border: 0; border-radius: 5px; background: #fff; color: #e24b4b; font: inherit; font-size: 15px; box-shadow: 0 1px 4px rgba(20, 30, 50, .08); cursor: pointer; }
+html.is-app .xsubmit { height: 50px; border-radius: 5px; font-size: 15px; }
+/* خطوات الموظف الجديد */
+html.is-app .astep { display: flex; align-items: flex-start; justify-content: center; gap: 0; margin: 4px 0 6px; }
+html.is-app .astep button { background: none; border: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; font: inherit; color: #8a8f96; width: 78px; cursor: pointer; }
+html.is-app .astep b { width: 31px; height: 31px; border-radius: 50%; background: #fff; box-shadow: 0 1px 5px rgba(20, 30, 50, .18); display: flex; align-items: center; justify-content: center; font-weight: 500; font-size: 15px; color: #666; }
+html.is-app .astep button.on b { background: #1ea7ec; color: #fff; } html.is-app .astep button.on { color: #1ea7ec; font-weight: 600; } html.is-app .astep span { font-size: 11px; }
+html.is-app .astep i { width: 22px; height: 2px; background: #e4e6e9; margin-top: 15px; } html.is-app .astep i.on { background: #1ea7ec; }
+html.is-app .adrop { display: flex; align-items: center; justify-content: center; height: 76px; border: 1.5px dashed #9aa0a6; border-radius: 10px; font-size: 11.5px; color: #666; cursor: pointer; overflow: hidden; }
+html.is-app .adrop b { color: #1ea7ec; font-weight: 400; } html.is-app .adrop img { height: 100%; width: 100%; object-fit: contain; }
+html.is-app .aaltname { display: flex; align-items: center; gap: 10px; width: 100%; height: 56px; margin: 16px 0 0; border: 1px dashed #d0d3d7; border-radius: 8px; background: none; padding: 0 10px; font: inherit; cursor: pointer; }
+html.is-app .aaltname b { font-weight: 400; color: #1ea7ec; font-size: 14px; } html.is-app .aplus { width: 34px; height: 34px; border: 1px solid #d0d3d7; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #1ea7ec; } html.is-app .aplus .ico { width: 20px; height: 20px; }
+html.is-app #altnl .ainp { margin-top: 8px; }
+html.is-app .aseg { display: flex; background: #f1f1f1; border-radius: 8px; padding: 0; margin: 16px 0 4px; height: 38px; }
+html.is-app .aseg .arad { flex: 1; justify-content: center; border-radius: 8px; gap: 6px; } html.is-app .aseg .arad i { display: none; } html.is-app .aseg .arad.on { background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .15); font-weight: 600; } html.is-app .aseg .arad span { flex: none; }
+/* دايالوج الاختيار */
+html.is-app .xopts { max-height: 52vh; overflow: auto; }
+html.is-app .xopts.multi .xopt i { border-radius: 4px; }
+html.is-app .xopts.multi .xopt.on i { background: #c99a00; box-shadow: none; border-color: #c99a00; }
+/* بطاقة الموظف الموسّعة (4 أزرار) */
+html.is-app .mact { display: flex; flex-wrap: wrap; gap: 10px; padding: 6px 4px 0; }
+html.is-app .mact button { flex: 1 1 calc(50% - 5px); height: 40px; border: 0; border-radius: 8px; background: #efefef; color: #555; font: inherit; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+html.is-app .mact button .ico { width: 18px; height: 18px; color: #666; }

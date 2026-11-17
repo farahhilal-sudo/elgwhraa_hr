@@ -1,7 +1,7 @@
 'use strict';
 /* app-mode/11-screens-a.js — تطبيق الموظف (الشكل المرجعي): الجدول، لوحة المعلومات، طلباتي، طلب جديد، القائمة، الهيدر والشريط.
    كله بيشتغل في وضع التطبيق بس (is-app)، والموقع في المتصفح مش بيتأثر. */
-const APP_VERSION = 'V 4.0.0';
+const APP_VERSION = 'V 4.2.0';
 const APP_PAGES = ['a_requests', 'a_newreq', 'a_history', 'a_claims', 'a_assign', 'a_penalties', 'a_payroll', 'a_profile', 'a_adjust', 'a_notif', 'a_dir', 'a_breaks'];
 const initial1 = (n) => esc(String(n || '?').trim().charAt(0).toUpperCase());
 const xav = (u, cls = '') => `<span class="xav ${cls}"${avAttr(u)}>${initial1(u && u.name)}</span>`;
@@ -142,7 +142,9 @@ PAGES.home = async (view) => {
 };
 
 /* ======================= لوحة المعلومات ======================= */
+const adminDash = appDashboard;
 appDashboard = async function (view) {
+  if (has('dashboard.view') && has('employees.view')) return adminDash(view); // المدير: لوحة الإحصائيات بتاعة الفريق
   view.innerHTML = xSpin;
   const u = S.me.user, nowM = thisMonth(), months = [];
   for (let k = 0; k < 12; k++) { const d = new Date(Date.UTC(+nowM.slice(0, 4), +nowM.slice(5) - 1 - k, 1)).toISOString().slice(0, 7); if (d < String(u.hire_date).slice(0, 7) && k) break; months.push(d); }

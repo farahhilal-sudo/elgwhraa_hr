@@ -65,7 +65,7 @@ function renderShell() {
   S.pg = {};
   const u = S.me.user, canSearch = has('employees.view');
   // التطبيق (الشكل المرجعي): الجدول · لوحة المعلومات · طلباتي · القائمة. الموقع زي ما هو.
-  const third = IS_APP ? ['a_requests', t('My Requests'), 'b_req'] : has('employees.view') ? ['employees', 'الموظفون', 'b_team'] : ['me:attendance', 'سجلي', 'b_clock'];
+  const third = IS_APP ? (has('employees.view') ? ['employees', t('Employees'), 'b_team'] : ['a_requests', t('My Requests'), 'b_req']) : has('employees.view') ? ['employees', 'الموظفون', 'b_team'] : ['me:attendance', 'سجلي', 'b_clock'];
   const bnav = IS_APP ? [['home', t('Schedule'), 'b_sched'], ['dashboard', t('Dashboard'), 'b_dash'], null, third, ['menu', t('Menu'), 'b_menu']]
     : [['home', 'الجدول', 'b_sched'], ['dashboard', 'لوحة المعلومات', 'b_dash'], null, third, ['menu', 'القائمة', 'b_menu']];
   const isOn = (k) => (k === 'menu' ? !['home', 'dashboard', third[0] === 'employees' ? 'employees' : third[0] === 'a_requests' ? 'a_requests' : 'me'].includes(S.page) : (k === S.page || (k === 'me:attendance' && S.page === 'me')));

@@ -1,5 +1,5 @@
 // خدمة بسيطة تخلّي الموقع يتثبت كتطبيق. البيانات دايماً من الإنترنت.
-const CACHE = 'hr-shell-v33';
+const CACHE = 'hr-shell-v34';
 const FACE = 'hr-face-v1'; // مكتبة الوجه ونماذجها (حوالي 7MB) بتتحمّل مرة واحدة بس وبعدها فورية
 // ملفات الواجهة (css + js) بالترتيب نفسه اللي في index.html
 const SHELL = [
@@ -29,7 +29,7 @@ const SHELL = [
   '/css/20-photos-maps.css',
   '/css/21-employee-profile.css',
   '/css/22-attendance-requests-tabs.css',
-  '/css/23-compact.css', '/css/24-profile-attendance.css', '/css/25-app-screens.css', '/css/25-payroll-sheet.css', '/css/26-theme-yellow.css', '/css/27-tidy.css',
+  '/css/23-compact.css', '/css/24-profile-attendance.css', '/css/25-app-screens.css', '/css/26-app-admin.css', '/css/25-payroll-sheet.css', '/css/26-theme-yellow.css', '/css/27-tidy.css',
   '/js/core/01-utils.js',
   '/js/core/02-media.js',
   '/js/core/03-face-location.js',
@@ -74,7 +74,7 @@ const SHELL = [
   '/js/app-mode/10-i18n.js',
   '/js/app-mode/11-screens-a.js',
   '/js/app-mode/12-screens-b.js',
-  '/js/app-mode/13-i18n-ar.js',
+  '/js/app-mode/13-i18n-ar.js', '/js/app-mode/14-admin-screens.js',
   '/js/boot.js',
 ];
 self.addEventListener('install', (e) => {

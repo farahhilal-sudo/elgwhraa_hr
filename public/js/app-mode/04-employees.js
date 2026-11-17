@@ -46,8 +46,7 @@ function empMobileUI(c) {
     const tel = u.phone ? `<a class="btn alt sm" href="tel:${esc(u.phone)}">اتصال</a>` : '';
     return `<div class="card mcard" data-u="${u.id}"><div class="mhead"><span class="mav" style="--ring:${ring}"><span class="avatar">${esc(initials(u.name))}</span></span>
       <div class="mname"><b>${esc(u.name)}</b><span>${esc([u.job_title, u.department].filter(Boolean).join(' - ') || '—')}</span></div></div>${bottom}
-      <div class="mexp" hidden><div class="kv"><div><span class="muted">الحالة</span><b>${(EM_ST[s.status] || [''])[0]}${s.late ? ` (${s.late} د)` : ''}</b></div><div><span class="muted">الوردية</span><b dir="ltr">${fmt12(u.shift_start)} - ${fmt12(u.shift_end)}</b></div>${u.phone ? `<div><span class="muted">الهاتف</span><b dir="ltr">${esc(u.phone)}</b></div>` : ''}</div>
-        <div class="row" style="margin-top:10px">${tel}${manage ? `<button class="btn alt sm" data-e="${u.id}">تعديل</button>` : ''}<button class="btn alt sm" data-more="${u.id}">المزيد</button></div></div></div>`;
+      <div class="mexp" hidden><div class="mact">${has('attendance.edit') ? `<button data-act="extra" data-u="${u.id}">${fi('a_extra')}<span>وردية إضافية</span></button>` : ''}${manage ? `<button data-act="shift" data-u="${u.id}">${fi('a_swap')}<span>تغيير الوردية</span></button>` : ''}${has('attendance.edit') ? `<button data-act="in" data-u="${u.id}">${fi('a_addin')}<span>إضافة تسجيل الدخول</span></button><button data-act="edit" data-u="${u.id}">${fi('a_pen')}<span>تعديل</span></button>` : ''}</div></div></div>`;
   };
   const drawList = () => {
     const rs = rows();
@@ -57,6 +56,11 @@ function empMobileUI(c) {
     L.querySelectorAll('[data-view]').forEach((b) => (b.onclick = () => { const u = byId(b.dataset.view), s = dayInfo(u); if (s.rec && s.rec.id) attViewModal(u, s.rec, E.day, b.dataset.k); }));
     L.querySelectorAll('[data-info]').forEach((b) => (b.onclick = () => infoModal(byId(b.dataset.info))));
     L.querySelectorAll('[data-ex]').forEach((b) => (b.onclick = () => { const p = b.closest('.mcard'), x = $('.mexp', p); x.hidden = !x.hidden; b.innerHTML = fi(x.hidden ? 'chev_dn' : 'chev_up'); }));
+    L.querySelectorAll('[data-act]').forEach((b) => (b.onclick = () => {
+      const u = byId(b.dataset.u), s = dayInfo(u), k = b.dataset.act;
+      if (k === 'edit') return manualAtt(people, s.rec && (s.ci || s.rec.id) ? s.rec : { user_id: u.id, date: E.day, manual_new: true }, again);
+      S.adp = { emp: u.id, date: E.day, keep: k === 'extra' ? 'extra' : 'replace' }; go(k === 'shift' ? 'ad_shift' : 'ad_record');
+    }));
     L.querySelectorAll('[data-e]').forEach((b) => (b.onclick = () => empForm(byId(b.dataset.e), again)));
     L.querySelectorAll('[data-more]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); popMenu(b, menuFor(byId(b.dataset.more))); }));
     L.querySelectorAll('button[data-sq]').forEach((b) => (b.onclick = () => {
