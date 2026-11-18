@@ -84,6 +84,33 @@ CREATE TABLE IF NOT EXISTS config_items (
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (${NOW})
 );
+CREATE TABLE IF NOT EXISTS projects (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  scope TEXT NOT NULL DEFAULT 'employee',
+  target_ids TEXT NOT NULL DEFAULT '[]',
+  active INTEGER NOT NULL DEFAULT 1,
+  created_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE TABLE IF NOT EXISTS tasks (
+  id SERIAL PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  priority TEXT NOT NULL DEFAULT 'medium',
+  status TEXT NOT NULL DEFAULT 'todo',
+  assignee_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  project_id INTEGER REFERENCES projects(id) ON DELETE SET NULL,
+  due_date TEXT,
+  est_value DOUBLE PRECISION,
+  est_unit TEXT DEFAULT '',
+  created_by INTEGER, created_by_name TEXT DEFAULT '',
+  started_at TEXT, done_at TEXT,
+  penalty_req_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee_id);
 CREATE TABLE IF NOT EXISTS loans (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

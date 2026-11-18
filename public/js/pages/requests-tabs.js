@@ -12,13 +12,14 @@ const RQ_IN = [
   ['shift_change', 'ورديات', ['shift_change']], ['expense', 'مطالبات النفقات', ['expense']], ['loan', 'قرض', ['loan']], ['bonus', 'المكافآت', ['bonus_req']], ['deduction', 'الخصم', ['deduction_req']],
   ['join', 'الانضمام', ['join_req']], ['suspend', 'إيقاف', ['suspend_req']], ['bulk', 'إجراءات بالجملة', ['bulk_req']], ['transfer', 'تحويل', ['transfer_req']], ['schedule', 'الجدول', ['schedule_req']],
   ['allowance', 'صرف بدل', ['allowance_req']], ['shift_swap', 'تبادل الورديات', ['shift_swap']], ['leave_swap', 'تبادل الإجازات', ['leave_swap']],
+  ['penalty', 'الجزاءات', ['penalty_req']],
 ];
 const RQ_OUT_MGR = [['bonus', 'المكافآت', ['bonus_req']], ['deduction', 'الخصم', ['deduction_req']], ['join', 'الانضمام', ['join_req']], ['suspend', 'إيقاف', ['suspend_req']], ['bulk', 'طلبات جماعية', ['bulk_req']],
   ['schedule', 'الجدول', ['schedule_req']], ['transfer', 'تحويل', ['transfer_req']], ['shift_swap', 'تبادل الورديات', ['shift_swap']], ['leave_swap', 'تبادل الإجازات', ['leave_swap']], ['allowance', 'صرف بدل', ['allowance_req']]];
 const RQ_OUT_OWN = [['leaves', 'الإجازات والأذونات', ['annual_leave', 'sick_leave', 'emergency_leave', 'work_mission', 'permission']], ['overtime', 'الوقت الإضافي', ['overtime']], ['attendance_edit', 'طلبات الحضور', ['attendance_edit']],
   ['shift_change', 'ورديات', ['shift_change']], ['expense', 'مطالبات النفقات', ['expense']], ['loan', 'قرض', ['loan']]];
 const RQ_NEW_LABEL = { bonus_req: 'طلب مكافأة جديد', deduction_req: 'طلب خصم جديد', join_req: 'طلب انضمام جديد', suspend_req: 'طلب إيقاف جديد', bulk_req: 'طلب جماعي جديد', schedule_req: 'طلب جدول جديد', transfer_req: 'طلب تحويل جديد', allowance_req: 'طلب صرف بدل جديد', shift_swap: 'طلب تبادل ورديات', leave_swap: 'طلب تبادل إجازات' };
-const RQ_AMT = ['expense', 'loan', 'bonus_req', 'deduction_req', 'allowance_req'];
+const RQ_AMT = ['expense', 'loan', 'bonus_req', 'deduction_req', 'allowance_req', 'penalty_req'];
 const RQ_TOP = () => [['requests', 'وارد', 'rq_in', has('requests.view_all')], ['req_out', 'صادر', 'rq_out', true], ['req_settings', 'الإعدادات', 'rq_gear', has('settings.manage')]].filter((x) => x[3]);
 const rqHHMM = (h) => { const m = Math.round((Number(h) || 0) * 60); return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`; };
 const rqDay = (d) => new Date(d + 'T00:00:00Z').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' });

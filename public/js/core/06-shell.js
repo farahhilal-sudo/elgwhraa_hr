@@ -30,6 +30,8 @@ const MENU = [
   { g: 'att', ic: 'clock', t: 'الحضور', items: [
     ['home', 'تسجيل الحضور', () => IS_APP, 'clock'], // تسجيل الحضور من التطبيق فقط (مفيش صفحة تسجيل في الويب)
     ...ATT_TABS.map(([k, l, ic]) => [k, l, () => has('attendance.view_all'), ic])] },
+  { g: 'tk', ic: 'check', t: 'المهام', items: [['tasks', 'المهام', () => true, 'tk_list'], ['task_rules', 'قواعد التعيين', () => has('employees.view'), 'tk_rules']] },
+  { g: 'pj', ic: 'case', t: 'المشاريع', items: [['projects', 'المشاريع', () => has('employees.view'), 'tk_list'], ['project_report', 'تقرير المشاريع', () => has('employees.view'), 'tk_rep']] },
   { g: 'fin', ic: 'wallet', t: 'المالية', items: [
     ['payroll', 'المرتبات', () => has('payroll.view'), 'dollar'], ['bonuses', 'المكافآت', () => has('payroll.view'), 'gift'], ['deductions', 'الخصومات', () => has('payroll.view'), 'shield'], ['tiers', 'سياسة الخصومات', () => has('settings.manage'), 'timer'], ['loans', 'قروض', () => has('payroll.view'), 'wallet']] },
   { id: 'reports', ic: 'chart', t: 'التقارير', ok: () => has('reports.view') },

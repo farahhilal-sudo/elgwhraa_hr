@@ -30,9 +30,9 @@ const LEAVE_TYPES = ['annual_leave', 'sick_leave', 'emergency_leave', 'work_miss
 // أنواع إضافية بيقدمها الموظف نفسه
 Object.assign(REQUEST_TYPES, { expense: 'مطالبة نفقات', loan: 'قرض', shift_swap: 'تبادل ورديات', leave_swap: 'تبادل إجازات' });
 // أنواع بيبدأها المدير/الموارد البشرية (محتاجة صلاحية requests.approve) وليها أثر لما تتقبل
-const MGR_TYPES = { bonus_req: 'مكافأة', deduction_req: 'خصم', allowance_req: 'صرف بدل', join_req: 'انضمام', suspend_req: 'إيقاف', transfer_req: 'تحويل', schedule_req: 'جدول', bulk_req: 'طلب جماعي' };
+const MGR_TYPES = { bonus_req: 'مكافأة', deduction_req: 'خصم', allowance_req: 'صرف بدل', join_req: 'انضمام', suspend_req: 'إيقاف', transfer_req: 'تحويل', schedule_req: 'جدول', bulk_req: 'طلب جماعي', penalty_req: 'جزاء' };
 const ALL_TYPES = { ...REQUEST_TYPES, ...MGR_TYPES };
-const AMOUNT_TYPES = ['expense', 'loan', 'bonus_req', 'deduction_req', 'allowance_req'];
+const AMOUNT_TYPES = ['expense', 'loan', 'bonus_req', 'deduction_req', 'allowance_req', 'penalty_req'];
 const ON_BEHALF = ['bonus_req', 'deduction_req', 'allowance_req', 'suspend_req', 'transfer_req', 'schedule_req'];
 
 const DEFAULT_SETTINGS = {
@@ -48,6 +48,8 @@ const DEFAULT_SETTINGS = {
   late_factor: '1',
   absence_factor: '1',
   overtime_factor: '1.5',
+  task_penalty_on: '1', // جزاء تأخير المهام: طلب تلقائي للمدير لما الموظف يتأخر في تسليم المهمة
+  task_penalty_days: '0.5', // قيمة الجزاء بالأيام (× أجر اليوم)
   overtime_minute_rate: '2', // قيمة الدقيقة الإضافية بالجنيه (لو مفيش سياسة إضافي مربوطة بالوردية). صفر = أجر الساعة × المعامل
   overtime_auto_approve: '0', // 0 (الافتراضي) = الإضافي بعد نهاية الشفت بيتبعت طلب للمدير يقبله/يرفضه. 1 = اعتماد تلقائي فوراً
   country: 'Egypt',
