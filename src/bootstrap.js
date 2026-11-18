@@ -50,6 +50,7 @@ async function init() {
   await pool.query('CREATE INDEX IF NOT EXISTS idx_breaks_user_date ON breaks(user_id, date)');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS in_loc TEXT');
   await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS out_loc TEXT');
+  await pool.query('ALTER TABLE attendance ADD COLUMN IF NOT EXISTS edited_by INTEGER');
   for (const [k, v] of Object.entries(DEFAULT_SETTINGS)) {
     await db.run('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO NOTHING', k, v);
   }

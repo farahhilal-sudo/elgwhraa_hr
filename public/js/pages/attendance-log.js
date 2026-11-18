@@ -6,7 +6,7 @@ ATT_VIEWS.attendance = async (view) => {
   const emps = has('employees.view') ? await api('/employees') : [];
   const af = S.attf || {}; S.attf = null;
   const first = af.from || thisMonth() + '-01';
-  view.innerHTML = `<div class="page-head"><h2>سجل الحضور</h2><div class="row noprint">${has('attendance.edit') ? '<button class="btn" id="man">+ تسجيل يدوي</button>' : ''}<button class="btn alt" id="exp">تصدير CSV</button></div></div>
+  view.innerHTML = `<div class="page-head"><h2>سجل الحضور</h2><div class="row noprint">${has('attendance.edit') ? '<button class="btn" id="man">+ تسجيل يدوي</button>' : ''}<button class="btn alt" id="exp">تصدير Excel</button></div></div>
     <div class="card form" style="margin-bottom:12px;grid-template-columns:repeat(3,1fr)"><label class="f">من<input type="date" id="f1" value="${first}"></label><label class="f">إلى<input type="date" id="f2" value="${af.to || todayStr()}"></label>
     <label class="f">الموظف<select id="f3"><option value="">الكل</option>${emps.filter((e) => !e.is_admin).map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label></div><div id="al"></div>`;
   let rows = [];
@@ -21,7 +21,14 @@ ATT_VIEWS.attendance = async (view) => {
   };
   ['f1', 'f2', 'f3'].forEach((i) => ($('#' + i).onchange = load));
   if ($('#man')) $('#man').onclick = () => manualAtt(emps, null, load);
-  $('#exp').onclick = () => csv('attendance.csv', [['التاريخ', 'الموظف', 'حضور', 'انصراف', 'تأخير (د)', 'انصراف مبكر (د)'], ...rows.map((a) => [a.date, a.user_name, fmtTime(a.check_in), fmtTime(a.check_out), a.late_minutes, a.early_minutes])]);
+  $('#exp').onclick = (e) => run(e.currentTarget, async () => {
+    let from = $('#f1').value, to = $('#f2').value;
+    if (!from || !to || to < from) throw new Error('حدد فترة صحيحة');
+    if (daysBetween(from, to) > 93) from = addDays(to, -92);
+    const sel = $('#f3').value, list = emps.filter((x) => !x.is_admin && !x.pending && (sel ? String(x.id) === sel : x.active));
+    if (!list.length) throw new Error('لا يوجد موظفون للتصدير');
+    await exportAttHistory(list, from, to);
+  });
   load();
 };
 const locBox = (a, kind) => {

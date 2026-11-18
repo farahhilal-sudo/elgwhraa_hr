@@ -94,14 +94,7 @@ html.is-app .fc input:checked + span { background: var(--abrand); border-color: 
 html.is-app .overlay .modal .actions .btn { min-width: 90px; }
 
 
-/* تصغير كروت الموظفين في التطبيق */
-html.is-app .mcard { padding: 10px 11px 9px; margin-bottom: 10px; border-radius: 12px; }
-html.is-app .mhead { gap: 9px; }
-html.is-app .mav { width: 44px; height: 44px; border-width: 2.5px; padding: 1.5px; }
-html.is-app .mav .avatar { font-size: 12px; }
-html.is-app .mname { line-height: 1.4; } html.is-app .mname b { font-size: 12.5px; } html.is-app .mname span { font-size: 11px; }
-html.is-app .mshift { margin: 6px 0 5px; font-size: 12px; gap: 7px; }
-html.is-app .mclk { width: 22px; height: 22px; } html.is-app .mclk .ico { width: 13px; height: 13px; }
-html.is-app .msq { width: 34px; height: 32px; border-radius: 9px; } html.is-app .msq .ico { width: 18px; height: 18px; }
-html.is-app .mlines { gap: 2px; } html.is-app .mline { font-size: 11.5px; gap: 6px; }
-html.is-app .mrow { gap: 8px; }
+/* خط أصغر لكروت الموظفين في التطبيق (حجم الكرت زي ما هو) */
+html.is-app .mname b { font-size: 12.5px; } html.is-app .mname span { font-size: 11px; }
+html.is-app .mshift { font-size: 12px; }
+html.is-app .mline { font-size: 11.5px; }

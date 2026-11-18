@@ -16,7 +16,7 @@ app.get('/api/attendance', auth, need('attendance.view_all'), wrap(async (req, r
   const from = isDate(req.query.from) ? req.query.from : now.slice(0, 7) + '-01';
   const to = isDate(req.query.to) ? req.query.to : now;
   const uid = toId(req.query.user_id);
-  res.json(await db.all(`SELECT a.*, EXISTS(SELECT 1 FROM attendance_photos p WHERE p.attendance_id=a.id AND p.kind='in') AS in_photo, EXISTS(SELECT 1 FROM attendance_photos p WHERE p.attendance_id=a.id AND p.kind='out') AS out_photo, u.name AS user_name FROM attendance a JOIN users u ON u.id=a.user_id
+  res.json(await db.all(`SELECT a.*, EXISTS(SELECT 1 FROM attendance_photos p WHERE p.attendance_id=a.id AND p.kind='in') AS in_photo, EXISTS(SELECT 1 FROM attendance_photos p WHERE p.attendance_id=a.id AND p.kind='out') AS out_photo, u.name AS user_name, ed.name AS edited_by_name FROM attendance a JOIN users u ON u.id=a.user_id LEFT JOIN users ed ON ed.id=a.edited_by
     WHERE a.date BETWEEN ? AND ? ${uid ? 'AND a.user_id=?' : ''} ORDER BY a.date DESC, u.name LIMIT 1000`, ...(uid ? [from, to, uid] : [from, to])));
 }));
 app.post('/api/attendance', auth, need('attendance.edit'), wrap(async (req, res) => {
@@ -31,9 +31,9 @@ app.post('/api/attendance', auth, need('attendance.edit'), wrap(async (req, res)
   const grace = graceOf(u, await settings(), await getPolicyCtx());
   const late = check_in &&toMin(check_in) > toMin(u.shift_start) + grace ? toMin(check_in) - toMin(u.shift_start) : 0;
   const early = check_out ? Math.max(0, toMin(u.shift_end) - toMin(check_out)) : 0;
-  await db.run(`INSERT INTO attendance(user_id,date,check_in,check_out,late_minutes,early_minutes,note) VALUES(?,?,?,?,?,?,?)
-    ON CONFLICT(user_id,date) DO UPDATE SET check_in=excluded.check_in, check_out=excluded.check_out, late_minutes=excluded.late_minutes, early_minutes=excluded.early_minutes, note=excluded.note`,
-    u.id, date, ci, co, late, early, String(note).slice(0, 200));
+  await db.run(`INSERT INTO attendance(user_id,date,check_in,check_out,late_minutes,early_minutes,note,edited_by) VALUES(?,?,?,?,?,?,?,?)
+    ON CONFLICT(user_id,date) DO UPDATE SET check_in=excluded.check_in, check_out=excluded.check_out, late_minutes=excluded.late_minutes, early_minutes=excluded.early_minutes, note=excluded.note, edited_by=excluded.edited_by`,
+    u.id, date, ci, co, late, early, String(note).slice(0, 200), req.user.id);
   await syncAutoOvertime(u, date, check_out ? toMin(check_out) : null, await settings());
   await audit(req, 'attendance.edit', `${u.name} ${date}`, `in=${check_in || '-'} out=${check_out || '-'}`);
   res.json({ ok: true });

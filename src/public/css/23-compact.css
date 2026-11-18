@@ -1,0 +1,95 @@
+/* ===== تصغير المربعات والمسافات (الموقع) ===== */
+html:not(.is-app) .card { padding: 13px; }
+html:not(.is-app) .btn { padding: 8px 14px; }
+html:not(.is-app) .btn.sm { padding: 5px 10px; }
+html:not(.is-app) input, html:not(.is-app) select, html:not(.is-app) textarea { padding: 7px 10px; }
+html:not(.is-app) .chip { padding: 6px 12px; }
+html:not(.is-app) .ptable th, html:not(.is-app) .ptable td { padding: 6px 6px; }
+html:not(.is-app) .ptable .who { min-width: 170px; }
+html:not(.is-app) .ptable th.tn, html:not(.is-app) .ptable td.tn { font-size: 13px; }
+html:not(.is-app) table th, html:not(.is-app) table td { padding-top: 7px; padding-bottom: 7px; }
+html:not(.is-app) .ptable th, html:not(.is-app) .ptable td { padding: 6px 6px; }
+
+/* جدول المرتبات: صفوف مضغوطة + علامة التفاصيل (!) */
+html:not(.is-app) .ptable th, html:not(.is-app) .ptable td { padding: 4px 5px; font-size: 12px; }
+html:not(.is-app) .ptable th { font-size: 11.5px; padding: 7px 5px; }
+html:not(.is-app) .ptable .who { min-width: 160px; line-height: 1.35; }
+html:not(.is-app) .ptable .who .small, html:not(.is-app) .ptable .pact2 .link { font-size: 10.5px; }
+html:not(.is-app) .ptable .pact2 { gap: 8px; margin-top: 0; }
+html:not(.is-app) .ptable th.tn, html:not(.is-app) .ptable td.tn { font-size: 12.5px; }
+.infob { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 50%; border: 1.3px solid currentColor; background: transparent; color: #374151; font: 700 10px/1 inherit; padding: 0; margin-inline-start: 6px; cursor: pointer; vertical-align: middle; }
+.infob:hover { background: #374151; color: #fff; }
+.ptinfo { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ptinfo th, .ptinfo td { padding: 7px 10px; text-align: start; border-bottom: 1px solid var(--line); }
+.ptinfo th { background: #f6f8fa; color: var(--muted); font-weight: 700; } .ptinfo .tot td { font-weight: 800; background: #f6f8fa; }
+
+/* ===== شكل جدول المرتبات المرجعي ===== */
+.ptable { min-width: 1250px; }
+.ptable th { background: #fafbfd; font-weight: 600; }
+.ptable th.tb { background: #fafbfd; color: #c99a00; } .ptable td.tb { background: #fdf3c4; }
+.ptable th.tg { background: #fafbfd; color: #1fa04a; } .ptable td.tg { background: #d9f0d5; }
+.ptable th.tp { background: #fafbfd; color: #d4382c; } .ptable td.tp { background: #fff0f0; }
+.ptable th.tw { background: #fafbfd; color: #7b8794; } .ptable td.tw { background: #fff; }
+.ptable td { font-weight: 400; color: #3b3b3b; }
+.ptable tr.totrow th { background: #f1f5f9; font-weight: 700; }
+.ptable tr.totrow th.tb { color: #a16207; } .ptable tr.totrow th.tg { color: #15803d; } .ptable tr.totrow th.tp { color: #b91c1c; } .ptable tr.totrow th.tw { color: #334155; }
+.pencil { display: inline-grid; place-items: center; border: 0; background: transparent; color: #4b5563; padding: 0 2px; margin-inline-start: 8px; cursor: pointer; vertical-align: middle; }
+.pencil .ico { width: 14px; height: 14px; } .pencil:hover { color: var(--brand); }
+[hidden] { display: none !important; }
+
+/* ===== نافذة الجزاء ===== */
+.modal.pmodal { width: min(1100px, 94vw); max-width: none; padding: 0; overflow: hidden; border-radius: 22px; max-height: 92vh; display: flex; flex-direction: column; }
+.modal.pmodal.pmsmall { width: min(1060px, 94vw); }
+.pmh { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.pmh h3 { margin: 0; font-size: 18px; } .pmh .pmdt { font-weight: 600; color: #374151; margin-inline-start: 12px; font-size: 14px; }
+.pmx { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: #fff; cursor: pointer; color: #6b7280; }
+.bl { color: var(--brand); }
+.pmname { display: flex; justify-content: space-between; align-items: center; margin: 12px 18px; padding: 10px 14px; border-radius: 10px; box-shadow: 0 1px 6px rgba(15,23,42,.08); font-size: 12px; color: #4b5563; }
+.pmbody { overflow: auto; padding: 0 18px; flex: 1; min-height: 0; }
+.pmt { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.pmt th { background: #f6f8fa; color: #4b5563; font-weight: 600; padding: 12px 10px; text-align: center; position: sticky; top: 0; }
+.pmt td { padding: 10px; text-align: center; border-bottom: 1px solid #eef1f4; }
+.pmt .pmact { display: flex; gap: 12px; align-items: center; justify-content: flex-start; }
+.sqb { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line); background: #fff; display: inline-grid; place-items: center; color: var(--brand); cursor: pointer; padding: 0; }
+.sqb .ico { width: 15px; height: 15px; }
+.pmfoot { display: flex; justify-content: space-between; align-items: center; padding: 12px 22px; border-top: 1px solid var(--line); font-size: 13px; }
+.pmio { display: flex; justify-content: space-between; gap: 20px; padding: 22px 26px 8px; font-size: 13px; }
+.pmio > div { display: grid; gap: 14px; text-align: start; } .pmio b { font-size: 14px; } .pmio span { color: #374151; text-align: center; }
+.pmrow { display: flex; align-items: center; gap: 22px; margin: 10px 20px 22px; padding: 10px 16px; border: 1px solid var(--line); border-radius: 12px; font-size: 13px; }
+.pmrow > b:first-child { font-weight: 800; } .pmrow .pmamt { margin-inline-start: auto; font-weight: 700; } .pmapp { font-size: 12px; color: #374151; }
+@media (max-width: 700px) { .pmrow { flex-wrap: wrap; gap: 10px; } .pmio { padding: 16px; } }
+.pmrow.pmedit input[type=number] { width: 90px; text-align: center; padding: 7px 8px; }
+.pmrow.pmedit select { width: 150px; padding: 7px 10px; }
+.pmrow .pmgrow { flex: 1; }
+.sqb.bad { color: #dc2626; } .sqb.okb { color: #16a34a; }
+.pmtag { font-size: 10.5px; background: #fef3c7; color: #b45309; border-radius: 6px; padding: 1px 7px; margin-inline-start: 4px; }
+.modal.pmodal #pmb { display: flex; flex-direction: column; flex: 1; min-height: 0; max-height: 92vh; }
+.modal.pmodal .pmbody { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.modal.pmodal.pmsmall { overflow-y: auto; }
+
+/* ===== المالية: تابات وقايمة جنب بشكل الشاشة المرجعية ===== */
+html:not(.is-app) .pagetabs { padding: 0 16px; gap: 26px; border-radius: 16px; align-items: stretch; }
+html:not(.is-app) .pagetabs button { padding: 15px 4px 13px; font-size: 12.5px; font-weight: 600; color: #2f3640; gap: 8px; border-radius: 0; background: none; }
+html:not(.is-app) .pagetabs button .ico { width: 17px; height: 17px; color: #4b5563; }
+html:not(.is-app) .pagetabs button:hover { color: var(--brand-d); }
+html:not(.is-app) .pagetabs button.on { color: var(--brand-d); box-shadow: inset 0 -3px 0 var(--brand); }
+html:not(.is-app) .pagetabs button.on .ico { color: var(--brand); }
+html:not(.is-app) .page-head h2 { font-size: 15px; }
+html:not(.is-app) .navgrp.cur > .navg { background: var(--brand); color: #fff; }
+html:not(.is-app) .navgrp.cur > .navg .chev { color: #fff; }
+html:not(.is-app) .navi.sm.on { background: #fef9d9; color: var(--brand-d); font-weight: 700; }
+html:not(.is-app) .navi.sm { font-size: 12px; padding: 8px 12px; }
+html:not(.is-app) .navi.sm .ico { width: 17px; height: 17px; }
+
+/* ===== القروض ===== */
+.lnbar { display: grid; gap: 10px; margin: 12px 0; }
+.lnrow { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.lnrow .grow, .grow { flex: 1; }
+.lnbar .dfi { display: flex; align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; height: 36px; min-width: 150px; font-size: 12px; }
+.lnbar .dfi select, .lnbar .dfi input { border: 0; background: transparent; outline: 0; width: 100%; padding: 0; font: inherit; font-size: 12px; }
+.lnt { width: 100%; border-collapse: collapse; font-size: 12px; }
+.lnt th { background: #fafbfd; color: #3a4350; font-weight: 700; padding: 11px 10px; text-align: start; }
+.lnt td { padding: 10px; border-top: 1px solid #eef1f4; text-align: start; }
+.lnt .lnu { color: var(--brand); font-weight: 700; } .lnact { display: flex; gap: 8px; justify-content: flex-end; }
+.lw { color: #f59e0b; font-weight: 600; } .ld { color: #16a34a; font-weight: 600; } .lc { color: #9ca3af; font-weight: 600; }
+.lnfoot { text-align: center; margin: 14px 0; }

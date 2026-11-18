@@ -310,7 +310,12 @@ PAGES.employees = async (view) => {
       };
       $('#aFrom').onchange = () => { af.from = $('#aFrom').value; load(); }; $('#aTo').onchange = () => { af.to = $('#aTo').value; load(); };
       $('#aSt').onchange = () => { af.st = $('#aSt').value; draw(); }; $('#aEx').onchange = () => { af.ex = $('#aEx').value; draw(); };
-      $('#aExp').onclick = () => csv('attendance-' + u.username + '.csv', [['التاريخ', 'الحالة', 'حضور', 'انصراف', 'مكان الحضور', 'مكان الانصراف'], ...list.map((x) => [x.d, x.kind, t12(x.a && x.a.check_in), t12(x.a && x.a.check_out), (x.a && x.a.in_loc) || '', (x.a && x.a.out_loc) || ''])]);
+      $('#aExp').onclick = (e) => run(e.currentTarget, async () => {
+        let from = af.from, to = af.to > today ? today : af.to;
+        if (!from || !to || to < from) throw new Error('حدد فترة صحيحة');
+        if (daysBetween(from, to) > 93) from = addDays(to, -92);
+        await exportAttHistory([u], from, to, (x) => (!af.st || (af.st === 'off' ? ['off', 'leave'].includes(x.kind) : x.kind === af.st)) && (!af.ex || (x.a && (af.ex === 'manual' ? !!x.a.note : x.a.check_in && !x.a.check_out))));
+      });
       load();
     }
   };
