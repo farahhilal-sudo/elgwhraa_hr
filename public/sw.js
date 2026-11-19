@@ -1,5 +1,5 @@
 // خدمة بسيطة تخلّي الموقع يتثبت كتطبيق. البيانات دايماً من الإنترنت.
-const CACHE = 'hr-shell-v38';
+const CACHE = 'hr-shell-v40';
 const FACE = 'hr-face-v1'; // مكتبة الوجه ونماذجها (حوالي 7MB) بتتحمّل مرة واحدة بس وبعدها فورية
 // ملفات الواجهة (css + js) بالترتيب نفسه اللي في index.html
 const SHELL = [
@@ -57,6 +57,8 @@ const SHELL = [
   '/js/pages/tiers.js',
   '/js/pages/loans.js',
   '/js/pages/tasks.js',
+  '/js/pages/hr-docs.js',
+  '/js/pages/assets.js',
   '/js/settings/00-constants.js',
   '/js/settings/10-engine.js',
   '/js/settings/20-offices.js',

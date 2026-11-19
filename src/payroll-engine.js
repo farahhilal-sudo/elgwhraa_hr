@@ -125,7 +125,13 @@ async function syncAutoOvertime(u, date, outMin, st) {
 async function computeMonth(user, month, st, tiers = []) {
   const [first, last] = monthRange(month);
   const today = tzParts().date;
-  const upto = last < today ? last : today;
+  let upto = last < today ? last : today;
+  // موظف موقوف: الأيام بعد الإيقاف مش بتتحسب (غياب مثلاً). القدام من غير تاريخ إيقاف: لحد آخر يوم حضور في الشهر.
+  if (!user.active && !user.is_admin) {
+    const lastAtt = user.suspended_at ? null : (await db.get('SELECT MAX(date) AS d FROM attendance WHERE user_id=? AND date BETWEEN ? AND ?', user.id, first, last)).d;
+    const cut = user.suspended_at || lastAtt || '0000-00-00';
+    if (cut < upto) upto = cut;
+  }
   const weekend = String(st.weekend_days || '').split(',').filter(Boolean).map(Number);
   const [att, reqs, adj, pctx, loanRows] = await Promise.all([
     db.all('SELECT * FROM attendance WHERE user_id=? AND date BETWEEN ? AND ?', user.id, first, last),

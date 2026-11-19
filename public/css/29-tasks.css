@@ -78,3 +78,20 @@ span.tkst { cursor: default; }
 .tkform .f, .tkform label.f { color: var(--ink); }
 .mpanel { position: static; margin-top: 6px; max-height: 180px; box-shadow: none; }
 .pjsel { align-items: flex-start; } .pjsel > .tkp { margin-top: 6px; }
+/* مستندات الموارد البشرية + الأصول */
+.hbd { display: inline-block; padding: 3px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #eceff2; color: #555; }
+.hbd.wait { background: #fdf0dc; color: #b86e00; } .hbd.ok { background: #dcf5e6; color: #15803d; } .hbd.bad { background: #fde2e2; color: #c62828; }
+.hq { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 8px; padding: 7px 14px; font-size: 12.5px; font-weight: 600; cursor: pointer; margin-inline-start: 6px; }
+.hq.ok { background: #dcf5e6; color: #15803d; } .hq.bad { background: #fde2e2; color: #c62828; } .hq .ico { width: 15px; height: 15px; }
+.hseg { display: inline-flex; background: #eef0f3; border-radius: 10px; padding: 4px; margin-bottom: 10px; }
+.hseg button { border: 0; background: none; padding: 7px 20px; border-radius: 8px; cursor: pointer; font: inherit; font-weight: 600; color: #555; }
+.hseg button.on { background: #fff; color: var(--ink); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+.hpg { display: flex; justify-content: space-between; align-items: center; padding: 12px 4px; }
+.hpn { display: inline-flex; gap: 6px; align-items: center; } .hpn button, .hpn b { width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--line); background: #fff; display: inline-grid; place-items: center; cursor: pointer; }
+.hpn b { background: var(--brand); border-color: var(--brand); } .hpn button:disabled { opacity: .4; cursor: default; }
+.hsig { display: inline-flex; align-items: center; gap: 8px; } .hsig i { width: 30px; height: 30px; border-radius: 50%; background: #fef3c7; color: #92400e; display: inline-grid; place-items: center; font-style: normal; font-size: 11px; font-weight: 700; }
+.hletter { white-space: pre-wrap; line-height: 2; padding: 18px 26px; margin: 0; max-height: 60vh; overflow: auto; } .hletter.ltr { text-align: left; }
+.hser { display: flex; flex-wrap: wrap; gap: 6px; } .hser span { background: #f1f2f4; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 400; direction: ltr; }
+.hrow { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.tkpri.two { grid-template-columns: 1fr 1fr; }
+.lnact { white-space: nowrap; } .lnact .sqb { margin-inline-start: 4px; }

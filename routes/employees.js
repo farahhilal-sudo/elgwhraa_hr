@@ -104,7 +104,10 @@ app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, r
     sets.push('location_ids=?'); vals.push(JSON.stringify(ok));
   }
   if (b.password) { sets.push('password_hash=?', 'must_change=1'); vals.push(bcrypt.hashSync(String(b.password), 10)); }
-  if (b.active !== undefined && !u.is_admin && !u.pending) { sets.push('active=?'); vals.push(b.active ? 1 : 0); }
+  if (b.active !== undefined && !u.is_admin && !u.pending) {
+    sets.push('active=?'); vals.push(b.active ? 1 : 0);
+    if (!b.active && u.active) { sets.push('suspended_at=?'); vals.push(tzParts().date); } else if (b.active) sets.push('suspended_at=NULL');
+  }
   // تغيير نوع الحساب (مدير / موظف): للمدير فقط، ومش على حسابه الشخصي (عشان النظام ما يفضلش من غير مدير)
   if (b.role !== undefined && ['admin', 'employee'].includes(b.role) && req.user.is_admin && u.id !== req.user.id) {
     sets.push('is_admin=?'); vals.push(b.role === 'admin' ? 1 : 0);
@@ -121,8 +124,10 @@ app.delete('/api/employees/:id', auth, need('employees.manage'), wrap(async (req
   if (u.is_admin) return res.status(403).json({ error: 'لا يمكن إزالة حساب مدير' });
   if (u.id === req.user.id) return res.status(403).json({ error: 'لا يمكنك إزالة حسابك' });
   if (!outranks(req.user, u)) return res.status(403).json({ error: 'لا يمكنك إزالة حساب صلاحياته أعلى من صلاحياتك' });
-  if (await db.get('SELECT 1 FROM payslips WHERE user_id=?', id))
-    return res.status(409).json({ error: 'للموظف مرتبات مصروفة، والإزالة النهائية هتمسح سجله المالي. استخدمي «إيقاف» بدل الإزالة.' });
+  const hist = await db.get(`SELECT (SELECT COUNT(*) FROM payslips WHERE user_id=$1)+(SELECT COUNT(*) FROM attendance WHERE user_id=$1)+(SELECT COUNT(*) FROM requests WHERE user_id=$1)
+    +(SELECT COUNT(*) FROM adjustments WHERE user_id=$1)+(SELECT COUNT(*) FROM loans WHERE user_id=$1) AS n`.replace(/\$1/g, '?'), id, id, id, id, id);
+  if (Number(hist.n) > 0)
+    return res.status(409).json({ error: 'للموظف سجلات (حضور / طلبات / مرتبات)، والإزالة النهائية هتمسحها. استخدمي «إيقاف» بدل الإزالة: بيتشال من الموظفين وسجله القديم يفضل محفوظ.' });
   await db.run('UPDATE users SET manager_id=NULL WHERE manager_id=?', id);
   await db.run('DELETE FROM users WHERE id=?', id); // باقي بياناته بتتمسح تلقائياً (ON DELETE CASCADE)
   await audit(req, 'employee.delete', u.username, u.name);

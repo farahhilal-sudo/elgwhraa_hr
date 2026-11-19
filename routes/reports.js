@@ -5,6 +5,7 @@ const { auth, need, wrap } = require('../src/middleware');
 const { settings, tzParts } = require('../src/bootstrap');
 const { db } = require('../src/db');
 const { computeMonth, getTiers } = require('../src/payroll-engine');
+const { monthUsers } = require('../src/shared');
 
 
 module.exports = function register(app) {
@@ -12,7 +13,7 @@ module.exports = function register(app) {
 /* ----- التقارير ----- */
 app.get('/api/reports/monthly', auth, need('reports.view'), wrap(async (req, res) => {
   const month = isMonth(req.query.month) ? req.query.month : tzParts().date.slice(0, 7);
-  const [st, users, tiers] = await Promise.all([settings(), db.all('SELECT * FROM users WHERE active=1 AND is_admin=0 ORDER BY id'), getTiers()]);
+  const [st, users, tiers] = await Promise.all([settings(), monthUsers(month), getTiers()]);
   const rows = await Promise.all(users.map(async (u) => {
     const m = await computeMonth(u, month, st, tiers);
     return {

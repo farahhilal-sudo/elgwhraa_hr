@@ -14,9 +14,9 @@ const CONFIG_KINDS = new Set(['schedule', 'department', 'grade', 'position', 'ac
   'expense_category', 'payroll_lieu', 'payslip_display', 'document', 'automation_rule', 'override_rule',
   'penalty_policy', 'overtime_policy', 'leave_template',
   'work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template',
-  'assignment', 'task_rule', 'task_assign_rule', 'open_shift', 'att_template', 'req_template']);
+  'assignment', 'task_rule', 'task_assign_rule', 'doc_template', 'asset_type', 'asset_location', 'open_shift', 'att_template', 'req_template']);
 const ATT_KINDS = new Set(['assignment', 'task_rule', 'open_shift', 'att_template']);
-const HR_KINDS = new Set(['task_assign_rule', 'work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template']);
+const HR_KINDS = new Set(['task_assign_rule', 'doc_template', 'asset_type', 'asset_location', 'work_group', 'team', 'emp_procedure', 'emp_doc', 'transfer', 'title_change', 'pending_suspension', 'filter_template']);
 const cfgAuth = (req, res, next) => {
   const ok = req.params.kind === 'req_template' ? can(req.user, 'requests.view_all') : ATT_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'attendance.view_all' : 'attendance.edit') : HR_KINDS.has(req.params.kind) ? can(req.user, req.method === 'GET' ? 'employees.view' : 'employees.manage') : can(req.user, 'settings.manage');
   return ok ? next() : res.status(403).json({ error: 'ليس لديك صلاحية لهذا الإجراء' });
@@ -113,7 +113,7 @@ function cfgBody(b, kind) {
   const data = {};
   for (const [k, v] of Object.entries(b)) {
     if (['id', 'kind', 'name', 'active', 'created_at'].includes(k)) continue;
-    data[k] = k === 'versions' ? cleanJson(Array.isArray(v) ? v.slice(0, 30) : []) : cleanJson(v);
+    data[k] = k === 'versions' ? cleanJson(Array.isArray(v) ? v.slice(0, 30) : []) : (k === 'body' && kind === 'doc_template') ? String(v || '').slice(0, 8000) : cleanJson(v);
   }
   const err = cfgPolicy(kind, data);
   if (err) return { error: err };

@@ -6,6 +6,7 @@ const { computeMonth, getTiers } = require('../src/payroll-engine');
 const { settings, tzParts } = require('../src/bootstrap');
 const { adminOnly, auth, need, wrap } = require('../src/middleware');
 const { audit, notify, toId } = require('../src/helpers');
+const { monthUsers } = require('../src/shared');
 
 
 /* ----- المرتبات والخصومات ----- */
@@ -22,7 +23,7 @@ const monthEnded = (m) => monthRange(m)[1] < tzParts().date;
 module.exports = function register(app) {
 app.get('/api/payroll', auth, need('payroll.view'), wrap(async (req, res) => {
   const month = isMonth(req.query.month) ? req.query.month : tzParts().date.slice(0, 7);
-  const [st, users, tiers] = await Promise.all([settings(), db.all('SELECT * FROM users WHERE active=1 AND is_admin=0 ORDER BY id'), getTiers()]);
+  const [st, users, tiers] = await Promise.all([settings(), monthUsers(month), getTiers()]);
   res.json({ month, ended: monthEnded(month), rows: await Promise.all(users.map((u) => monthRow(u, month, st, tiers))) });
 }));
 app.get('/api/payroll/mine', auth, wrap(async (req, res) => {
@@ -98,7 +99,7 @@ app.get('/api/adjustments', auth, need('payroll.view'), wrap(async (req, res) =>
   const [rows, employees] = await Promise.all([
     db.all(`SELECT a.*, u.name AS user_name, c.name AS created_by_name FROM adjustments a
       JOIN users u ON u.id=a.user_id LEFT JOIN users c ON c.id=a.created_by WHERE a.month=? ORDER BY a.id DESC`, month),
-    db.all('SELECT id,name FROM users WHERE active=1 AND is_admin=0 ORDER BY name'),
+    monthUsers(month).then((l) => l.map((u) => ({ id: u.id, name: u.name })).sort((a, b) => a.name.localeCompare(b.name, 'ar'))),
   ]);
   res.json({ month, rows, employees });
 }));

@@ -7,6 +7,7 @@ function fieldHtml(f, v) {
   const cls = `f${f.full ? ' full' : ''}`;
   if (f.t === 'select') return `<label class="${cls}">${f.l}<select name="${f.k}">${f.o.map(([a, b]) => `<option value="${esc(a)}" ${String(a) === String(val) ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select></label>`;
   if (f.t === 'multi') { const on = new Set(String(val || '').split(',').filter(Boolean)); return `<div class="full"><div class="muted small" style="margin-bottom:6px;font-weight:600">${f.l}</div><div class="row mchk">${f.o.map(([a, b]) => `<label class="perm"><input type="checkbox" data-m="${f.k}" value="${esc(a)}" ${on.has(String(a)) ? 'checked' : ''}>${esc(b)}</label>`).join('')}</div></div>`; }
+  if (f.t === 'textarea') return `<label class="${cls}">${f.l}<textarea name="${f.k}" rows="${f.rows || 8}" ${f.req ? 'required' : ''}>${esc(val)}</textarea>${f.help ? `<span class="muted small" style="font-weight:400">${f.help}</span>` : ''}</label>`;
   if (f.t === 'check') return `<label class="perm full"><input type="checkbox" name="${f.k}" ${[true, 1, '1', 'true'].includes(val) ? 'checked' : ''}>${f.l}</label>`;
   return `<label class="${cls}">${f.l}<input name="${f.k}" type="${f.t || 'text'}" value="${esc(val)}" ${f.req ? 'required' : ''} ${f.attrs || ''}>${f.help ? `<span class="muted small" style="font-weight:400">${f.help}</span>` : ''}</label>`;
 }

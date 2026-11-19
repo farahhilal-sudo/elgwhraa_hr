@@ -1,6 +1,7 @@
 'use strict';
 // ترجمة عربية لواجهة التطبيق (بتظهر لما الموظف يختار Language → عربي)
 Object.assign(AR_STR, {
+  'You are signing out early, are you sure you want to sign out?': 'أنت تسجل الانصراف مبكراً، هل أنت متأكد أنك تريد تسجيل الانصراف؟', 'Are you sure you want to sign out?': 'هل أنت متأكد أنك تريد تسجيل الانصراف؟', 'Yes': 'نعم',
   'A Day Ago': 'منذ يوم', '{n} Days Ago': 'منذ {n} أيام', '{n} Hours Ago': 'منذ {n} ساعات', '{n} Minutes Ago': 'منذ {n} دقائق', 'Just Now': 'الآن',
   'Absence Deduction': 'خصم غياب', 'Absent Penalty (No Show)': 'جزاء غياب (بدون حضور)', 'Absent': 'غائب', 'Add New Claim': 'إضافة مطالبة جديدة', 'Adjustments': 'التسويات', 'All': 'الكل',
   'Allowances': 'البدلات', 'Amount': 'المبلغ', 'Announcements': 'الإعلانات', 'Annual Leave': 'إجازة سنوية', 'Applied': 'مُطبّقة', 'Approved': 'مقبولة', 'Attendance Edit': 'تعديل حضور',

@@ -32,6 +32,8 @@ const MENU = [
     ...ATT_TABS.map(([k, l, ic]) => [k, l, () => has('attendance.view_all'), ic])] },
   { g: 'tk', ic: 'check', t: 'المهام', items: [['tasks', 'المهام', () => true, 'tk_list'], ['task_rules', 'قواعد التعيين', () => has('employees.view'), 'tk_rules']] },
   { g: 'pj', ic: 'case', t: 'المشاريع', items: [['projects', 'المشاريع', () => has('employees.view'), 'tk_list'], ['project_report', 'تقرير المشاريع', () => has('employees.view'), 'tk_rep']] },
+  { g: 'hdoc', ic: 'file', t: 'مستندات الموارد البشرية', items: [['hd_requests', 'الطلبات', () => has('employees.view'), 'hd_doc'], ['hd_letters', 'الخطابات الصادرة', () => has('employees.view'), 'hd_doc'], ['hd_templates', 'القوالب', () => has('employees.view'), 'hd_tpl']] },
+  { g: 'asset', ic: 'case', t: 'إدارة الأصول', items: [['as_assets', 'أصول الشركة', () => has('employees.view'), 'hd_box'], ['as_requests', 'طلبات الأصول', () => has('employees.view'), 'hd_box'], ['as_types', 'أنواع الأصول', () => has('employees.view'), 'hd_box'], ['as_locations', 'مكان التخزين', () => has('employees.view'), 'hd_box'], ['as_scrap', 'الأصول الخردة', () => has('employees.view'), 'hd_box'], ['as_log', 'سجل الأصول', () => has('employees.view'), 'hd_box']] },
   { g: 'fin', ic: 'wallet', t: 'المالية', items: [
     ['payroll', 'المرتبات', () => has('payroll.view'), 'dollar'], ['bonuses', 'المكافآت', () => has('payroll.view'), 'gift'], ['deductions', 'الخصومات', () => has('payroll.view'), 'shield'], ['tiers', 'سياسة الخصومات', () => has('settings.manage'), 'timer'], ['loans', 'قروض', () => has('payroll.view'), 'wallet']] },
   { id: 'reports', ic: 'chart', t: 'التقارير', ok: () => has('reports.view') },

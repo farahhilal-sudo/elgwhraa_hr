@@ -85,6 +85,8 @@ require('./routes/config')(app);
 require('./routes/settings')(app);
 require('./routes/employee-app')(app);
 require('./routes/tasks')(app);
+require('./routes/hr-docs')(app);
+require('./routes/assets')(app);
 
 
 app.use('/api', (req, res) => res.status(404).json({ error: 'المسار غير موجود' }));

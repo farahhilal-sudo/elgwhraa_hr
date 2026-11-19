@@ -220,3 +220,16 @@ html.is-app .xtabs button { height: 36px; font-size: 13.5px; border-radius: 12px
 html.is-app .xaddbar { height: 40px; font-size: 15px; bottom: calc(94px + env(safe-area-inset-bottom)); }
 html.is-app .xsec { font-size: 16px; margin: 14px 6px 8px; } html.is-app .xinfo { padding: 8px 14px; } html.is-app .xinfo span { font-size: 13px; } html.is-app .xinfo b { font-size: 14px; font-weight: 400; }
 html.is-app .xbig .xav.xl { width: 170px; height: 170px; } html.is-app .xpname b { font-size: 15px; } html.is-app .xpname span { font-size: 13px; }
+/* عدّاد ساعات العمل + رسالة تأكيد الانصراف */
+html.is-app .xwk { margin: 14px 0 6px; }
+html.is-app .xwkt { display: flex; align-items: center; justify-content: center; gap: 8px; direction: ltr; }
+html.is-app .xwkt b { min-width: 56px; height: 44px; border-radius: 8px; background: #eef1f5; color: #4a5160; font-size: 22px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; font-variant-numeric: tabular-nums; }
+html.is-app .xwkt em { font-style: normal; color: #b4b9c2; font-size: 16px; margin-inline-start: 6px; }
+html.is-app .xwkbar { height: 8px; border-radius: 6px; background: #d9dee2; margin: 16px 6px 4px; overflow: hidden; display: flex; }
+html.is-app .xwkbar i { display: block; height: 100%; width: 0; background: var(--xb, #0b9bea); border-radius: 6px; transition: width .6s linear; }
+html.is-app .xconf { text-align: center; padding: 34px 22px 24px; }
+html.is-app .xconfi { width: 104px; height: 104px; border-radius: 50%; background: #2563b0; color: #fff; font-style: normal; font-size: 74px; font-weight: 800; line-height: 104px; display: block; margin: 0 auto 22px; }
+html.is-app .xconf p { margin: 0 0 26px; font-size: 16px; line-height: 1.7; color: #333; }
+html.is-app .xconfb { display: flex; gap: 14px; }
+html.is-app .xconfb button { flex: 1; height: 68px; border-radius: 8px; background: #fff; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+html.is-app .xconfb .xcn { border: 1.5px solid #f08a8a; color: #e24b4b; } html.is-app .xconfb .xyes { border: 1.5px solid #1f9a3c; color: #1f9a3c; }

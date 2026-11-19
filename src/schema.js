@@ -111,6 +111,44 @@ CREATE TABLE IF NOT EXISTS tasks (
   created_at TEXT NOT NULL DEFAULT (${NOW})
 );
 CREATE INDEX IF NOT EXISTS idx_tasks_assignee ON tasks(assignee_id);
+CREATE TABLE IF NOT EXISTS doc_requests (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  template_id INTEGER, type_name TEXT NOT NULL DEFAULT '', language TEXT NOT NULL DEFAULT 'ar',
+  destination TEXT DEFAULT '', note TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending', decided_by INTEGER, decided_at TEXT, letter_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE TABLE IF NOT EXISTS doc_letters (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  template_id INTEGER, template_name TEXT NOT NULL DEFAULT '', language TEXT NOT NULL DEFAULT 'ar',
+  destination TEXT DEFAULT '', body TEXT NOT NULL DEFAULT '', issued_on TEXT NOT NULL,
+  issued_by INTEGER, issued_by_name TEXT DEFAULT '', request_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE TABLE IF NOT EXISTS assets (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL, type_name TEXT DEFAULT '', brand TEXT DEFAULT '', model TEXT DEFAULT '',
+  units INTEGER NOT NULL DEFAULT 1, serialized INTEGER NOT NULL DEFAULT 1,
+  location TEXT DEFAULT '', serials TEXT NOT NULL DEFAULT '[]',
+  assigned TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'active', scrapped_at TEXT, scrap_reason TEXT DEFAULT '',
+  created_by INTEGER, created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE TABLE IF NOT EXISTS asset_requests (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  type_name TEXT NOT NULL DEFAULT '', note TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending', asset_id INTEGER, decided_by INTEGER, decided_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (${NOW})
+);
+CREATE TABLE IF NOT EXISTS asset_log (
+  id SERIAL PRIMARY KEY,
+  asset_id INTEGER, asset_name TEXT DEFAULT '', action TEXT NOT NULL, user_id INTEGER, user_name TEXT DEFAULT '',
+  by_name TEXT DEFAULT '', note TEXT DEFAULT '',
+  at TEXT NOT NULL DEFAULT (${NOW})
+);
 CREATE TABLE IF NOT EXISTS loans (
   id SERIAL PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

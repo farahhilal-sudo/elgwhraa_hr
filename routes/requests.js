@@ -143,7 +143,7 @@ async function applyRequestEffect(r, by) {
   else if (r.type === 'penalty_req' && r.amount > 0) await db.run('INSERT INTO adjustments(user_id,month,kind,amount,reason,created_by) VALUES(?,?,?,?,?,?)', r.user_id, month, 'penalty', r.amount, why, by.id);
   else if (r.type === 'deduction_req' && r.amount > 0) await db.run('INSERT INTO adjustments(user_id,month,kind,amount,reason,created_by) VALUES(?,?,?,?,?,?)', r.user_id, month, 'deduction', r.amount, why, by.id);
   else if (r.type === 'loan' && r.amount > 0) { const inst = Math.min(60, Math.max(1, parseInt(meta.installments, 10) || 1)); await app.locals.createLoan({ user_id: r.user_id, name: 'سلفة', amount: r.amount, installments: inst, date: tzParts().date, note: r.reason, request_id: r.id, by }); }
-  else if (r.type === 'suspend_req') await db.run('UPDATE users SET active=0 WHERE id=? AND is_admin=0', r.user_id);
+  else if (r.type === 'suspend_req') await db.run('UPDATE users SET active=0, suspended_at=? WHERE id=? AND is_admin=0 AND active=1', tzParts().date, r.user_id);
   else if (r.type === 'transfer_req') {
     const u = await db.get('SELECT * FROM users WHERE id=?', r.user_id);
     if (u) {

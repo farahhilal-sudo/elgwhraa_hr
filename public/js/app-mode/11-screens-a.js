@@ -8,6 +8,18 @@ const xav = (u, cls = '') => `<span class="xav ${cls}"${avAttr(u)}>${initial1(u 
 const jobOf = (u) => u.job_title || (u.is_admin ? t('System Admin') : t('Employee'));
 const xTabs = (id, items, cur) => `<div class="xtabs" id="${id}">${items.map(([k, l]) => `<button data-k="${k}" class="${k === cur ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>`;
 const xSpin = '<div class="empty"><span class="spin"></span></div>';
+// رسالة تأكيد (علامة تعجب + إلغاء / نعم) — بتستخدم في تأكيد الانصراف
+function xConfirm(msg) {
+  return new Promise((resolve) => {
+    const o = document.createElement('div');
+    o.className = 'xov';
+    o.innerHTML = `<div class="xdlg xconf" role="alertdialog"><i class="xconfi">!</i><p>${esc(msg)}</p><div class="xconfb"><button class="xcn">${t('Cancel')}</button><button class="xyes">${t('Yes')}</button></div></div>`;
+    document.body.appendChild(o);
+    const done = (v) => { o.remove(); resolve(v); };
+    o.onclick = (e) => { if (e.target === o) done(false); };
+    $('.xcn', o).onclick = () => done(false); $('.xyes', o).onclick = () => done(true);
+  });
+}
 // قائمة اختيار بدوائر (Cancel / Confirm) زي الشاشة المرجعية
 function xRadioDialog(title, options, value, onOk) {
   const o = document.createElement('div');
@@ -98,6 +110,17 @@ PAGES.home = async (view) => {
     $('#strip').innerHTML = days.map((d) => `<button class="day ${d === sel ? 'on' : ''}" data-d="${d}"><b>${Number(d.slice(8))}</b><i style="background:${d === sel ? '#c99a00' : dotColor(d)}"></i></button>`).join('');
     view.querySelectorAll('.day').forEach((b) => (b.onclick = async () => { sel = b.dataset.d; await loadMonth(sel.slice(0, 7)); draw(); }));
   };
+  // عدّاد ساعات العمل: بيبدأ من بداية الوردية (أو من وقت الحضور لو متأخر) وبيتقدّم لحد نهاية ساعات الوردية، وبيقف وقت الانصراف
+  const hm = (s) => { const [h, m] = String(s).split(':').map(Number); return h * 60 + m; };
+  const shiftMin = (hm(u.shift_end) - hm(u.shift_start) + 1440) % 1440 || 1440;
+  const workStart = (r) => { const ci = new Date(r.check_in).getTime(), early = hm(u.shift_start) - hm(isoHM(r.check_in)); return early > 0 && early < 720 ? ci + early * 60000 : ci; };
+  const wkHtml = () => '<div class="xwk"><div class="xwkt"><b id="wkh">00</b><b id="wkm">00</b><b id="wks">00</b><em>' + t('Hours') + '</em></div><div class="xwkbar"><i id="wkf"></i></div></div>';
+  const wkTick = (r) => {
+    if (!$('#wkh')) return clearInterval(PAGES.home.t);
+    const sec = Math.max(0, ((r.check_out ? new Date(r.check_out).getTime() : Date.now()) - workStart(r)) / 1000), p2 = (n) => String(n).padStart(2, '0');
+    $('#wkh').textContent = p2(Math.floor(sec / 3600)); $('#wkm').textContent = p2(Math.floor(sec / 60) % 60); $('#wks').textContent = p2(Math.floor(sec) % 60);
+    $('#wkf').style.width = Math.min(100, (sec / (shiftMin * 60)) * 100) + '%';
+  };
   const row = (kind, iso, loc) => `<div class="prow"><span class="pi ${kind}">${fi(kind === 'in' ? 'sq_in' : 'sq_out')}</span><b>${isoTime(iso)}</b><span class="ploc">${esc(loc || t('No location'))}</span></div>`;
   const draw = () => {
     drawStrip();
@@ -118,7 +141,10 @@ PAGES.home = async (view) => {
         ? `<p class="xwarn">${t('Register your face once before the first sign-in.')}</p><button class="xbtn" id="enroll">${t('Register Face')}</button>`
         : `<button class="xbtn" id="go">${fi('sq_in')}<span>${t('Sign In')}</span></button>`;
     }
-    $('#pc').innerHTML = `<div class="xshift">(${tmA(u.shift_start)} - ${tmA(u.shift_end)})</div>${status}${body}${action}`;
+    clearInterval(PAGES.home.t);
+    const showWk = isToday && r && r.check_in;
+    $('#pc').innerHTML = `<div class="xshift">(${tmA(u.shift_start)} - ${tmA(u.shift_end)})</div>${showWk ? wkHtml() : ''}${status}${body}${action}`;
+    if (showWk) { wkTick(r); if (!r.check_out) PAGES.home.t = setInterval(() => wkTick(r), 1000); }
     if ($('#enroll')) $('#enroll').onclick = (e) => run(e.target, async () => {
       const d = await captureFace(t('Register Face'));
       await api('/me/face', 'POST', { descriptor: d }); toast(t('Face registered')); await boot();
@@ -126,6 +152,11 @@ PAGES.home = async (view) => {
     if ($('#go')) $('#go').onclick = (e) => punch(r && r.check_in ? 'out' : 'in', e.currentTarget);
   };
   async function punch(type, btn) {
+    if (type === 'out') { // تأكيد الانصراف (برسالة مخصوصة لو قبل نهاية الوردية)
+      const nowM = hm(isoHM(new Date().toISOString())), endM = hm(u.shift_end), startM = hm(u.shift_start), overnight = endM <= startM;
+      const early = overnight ? (nowM >= startM ? nowM < endM + 1440 : nowM < endM) : nowM < endM;
+      if (!(await xConfirm(t(early ? 'You are signing out early, are you sure you want to sign out?' : 'Are you sure you want to sign out?')))) return;
+    }
     const label = btn.innerHTML;
     await run(btn, async () => {
       let pos = null;
