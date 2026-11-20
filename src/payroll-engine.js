@@ -105,10 +105,11 @@ function compRuleFor(pctx, kinds) {
 const profileOf = (user, pctx) => (user.leave_profile_id && pctx.profiles && pctx.profiles[String(user.leave_profile_id)]) || null;
 
 // قيمة الإضافي: لو الوردية مربوطة بسياسة إضافي بتحكم هي (المعامل). غير كده: كل دقيقة بقيمة الدقيقة (الافتراضي 2 جنيه). لو القيمة صفر: أجر الساعة × المعامل.
+// hourlyRate هنا = أجر الساعة من المرتب الأساسي بس (من غير الحافز): دقيقة الإضافي = ضعف دقيقة الموظف (المعامل الافتراضي 2)
 function otPayFor(ot, hours, hourlyRate, st) {
   if (ot) return round2(hours * hourlyRate * (Number(ot.factor) || 0));
   const rate = parseFloat(st.overtime_minute_rate);
-  return rate > 0 ? round2(Math.round(hours * 60) * rate) : round2(hours * hourlyRate * parseFloat(st.overtime_factor || 1.5));
+  return rate > 0 ? round2(Math.round(hours * 60) * rate) : round2(hours * hourlyRate * parseFloat(st.overtime_factor || 2));
 }
 // الإضافي التلقائي: انصراف بعد معاد نهاية الشفت (مثلاً 5:05 والشفت بينتهي 5:00) = 5 دقايق إضافي في طلب وقت إضافي تلقائي
 async function syncAutoOvertime(u, date, outMin, st) {
@@ -220,7 +221,8 @@ async function computeMonth(user, month, st, tiers = []) {
   const earlyDeduction = pen ? (pen.early_on ? (earlyMinutes / 60) * hourlyRate * (Number(pen.early_factor) || 0) : 0) : (earlyMinutes / 60) * hourlyRate * lateFactor;
   const lateDeduction = round2(lateOnly + earlyDeduction + partialTotal + lateOvMoney + earlyOvMoney);
   const absenceDeduction = round2(absentCharge * dailyRate * (pen ? Number(pen.absence_factor) || 0 : parseFloat(st.absence_factor || 1)) + absentOvMoney);
-  const overtimePay = otPayFor(ot, overtimeHours, hourlyRate, st);
+  const basicHourly = (Number(user.base_salary) || 0) / 30 / shiftHours;
+  const overtimePay = otPayFor(ot, overtimeHours, basicHourly, st);
   const sumKind = (k) => round2(adj.filter((a) => a.kind === k).reduce((s, a) => s + a.amount, 0));
   const bonuses = sumKind('bonus'), manualDeductions = sumKind('deduction'), penalties = sumKind('penalty');
   const sumCat = (c) => round2(adj.filter((x) => x.kind === 'deduction' && (x.category || '') === c).reduce((t, x) => t + x.amount, 0));

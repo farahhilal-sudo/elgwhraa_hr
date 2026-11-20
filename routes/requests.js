@@ -82,7 +82,8 @@ app.get('/api/employees/:id/summary', auth, need('employees.view'), wrap(async (
 }));
 
 app.post('/api/requests', auth, wrap(async (req, res) => {
-  const { type, from_date, to_date, hours = 0, reason = '', amount = 0, meta = {}, user_id } = req.body || {};
+  const { type, from_date, to_date, hours = 0, reason: reason0 = '', meta = {}, user_id } = req.body || {};
+  let { amount = 0 } = req.body || {}, reason = reason0;
   if (!ALL_TYPES[type]) return res.status(400).json({ error: 'نوع الطلب غير صالح' });
   const isMgr = !!MGR_TYPES[type];
   if (isMgr && !can(req.user, 'requests.approve')) return res.status(403).json({ error: 'ليس لديك صلاحية لهذا النوع من الطلبات' });
@@ -91,6 +92,13 @@ app.post('/api/requests', auth, wrap(async (req, res) => {
   if (ON_BEHALF.includes(type) || (toId(user_id) && toId(user_id) !== req.user.id && can(req.user, 'requests.approve'))) {
     target = toId(user_id) && await db.get('SELECT * FROM users WHERE id=? AND active=1', toId(user_id));
     if (!target || (target.is_admin && !req.user.is_admin)) return res.status(400).json({ error: 'اختاري الموظف' });
+  }
+  // مكافأة/خصم/جزاء بالأيام: القيمة = عدد الأيام × (الأساسي أو الأساسي + الحافز) ÷ 30
+  const bDays = Number((req.body || {}).days);
+  if (['bonus_req', 'deduction_req', 'allowance_req', 'penalty_req'].includes(type) && bDays > 0) {
+    const both = (req.body || {}).basis === 'both', sal = await db.get('SELECT base_salary, allowances FROM users WHERE id=?', target.id);
+    amount = Math.round(bDays * ((Number(sal.base_salary) || 0) + (both ? Number(sal.allowances) || 0 : 0)) / 30 * 100) / 100;
+    reason = `${reason} (${bDays} يوم من ${both ? 'الأساسي والحافز' : 'الأساسي'})`.trim();
   }
   if (AMOUNT_TYPES.includes(type) && !(Number(amount) > 0)) return res.status(400).json({ error: 'اكتبي المبلغ' });
   if (!isDate(from_date) || !isDate(to_date) || to_date < from_date) return res.status(400).json({ error: 'التواريخ غير صحيحة' });

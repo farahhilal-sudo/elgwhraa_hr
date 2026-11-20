@@ -86,6 +86,10 @@ async function init() {
     await db.run("UPDATE users SET name='eng mohamed hegazy', job_title='مالك', department='شركة الجوهرة استيل' WHERE id=(SELECT MIN(id) FROM users WHERE is_admin=1)");
     await db.run("INSERT INTO settings(key,value) VALUES('owner_v1','1') ON CONFLICT(key) DO NOTHING");
   }
+  // لمرة واحدة: دقيقة الإضافي = ضعف دقيقة الموظف من المرتب الأساسي (المعامل 2 بدل قيمة ثابتة للدقيقة)
+  if (!(await db.get("SELECT 1 FROM settings WHERE key='ot_basic_v1'"))) {
+    for (const [k, v] of [['overtime_minute_rate', '0'], ['overtime_factor', '2'], ['ot_basic_v1', '1']]) await db.run('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, v);
+  }
   // طوارئ: لو المدير نسي كلمة المرور ومفيش مدير تاني، حطي RESET_ADMIN_PASSWORD وأعيدي التشغيل (وبعدها شيليه)
   await db.run("UPDATE settings SET value='GWHRAA HR' WHERE key='company_name' AND value='شركتي'"); // الاسم الافتراضي الجديد
   if (process.env.RESET_ADMIN_PASSWORD) {

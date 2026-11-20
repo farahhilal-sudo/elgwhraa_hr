@@ -13,3 +13,17 @@ const TODAY_ST = {
   present: ['حضر', 'ok'], late: ['متأخر', 'warn'], absent: ['غائب', 'bad'], leave: ['في إجازة', 'info'], not_yet: ['لم يسجّل الحضور', ''], off: ['عطلة', ''],
 };
 const exportCsvBtn = (id) => `<button class="btn alt" id="${id}">${ico('download')} تصدير</button>`;
+
+/* حقول المبلغ في نماذج المكافأة/الجزاء/الخصم: مبلغ ثابت أو عدد أيام (من الأساسي أو الأساسي + الحافز) */
+const adjAmtHtml = () => `<label class="f">طريقة الحساب<select name="unit"><option value="fixed">مبلغ ثابت</option><option value="days">أيام</option></select></label>
+  <label class="f"><span data-alab>المبلغ</span><input type="number" step="0.01" min="0.01" name="amount" required></label>
+  <label class="f" data-basisw hidden>يُحسب اليوم من<select name="basis"><option value="base">الأساسي</option><option value="both">الأساسي والحافز</option></select></label>`;
+function adjAmtBind(f) {
+  const sync = () => {
+    const d = f.unit.value === 'days';
+    f.querySelector('[data-basisw]').hidden = !d; f.querySelector('[data-alab]').textContent = d ? 'عدد الأيام' : 'المبلغ';
+    if (f.kind && f.basis) f.basis.value = f.kind.value === 'bonus' ? 'base' : 'both'; // المكافأة غالبًا من الأساسي، والخصم/الجزاء من الأساسي + الحافز
+  };
+  f.unit.onchange = sync; if (f.kind) f.kind.addEventListener('change', sync); sync();
+}
+const adjAmtPayload = (f) => (f.unit.value === 'days' ? { days: f.amount.value, basis: f.basis.value } : { amount: f.amount.value });

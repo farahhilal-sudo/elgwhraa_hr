@@ -175,14 +175,16 @@ async function rqOutbox(body, sub) {
 const MGR_LABEL = (k) => (S.meta && S.meta.mgr_types ? S.meta.mgr_types[k] : '');
 
 /* إنشاء طلب جديد (حسب النوع) */
+// مبلغ ثابت أو عدد أيام (من الأساسي أو الأساسي + الحافز)
+const rqAmt = (def) => `<label class="f">طريقة الحساب<select name="unit"><option value="fixed">مبلغ ثابت</option><option value="days">أيام</option></select></label><label class="f"><span data-alab>المبلغ</span><input type="number" name="amount" min="0.01" step="0.01" required></label><label class="f" data-basisw hidden>يُحسب اليوم من<select name="basis"><option value="base">الأساسي</option><option value="both">الأساسي والحافز</option></select></label>`;
 async function rqCreate(type, done) {
   if (!MGR_LABEL(type)) return requestForm(done, { type });
   const people = await api('/colleagues').catch(() => []);
   const emp = `<label class="f full">الموظف<select name="user_id" required><option value="">— اختاري —</option>${people.map((u) => `<option value="${u.id}">${esc(u.name)}${u.job_title ? ' — ' + esc(u.job_title) : ''}</option>`).join('')}</select></label>`;
   const dates = [...new Set(people.map((u) => u.department).filter(Boolean))], jobs = [...new Set(people.map((u) => u.job_title).filter(Boolean))];
   const F = {
-    bonus_req: `${emp}<label class="f">المبلغ<input type="number" name="amount" min="1" step="0.01" required></label>`, deduction_req: `${emp}<label class="f">المبلغ<input type="number" name="amount" min="1" step="0.01" required></label>`,
-    allowance_req: `${emp}<label class="f">المبلغ<input type="number" name="amount" min="1" step="0.01" required></label>`, suspend_req: emp,
+    bonus_req: `${emp}${rqAmt()}`, deduction_req: `${emp}${rqAmt()}`,
+    allowance_req: `${emp}${rqAmt()}`, suspend_req: emp,
     transfer_req: `${emp}<label class="f">القسم الجديد<input name="department" list="dl-d"></label><label class="f">المسمى الجديد<input name="job_title" list="dl-j"></label><datalist id="dl-d">${dates.map((x) => `<option value="${esc(x)}">`).join('')}</datalist><datalist id="dl-j">${jobs.map((x) => `<option value="${esc(x)}">`).join('')}</datalist>`,
     schedule_req: `${emp}<label class="f">بداية الدوام<input type="time" name="start" value="09:00" required></label><label class="f">نهاية الدوام<input type="time" name="end" value="17:00" required></label>`,
     join_req: '<label class="f">اسم المرشح<input name="person" required></label><label class="f">الوظيفة المطلوبة<input name="position"></label>', bulk_req: '<label class="f full">عنوان الطلب الجماعي<input name="title" required></label>',
@@ -191,9 +193,13 @@ async function rqCreate(type, done) {
   const o = modal(`<h3>${RQ_NEW_LABEL[type] || 'طلب جديد'}</h3><form class="form" id="mf2">${F[type] || ''}<label class="f">التاريخ<input type="date" name="from_date" value="${todayStr()}" required></label>
     <label class="f full">السبب / ملاحظات<textarea name="reason" rows="3" maxlength="500"></textarea></label><div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">إرسال</button></div></form>`);
   const f = $('#mf2', o);
+  if (f.elements.unit) {
+    const sync = () => { const d = f.unit.value === 'days'; f.querySelector('[data-basisw]').hidden = !d; f.querySelector('[data-alab]').textContent = d ? 'عدد الأيام' : 'المبلغ'; f.basis.value = type === 'deduction_req' ? 'both' : 'base'; };
+    f.unit.onchange = sync; sync();
+  }
   f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
     const meta = {}; ['department', 'job_title', 'start', 'end', 'person', 'position', 'title'].forEach((k) => { if (f.elements[k] && f.elements[k].value) meta[k] = f.elements[k].value; });
-    await api('/requests', 'POST', { type, from_date: f.from_date.value, to_date: f.from_date.value, reason: f.reason.value || (meta.title || ''), amount: f.elements.amount ? f.elements.amount.value : 0, user_id: f.elements.user_id ? f.elements.user_id.value : undefined, meta });
+    await api('/requests', 'POST', { type, from_date: f.from_date.value, to_date: f.from_date.value, reason: f.reason.value || (meta.title || ''), ...(f.elements.unit && f.unit.value === 'days' ? { days: f.amount.value, basis: f.basis.value } : { amount: f.elements.amount ? f.elements.amount.value : 0 }), user_id: f.elements.user_id ? f.elements.user_id.value : undefined, meta });
     o.close(); toast('تم إرسال الطلب'); done();
   }); };
 }
@@ -203,7 +209,7 @@ async function rqSettings(body) {
   SETV = await api('/settings');
   body.innerHTML = '<div id="rqs"></div><div class="card" style="margin-top:14px" id="rqdoc"></div>';
   await settingsForm($('#rqs', body), { title: 'الوقت الإضافي التلقائي', intro: 'لو الموظف سجّل انصراف بعد معاد نهاية شفته، الدقايق الزيادة بتتحسب إضافي تلقائياً. مثال: الشفت بينتهي 5:00 والانصراف 5:05 = 5 دقايق × قيمة الدقيقة.', fields: [
-    { k: 'overtime_minute_rate', l: 'قيمة الدقيقة الإضافية (جنيه)', t: 'number', attrs: 'step="0.1" min="0"', help: 'الافتراضي 2 جنيه. لو الوردية مربوطة بسياسة إضافي بتحكم السياسة. لو صفر بيتحسب بأجر الساعة × المعامل' },
+    { k: 'overtime_minute_rate', l: 'قيمة الدقيقة الإضافية (جنيه)', t: 'number', attrs: 'step="0.1" min="0"', help: 'لو الوردية مربوطة بسياسة إضافي بتحكم السياسة. لو صفر بيتحسب بأجر الساعة × المعامل' },
     { k: 'overtime_auto_approve', l: 'اعتماد الوقت الإضافي التلقائي فوراً (لو مقفول بيستنى موافقة المدير)', t: 'check' }] });
   const eff = [['مكافأة / صرف بدل', 'بتتضاف للمرتب كمكافأة في شهر الطلب'], ['خصم', 'بيتخصم من المرتب في شهر الطلب'], ['إيقاف', 'بيوقف حساب الموظف'], ['تحويل', 'بيغيّر القسم والمسمى ويتسجل في سجل النقل'], ['جدول', 'بيغيّر بداية ونهاية دوام الموظف'],
     ['إجازات وأذونات ووقت إضافي وتعديل حضور وورديات', 'بتأثر على الحضور والمرتب زي ما هي'], ['مطالبات نفقات / قرض / انضمام / طلب جماعي / تبادل ورديات وإجازات', 'بتتسجل وبتتراجع ومفيش أثر تلقائي على المرتب']];

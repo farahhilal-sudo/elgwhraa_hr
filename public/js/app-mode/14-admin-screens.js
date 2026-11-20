@@ -103,7 +103,7 @@ const noteOf = (F, locs) => {
 const adjPage = (kind) => async (view) => {
   view.innerHTML = xSpin;
   const isB = kind === 'bonus', [emps, depts, locs] = await Promise.all([loadEmps(), Promise.resolve(null), loadList('/locations')]);
-  const dl = [...new Set(emps.map((e) => e.department).filter(Boolean))], F = { mode: 'custom', bk: 'bonus', apply: 'emp', unit: '' };
+  const dl = [...new Set(emps.map((e) => e.department).filter(Boolean))], F = { mode: 'custom', bk: 'bonus', apply: 'emp', unit: '', basis: isB ? 'base' : 'both' };
   const pol = await loadList(isB ? '/config/allowance' : '/config/deduction');
   view.innerHTML = `${aH('النوع')}<div class="card xcard acard">${aRad('mode', isB ? [['custom', 'سياسة مخصصة'], ['policy', 'سياسة المكافآت']] : [['custom', 'خصم خاص'], ['policy', 'خصم متعلق بالسياسات']], 'custom')}</div>
     <div class="card xcard acard">
@@ -114,13 +114,13 @@ const adjPage = (kind) => async (view) => {
       ${aRad('apply', [['dept', 'الأقسام']], 'emp')}<div id="w_dept" hidden>${aSel('sdept', 'اختر الأقسام')}</div>
       ${aRad('apply', [['office', 'المكاتب']], 'emp')}<div id="w_office" hidden>${aSel('soff', 'اختر المكاتب')}</div>
     </div>
-    <div class="card xcard acard">${aRad('unit', [['fixed', 'مبلغ ثابت'], ['days', 'أيام'], ['hours', 'ساعات']], '')}<div id="vwrap" hidden>${aLab('<span id="vlab"></span>')}<input class="ainp" id="val" type="number" min="0" step="0.01" inputmode="decimal"></div></div>
+    <div class="card xcard acard">${aRad('unit', [['fixed', 'مبلغ ثابت'], ['days', 'أيام'], ['hours', 'ساعات']], '')}<div id="bwrap" hidden><h4 class="ah mt">يُحسب اليوم من</h4>${aRad('basis', [['base', 'الأساسي'], ['both', 'الأساسي والحافز']], isB ? 'base' : 'both')}</div><div id="vwrap" hidden>${aLab('<span id="vlab"></span>')}<input class="ainp" id="val" type="number" min="0" step="0.01" inputmode="decimal"></div></div>
     <div class="card xcard acard">${aLab('الوصف')}<textarea class="xta" id="desc" rows="3" maxlength="150" placeholder="اكتب الوصف هنا"></textarea></div>
     <button class="xsubmit" id="save">حفظ</button>`;
   const sel = { emp: null, dept: [], off: [] };
   const sync = (n) => {
     if (n === 'apply') ['emp', 'dept', 'office'].forEach((k) => { $('#w_' + k, view).hidden = F.apply !== k; });
-    if (n === 'unit') { $('#vwrap', view).hidden = false; $('#vlab', view).textContent = { fixed: 'المبلغ', days: 'عدد الأيام', hours: 'عدد الساعات' }[F.unit]; }
+    if (n === 'unit') { $('#vwrap', view).hidden = false; $('#vlab', view).textContent = { fixed: 'المبلغ', days: 'عدد الأيام', hours: 'عدد الساعات' }[F.unit]; $('#bwrap', view).hidden = F.unit === 'fixed'; }
     if (n === 'mode') { const p = F.mode === 'policy' && pol.length; $('#nm', view).hidden = !!p; $('#polsel', view).hidden = !p; }
   };
   bindForm(view, F, sync);
@@ -143,12 +143,12 @@ const adjPage = (kind) => async (view) => {
       let amount = v;
       if (F.unit !== 'fixed') {
         if (u.base_salary === undefined) throw new Error('لا تملك صلاحية عرض المرتبات لحساب الأيام والساعات');
-        const day = Number(u.base_salary) / 30, sh = Math.max(1, (Number(u.shift_end.slice(0, 2)) * 60 + Number(u.shift_end.slice(3)) - Number(u.shift_start.slice(0, 2)) * 60 - Number(u.shift_start.slice(3))) / 60);
+        const day = (Number(u.base_salary) + (F.basis === 'both' ? Number(u.allowances) || 0 : 0)) / 30, sh = Math.max(1, (Number(u.shift_end.slice(0, 2)) * 60 + Number(u.shift_end.slice(3)) - Number(u.shift_start.slice(0, 2)) * 60 - Number(u.shift_start.slice(3))) / 60);
         amount = F.unit === 'days' ? v * day : (v * day) / sh;
       }
       amount = Math.round(amount * 100) / 100;
       if (!(amount > 0)) throw new Error(`مرتب ${u.name} صفر، اختر مبلغ ثابت`);
-      const unitTxt = F.unit === 'fixed' ? '' : ` (${v} ${F.unit === 'days' ? 'يوم' : 'ساعة'})`;
+      const unitTxt = F.unit === 'fixed' ? '' : ` (${v} ${F.unit === 'days' ? 'يوم' : 'ساعة'} من ${F.basis === 'both' ? 'الأساسي والحافز' : 'الأساسي'})`;
       const reason = [(F.bk === 'commission' && isB ? 'عمولة: ' : '') + name + unitTxt, F.net ? '(صافي)' : '', desc].filter(Boolean).join(' - ');
       await api('/adjustments', 'POST', { user_id: u.id, month, kind, amount, reason });
     }

@@ -104,10 +104,18 @@ app.get('/api/adjustments', auth, need('payroll.view'), wrap(async (req, res) =>
   res.json({ month, rows, employees });
 }));
 app.post('/api/adjustments', auth, need('payroll.manage'), wrap(async (req, res) => {
-  const { user_id, month, kind, amount, reason = '' } = req.body || {};
+  const { user_id, month, kind, reason: reason0 = '' } = req.body || {};
+  let { amount } = req.body || {}, reason = reason0;
   const category = kind === 'deduction' && ['social', 'medical', 'tax'].includes((req.body || {}).category) ? req.body.category : '';
   const uid = toId(user_id);
-  if (!uid || !(await db.get('SELECT 1 FROM users WHERE id=?', uid)) || !isMonth(month) || !['deduction', 'bonus', 'penalty'].includes(kind) || !(Number(amount) > 0))
+  const target = uid && await db.get('SELECT base_salary, allowances FROM users WHERE id=?', uid);
+  // بالأيام: قيمة اليوم = الأساسي (أو الأساسي + الحافز) ÷ 30 حسب اختيار اللي بيضيف البند
+  const days = Number((req.body || {}).days), basis = (req.body || {}).basis === 'both' ? 'both' : 'base';
+  if (target && days > 0) {
+    amount = Math.round(days * ((Number(target.base_salary) || 0) + (basis === 'both' ? Number(target.allowances) || 0 : 0)) / 30 * 100) / 100;
+    reason = `${reason} (${days} يوم من ${basis === 'both' ? 'الأساسي والحافز' : 'الأساسي'})`.trim();
+  }
+  if (!uid || !target || !isMonth(month) || !['deduction', 'bonus', 'penalty'].includes(kind) || !(Number(amount) > 0))
     return res.status(400).json({ error: 'بيانات غير صحيحة' });
   if (await db.get('SELECT 1 FROM payslips WHERE user_id=? AND month=?', uid, month)) return res.status(400).json({ error: 'تم صرف مرتب هذا الشهر، لا يمكن إضافة بنود عليه' });
   if (await db.get('SELECT 1 FROM payroll_locks WHERE user_id=? AND month=?', uid, month)) return res.status(400).json({ error: 'مرتب هذا الشهر مقفول، افتحي القفل الأول' });

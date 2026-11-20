@@ -26,13 +26,13 @@ const adjPage = (cfg) => async (view) => {
     const o = modal(`<h3>إضافة بند</h3><form class="form" id="nf">
       <label class="f full">الموظف<select name="user_id" required><option value="">اختاري الموظف</option>${data.employees.map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>
       <label class="f">النوع<select name="kind">${cfg.kinds.map((k) => `<option value="${k}">${{ bonus: 'مكافأة', penalty: 'جزاء', deduction: 'خصم' }[k]}</option>`).join('')}</select></label>
-      <label class="f">المبلغ<input type="number" step="0.01" min="0.01" name="amount" required></label>
+      ${adjAmtHtml()}
       <label class="f">عن شهر<input type="month" name="month" value="${$('#am').value}" required></label>
       <label class="f full">السبب<input name="reason" maxlength="200" required></label>
       <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">إضافة</button></div></form>`);
-    const f = $('#nf', o);
+    const f = $('#nf', o); adjAmtBind(f);
     f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
-      await api('/adjustments', 'POST', { user_id: f.user_id.value, month: f.month.value, kind: f.kind.value, amount: f.amount.value, reason: f.reason.value });
+      await api('/adjustments', 'POST', { user_id: f.user_id.value, month: f.month.value, kind: f.kind.value, ...adjAmtPayload(f), reason: f.reason.value });
       o.close(); toast('تمت الإضافة'); load();
     }); };
   };

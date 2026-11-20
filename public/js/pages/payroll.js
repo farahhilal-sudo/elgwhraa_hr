@@ -116,18 +116,18 @@ PAGES.payroll = async (view) => {
   };
   load();
 };
-const round2c = (n) => Math.round(n * 1e8) / 1e8;
+const round2c = (n) => Math.round(n * 100) / 100;
 function adjForm(r, month, done, preset = {}) {
   const o = modal(`<h3>مكافأة / جزاء / خصم — ${esc(r.name)}</h3><form class="form" id="af">
     <label class="f">النوع<select name="kind"><option value="bonus">مكافأة</option><option value="penalty">جزاء</option><option value="deduction">خصم</option></select></label>
     <label class="f" id="catw" hidden>التصنيف<select name="category"><option value="">أخرى</option><option value="social">اجتماعي</option><option value="medical">طبي</option><option value="tax">الضرائب</option></select></label>
-    <label class="f">المبلغ<input type="number" step="0.01" min="0.01" name="amount" required></label>
+    ${adjAmtHtml()}
     <label class="f full">السبب<input name="reason" maxlength="200" required></label>
     <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">إضافة</button></div></form>`);
-  const f = $('#af', o);
+  const f = $('#af', o); adjAmtBind(f);
   const syncCat = () => { $('#catw', o).hidden = f.kind.value !== 'deduction'; };
   if (preset.kind) f.kind.value = preset.kind; if (preset.category) f.category.value = preset.category; f.kind.onchange = syncCat; syncCat();
-  f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => { await api('/adjustments', 'POST', { user_id: r.user_id, month, kind: f.kind.value, category: f.kind.value === 'deduction' ? f.category.value : '', amount: f.amount.value, reason: f.reason.value }); o.close(); toast('تمت الإضافة'); done(); }); };
+  f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => { await api('/adjustments', 'POST', { user_id: r.user_id, month, kind: f.kind.value, category: f.kind.value === 'deduction' ? f.category.value : '', ...adjAmtPayload(f), reason: f.reason.value }); o.close(); toast('تمت الإضافة'); done(); }); };
 }
 
 /* نافذة «الجزاء»: جزاءات الموظف يوم بيوم (غياب/تأخير/انصراف مبكر) مع تفعيل أو إلغاء تطبيقها على المرتب */
