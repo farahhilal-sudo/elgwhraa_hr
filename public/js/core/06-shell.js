@@ -106,6 +106,13 @@ function renderShell() {
   if ($('#inst')) $('#inst').onclick = installApp;
   $('#bell').onclick = showNotes; if ($('#mbell')) $('#mbell').onclick = showNotes;
   if (IS_APP) bindAppHeader();
+  // زر عائم لإضافة موظف جديد (الويب فقط، لمن عنده صلاحية إدارة الموظفين)
+  if (!IS_APP && has('employees.manage') && !$('#efab')) {
+    const fb = document.createElement('button'); fb.id = 'efab'; fb.className = 'efab'; fb.type = 'button'; fb.title = 'إضافة موظف جديد'; fb.setAttribute('aria-label', 'إضافة موظف جديد');
+    fb.innerHTML = `${ico('user')}<span class="efp">＋</span><span class="eft">موظف جديد</span>`;
+    fb.onclick = () => empForm(null, () => { if (S.page === 'employees') go('employees'); else toast('تمت إضافة الموظف'); });
+    document.body.appendChild(fb);
+  }
   $('#um').onclick = (e) => { e.stopPropagation(); $('#umd').hidden = !$('#umd').hidden; };
   document.onclick = () => { const d = $('#umd'); if (d) d.hidden = true; };
   $('#lo').onclick = () => logout(); $('#pw').onclick = changePassword;

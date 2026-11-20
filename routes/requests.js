@@ -34,6 +34,20 @@ async function leaveSummary(user) {
 
 // قواعد الإجازات: رصيد «ملف الإجازة» المربوط بالموظف + «قواعد الحد من أيام العطلات» (أقصى مدة / أقصى عدد في نفس اليوم / فترات منع)
 const LIMITED_LEAVES = ['annual_leave', 'sick_leave', 'emergency_leave'];
+// قواعد الأذونات من ملف الإجازة (لو الملف فيه إعدادات أذونات)
+async function checkPermRules(user, from, hours) {
+  const prof = profileOf(user, await getPolicyCtx()), p = prof && prof.perm;
+  if (!p) return null;
+  if (p.on === false) return `الأذونات غير مسموحة في ملف «${prof.name}»`;
+  const cfg = p.paid && p.paid.on !== false ? p.paid : p.unpaid && p.unpaid.on !== false ? p.unpaid : null;
+  if (!cfg || cfg.limit === false) return null;
+  const mins = Math.round(Number(hours) * 60);
+  if (Number(cfg.min) > 0 && mins < Number(cfg.min)) return `أقل مدة للإذن ${cfg.min} دقيقة`;
+  const q = (like) => db.get("SELECT COUNT(*) AS n FROM requests WHERE user_id=? AND type='permission' AND status IN ('approved','pending') AND from_date LIKE ?", user.id, like);
+  if (Number(cfg.day) > 0 && Number((await q(from)).n) >= Number(cfg.day)) return `الحد الأقصى لطلبات الأذونات في اليوم ${cfg.day}`;
+  if (Number(cfg.month) > 0 && Number((await q(from.slice(0, 7) + '%')).n) >= Number(cfg.month)) return `الحد الأقصى لطلبات الأذونات في الشهر ${cfg.month}`;
+  return null;
+}
 async function checkLeaveRules(user, type, from, to) {
   if (!LIMITED_LEAVES.includes(type)) return null;
   const days = [...eachDay(from, to)];
@@ -103,7 +117,7 @@ app.post('/api/requests', auth, wrap(async (req, res) => {
   if (AMOUNT_TYPES.includes(type) && !(Number(amount) > 0)) return res.status(400).json({ error: 'اكتبي المبلغ' });
   if (!isDate(from_date) || !isDate(to_date) || to_date < from_date) return res.status(400).json({ error: 'التواريخ غير صحيحة' });
   if (daysBetween(from_date, to_date) > 366) return res.status(400).json({ error: 'مدة الطلب لا تزيد عن 366 يوم' });
-  const ruleErr = await checkLeaveRules(target, type, from_date, to_date);
+  const ruleErr = (await checkLeaveRules(target, type, from_date, to_date)) || (type === 'permission' ? await checkPermRules(target, from_date, hours) : null);
   if (ruleErr) return res.status(400).json({ error: ruleErr });
   if (['overtime', 'permission'].includes(type) && !(Number(hours) > 0 && Number(hours) <= 24)) return res.status(400).json({ error: 'حددي عدد الساعات' });
   // قواعد التعيين: موعد عمل مقفول عن التعيين لا يُطلب إلا من المدير أو صاحب صلاحية الإعدادات

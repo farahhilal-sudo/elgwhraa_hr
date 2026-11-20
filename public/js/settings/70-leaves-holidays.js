@@ -8,7 +8,7 @@ Object.assign(POL_KEYS, {
   holiday: ['name', 'date', 'to', 'yearly'],
   compensation_rule: ['name', 'applies', 'mode', 'factor', 'days', 'min_hours'],
   holiday_limit: ['name', 'rule', 'value', 'from', 'to', 'scope', 'types'],
-  leave_profile: ['name', 'annual', 'sick', 'emergency', 'carry', 'break_min', 'break_paid'],
+  leave_profile: ['name', 'name_en', 'hours_day', 'hours_off', 'hours_hol', 'types', 'cfg', 'perm', 'brk_on', 'annual', 'sick', 'emergency', 'carry', 'break_min', 'break_paid'],
 });
 const LV_LIST = [['annual_leave', 'سنوية', 'الإجازة اللي بتتخصم من الرصيد السنوي'], ['emergency_leave', 'طارئة', 'إجازة عارضة بدون ترتيب مسبق'], ['sick_leave', 'مرضية', 'إجازة بتقرير طبي']];
 const LV_NAME = Object.fromEntries(LV_LIST.map(([k, l]) => [k, l]));
@@ -192,6 +192,7 @@ function attSpec(kind) {
     more: (it) => [['tog', it.active ? 'تعطيل' : 'تفعيل'], ['del', 'حذف', 1]],
     delMsg: def.delMsg || (() => 'حذف السجل ده؟'),
     form: (it, reload) => {
+      if (kind === 'leave_profile') return openLeaveWizard(spec, it, reload);
       const base = def.nw();
       const d = it ? { ...base, ...Object.fromEntries(keys.map((k) => [k, clone(k === 'name' ? it.name : it[k])]).filter(([, v]) => v !== null && v !== undefined)) } : base;
       policyWizard({ d, guided: !it, groups: def.groups, steps: def.steps(), help: HELP[kind], title: `${it ? 'تعديل' : 'إضافة'} ${def.title}`, subtitle: def.subtitle, progressLabel: def.title, onChange: attOnChange, onSave: (dd) => spec.saveWith(it, dd), done: reload });

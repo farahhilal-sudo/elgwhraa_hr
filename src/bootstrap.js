@@ -37,6 +37,7 @@ async function init() {
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS nationality TEXT DEFAULT ''");
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS manager_id INTEGER');
   await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS leave_profile_id INTEGER');
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS emp_cfg TEXT');
   await pool.query('ALTER TABLE requests ADD COLUMN IF NOT EXISTS auto INTEGER NOT NULL DEFAULT 0');
   await pool.query('ALTER TABLE requests ADD COLUMN IF NOT EXISTS amount DOUBLE PRECISION NOT NULL DEFAULT 0');
   await pool.query('ALTER TABLE requests ADD COLUMN IF NOT EXISTS created_by INTEGER');

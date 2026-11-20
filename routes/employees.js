@@ -62,11 +62,16 @@ app.get('/api/employees', auth, need('employees.view'), wrap(async (req, res) =>
   res.json(rows.map((u) => ({
     ...publicUser(u), today: tmap[u.id] || null, has_avatar: avs.has(u.id),
     ...(can(req.user, 'payroll.view') ? { base_salary: u.base_salary, allowances: u.allowances } : {}),
-    ...(can(req.user, 'employees.manage') ? { national_id: u.national_id || '' } : {}),
+    ...(can(req.user, 'employees.manage') ? { national_id: u.national_id || '', emp_cfg: (() => { try { return JSON.parse(u.emp_cfg || '{}'); } catch { return {}; } })() } : {}),
   })));
 }));
 app.post('/api/employees', auth, need('employees.manage'), wrap(async (req, res) => {
   const b = req.body || {};
+  // اسم المستخدم = رقم الهاتف، وكلمة المرور الافتراضية 123456789 (الموظف ما بيحطش كلمة سر لنفسه)
+  let defaultPw = false;
+  if (!b.username && b.phone) b.username = String(b.phone).replace(/\D/g, '');
+  if (!b.username) return res.status(400).json({ error: 'رقم الهاتف مطلوب (هو اسم المستخدم)' });
+  if (!b.password) { b.password = '123456789'; defaultPw = true; }
   const err = validateEmp(b, false);
   if (err) return res.status(400).json({ error: err });
   if (!USERNAME_RE.test(String(b.username).trim())) return res.status(400).json({ error: 'اسم المستخدم من 3 إلى 30 حرف/رقم بدون مسافات' });
@@ -80,6 +85,8 @@ app.post('/api/employees', auth, need('employees.manage'), wrap(async (req, res)
     Number(b.base_salary) || 0, Number(b.allowances) || 0, b.shift_start || '09:00', b.shift_end || '17:00', b.hire_date || tzParts().date, (Number.isInteger(parseInt(b.annual_leave_days, 10)) ? parseInt(b.annual_leave_days, 10) : 21), b.role === 'admin' ? 1 : 0, JSON.stringify(locIds));
   await db.run('UPDATE users SET nationality=?, manager_id=?, employee_code=?, birth_date=?, gender=?, marital_status=?, national_id=?, email=? WHERE id=?',
     String(b.nationality || '').slice(0, 40), toId(b.manager_id), code, b.birth_date || '', b.gender || '', b.marital_status || '', String(b.national_id || '').trim().slice(0, 30), String(b.email || '').trim().slice(0, 100), id);
+  if (defaultPw) await db.run('UPDATE users SET must_change=0 WHERE id=?', id);
+  if (b.emp_cfg && typeof b.emp_cfg === 'object') await db.run('UPDATE users SET emp_cfg=? WHERE id=?', JSON.stringify(b.emp_cfg).slice(0, 8000), id);
   await audit(req, 'employee.create', String(b.username).trim(), b.role === 'admin' ? 'role=admin' : '');
   res.json({ id });
 }));
@@ -103,6 +110,7 @@ app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, r
     const ok = ids.length ? (await db.all('SELECT id FROM work_locations WHERE id = ANY(?::int[])', ids)).map((r) => r.id) : [];
     sets.push('location_ids=?'); vals.push(JSON.stringify(ok));
   }
+  if (b.emp_cfg && typeof b.emp_cfg === 'object') { sets.push('emp_cfg=?'); vals.push(JSON.stringify(b.emp_cfg).slice(0, 8000)); }
   if (b.password) { sets.push('password_hash=?', 'must_change=1'); vals.push(bcrypt.hashSync(String(b.password), 10)); }
   if (b.active !== undefined && !u.is_admin && !u.pending) {
     sets.push('active=?'); vals.push(b.active ? 1 : 0);
