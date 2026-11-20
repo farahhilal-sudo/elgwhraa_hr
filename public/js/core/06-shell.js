@@ -17,7 +17,7 @@ const ATT_TABS = [
 ];
 const MENU = [
   { id: 'dashboard', ic: 'grid', t: 'لوحة المعلومات', ok: () => has('dashboard.view') },
-  { id: 'me', ic: 'user', t: 'حسابي', ok: () => true },
+  { id: 'me', ic: 'user', t: 'حسابي', ok: () => !S.me.user.is_admin }, // المالك مش موظف: مفيش صفحة حسابي
   { g: 'emp', ic: 'users', t: 'الموظفون', items: [
     ['employees', 'الموظفون', () => has('employees.view'), 'users'], ['workgroups', 'مجموعات العمل', () => has('employees.view'), 'clock'],
     ['teams', 'فرق العمل', () => has('employees.view'), 'users'], ['emp_procedures', 'إجراءات الموظفين', () => has('employees.view'), 'user'],
@@ -143,10 +143,37 @@ function changePassword() {
     <div class="actions"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">حفظ</button></div></form>`);
   $('#cp', o).onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', e.target), async () => { const r = await api('/me/password', 'POST', { old_password: e.target.o.value, new_password: e.target.n.value }); if (r.token) { S.token = r.token; localStorage.setItem('tk', r.token); } o.close(); toast('تم تغيير كلمة المرور'); }); };
 }
+// الإشعار يودّي للصفحة المطلوبة: بنستنتج الوجهة من نوع/نص الإشعار، ولو الصفحة مش متاحة للمستخدم مفيش تنقّل
+function noteTarget(n) {
+  const x = String((n && n.text) || ''), mgr = has('requests.view_all'), pages = allPages(), has_ = (id) => pages.includes(id) || (IS_APP && typeof APP_PAGES !== 'undefined' && APP_PAGES.includes(id));
+  let r = null;
+  if (/طلب مستند جديد/.test(x)) r = ['hd_requests'];
+  else if (/طلب أصل جديد/.test(x)) r = ['as_requests'];
+  else if (/طلب إنشاء حساب/.test(x)) r = ['employees', null, 'pending'];
+  else if (/استعادة كلمة المرور/.test(x)) r = ['employees', null, 'resets'];
+  else if (/طلب جديد|وقت إضافي تلقائي|طلب جزاء تلقائي|بانتظار موافقتك|محتاج موافقتك/.test(x)) r = [mgr ? 'requests' : (IS_APP ? 'a_requests' : 'req_out')];
+  else if (/تم (قبول|رفض) طلبك|نيابةً عنك|تم (إصدار|رفض) .*(مستند|خطاب)|الموافقة على طلب الأصل|رفض طلب الأصل/.test(x)) r = [IS_APP ? 'a_requests' : (/أصل/.test(x) ? 'as_requests' : /مستند|خطاب/.test(x) ? 'hd_letters' : 'req_out')];
+  else if (/مهمة/.test(x) || (n && n.cat === 'task')) r = ['tasks'];
+  else if (/تسليمك أصل/.test(x)) r = ['as_assets'];
+  else if (/تم صرف مرتب/.test(x)) r = [IS_APP ? 'a_payroll' : 'me', { tab: 'payroll' }];
+  else if (/تمت إضافة (مكافأة|جزاء|خصم)/.test(x)) r = [IS_APP ? 'a_adjust' : 'me', { tab: 'payroll' }];
+  else if (/بصمة الوجه|قبول حسابك/.test(x)) r = ['home'];
+  if (!r) return null;
+  if (r[0] === 'me' && !has_('me')) return null;
+  return has_(r[0]) ? r : null;
+}
+function noteGo(n, after) {
+  const t = noteTarget(n); if (!t) return false;
+  if (after) after();
+  if (t[2]) S.emptab = t[2];
+  go(t[0], t[1] || undefined);
+  return true;
+}
 async function showNotes() {
   const rows = await api('/notifications');
-  modal(`<h3>الإشعارات</h3><div class="notes">${rows.length ? rows.map((n) => `<div class="note ${n.read ? '' : 'new'}">${esc(n.text)}<div class="muted small">${esc(n.created_at)} UTC</div></div>`).join('') : '<div class="empty">لا توجد إشعارات</div>'}</div>
+  const nm = modal(`<h3>الإشعارات</h3><div class="notes">${rows.length ? rows.map((n, i) => `<div class="note ${n.read ? '' : 'new'} ${noteTarget(n) ? 'go' : ''}" data-ni="${i}">${esc(n.text)}<div class="muted small">${esc(n.created_at)} UTC</div></div>`).join('') : '<div class="empty">لا توجد إشعارات</div>'}</div>
     <div class="actions"><button class="btn" data-close>إغلاق</button></div>`);
+  nm.querySelectorAll('.note.go').forEach((el) => (el.onclick = () => noteGo(rows[Number(el.dataset.ni)], () => nm.close())));
   if (S.me.unread) { await api('/notifications/read', 'POST'); S.me.unread = 0; document.querySelectorAll('#bell .dot, #abell .dot, #mbell .dot').forEach((d) => d.remove()); }
 }
 

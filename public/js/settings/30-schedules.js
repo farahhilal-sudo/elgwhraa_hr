@@ -8,13 +8,14 @@ const SCHED_FIELDS = [
   { k: 'start', l: 'بداية الدوام', t: 'time', d: '09:00', req: true },
   { k: 'end', l: 'نهاية الدوام', t: 'time', d: '17:00', req: true },
 ];
-const SCHED_KEYS = ['name', 'type', 'brk', 'start', 'end', 'penalty_id', 'overtime_id'];
+const SCHED_KEYS = ['name', 'type', 'brk', 'start', 'end', 'penalty_id', 'overtime_id', 'name_en', 'weight', 'require_start', 'ci_to', 'work_hours', 'last_out', 'earliest_in', 'calc_out_from_in', 'final_in', 'earliest_out',
+  'allow_early_out', 'auto_out', 'face_on', 'face_remote', 'remind_in', 'remind_in_t', 'remind_out', 'remind_out_t', 'break_override', 'perm_paid', 'perm_unpaid', 'remote_override', 'assign_anyone'];
 const polSel = (k, l, arr) => ({ k, l, t: 'select', d: '', o: [['', 'بدون سياسة (الإعدادات العامة)'], ...arr.map((p) => [String(p.id), `${p.name}${p.archived ? ' (محفوظ)' : !p.active ? ' (غير نشط)' : ''}`])] });
 const schedSpec = () => {
   const api_ = cfgApi('schedule');
   const snap = (it) => ({ at: new Date().toISOString().slice(0, 16).replace('T', ' '), ...Object.fromEntries(SCHED_KEYS.map((k) => [k, it[k]])) });
   const save = (it, b) => api_.save(it, b);
-  return {
+  const spec = {
     ...api_, newLabel: 'موعد عمل جديد', searchPh: 'ابحث في أوقات العمل', counts: true, nameLabel: 'اسم موعد العمل',
     fields: () => [...SCHED_FIELDS, polSel('penalty_id', 'سياسة الجزاءات', POL.pen), polSel('overtime_id', 'سياسة الوقت الإضافي', POL.ot)],
     load: async () => {
@@ -60,4 +61,14 @@ const schedSpec = () => {
       }
     },
   };
+  /* الإضافة والتعديل بالمعالج (10 خطوات) */
+  spec.saveWith = (it, d) => {
+    const body = Object.fromEntries(SCHED_KEYS.map((k) => [k, d[k]]));
+    body.name = String(d.name || '').trim();
+    body.active = it ? (it.active ? '1' : '0') : '1';
+    spec.pre(it, body);
+    return save(it, body);
+  };
+  spec.form = (it, reload) => openScheduleWizard(spec, it, reload);
+  return spec;
 };

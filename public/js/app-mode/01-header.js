@@ -92,7 +92,7 @@ function bindAppHeader() {
   const on = (id, fn) => { const el = $(id); if (el) el.onclick = fn; };
   on('#abell', showNotes);
   on('#aback', () => go('menu'));
-  on('#aav', () => go('me'));
+  on('#aav', () => go(S.me.user.is_admin ? 'menu' : 'me'));
   on('#hsearch', () => S.pg && S.pg.search && S.pg.search());
   on('#hfilter', () => S.pg && S.pg.filter && S.pg.filter());
 }

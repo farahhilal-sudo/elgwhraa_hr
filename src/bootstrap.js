@@ -77,9 +77,14 @@ async function init() {
   // أول مدير للنظام
   if (!(await db.get('SELECT 1 FROM users WHERE is_admin=1'))) {
     const pw = process.env.ADMIN_PASSWORD || 'admin123';
-    await db.run('INSERT INTO users(name,username,password_hash,is_admin,must_change,job_title) VALUES(?,?,?,?,?,?) ON CONFLICT(username) DO NOTHING',
-      'مدير النظام', 'admin', bcrypt.hashSync(pw, 10), 1, process.env.ADMIN_PASSWORD ? 0 : 1, 'مدير النظام');
+    await db.run('INSERT INTO users(name,username,password_hash,is_admin,must_change,job_title,department) VALUES(?,?,?,?,?,?,?) ON CONFLICT(username) DO NOTHING',
+      'eng mohamed hegazy', 'admin', bcrypt.hashSync(pw, 10), 1, process.env.ADMIN_PASSWORD ? 0 : 1, 'مالك', 'شركة الجوهرة استيل');
     console.log('تم إنشاء حساب المدير: admin');
+  }
+  // لمرة واحدة: حساب المدير يتحوّل لحساب المالك (eng mohamed hegazy / مالك / شركة الجوهرة استيل). المالك مش موظف: مفيش بصمة ولا رصيد إجازات.
+  if (!(await db.get("SELECT 1 FROM settings WHERE key='owner_v1'"))) {
+    await db.run("UPDATE users SET name='eng mohamed hegazy', job_title='مالك', department='شركة الجوهرة استيل' WHERE id=(SELECT MIN(id) FROM users WHERE is_admin=1)");
+    await db.run("INSERT INTO settings(key,value) VALUES('owner_v1','1') ON CONFLICT(key) DO NOTHING");
   }
   // طوارئ: لو المدير نسي كلمة المرور ومفيش مدير تاني، حطي RESET_ADMIN_PASSWORD وأعيدي التشغيل (وبعدها شيليه)
   await db.run("UPDATE settings SET value='GWHRAA HR' WHERE key='company_name' AND value='شركتي'"); // الاسم الافتراضي الجديد

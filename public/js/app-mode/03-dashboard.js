@@ -9,10 +9,11 @@ async function appDashboard(view) {
   const months = [];
   for (let k = 0; k < 12; k++) { const d = new Date(Date.UTC(+nowM.slice(0, 4), +nowM.slice(5) - 1 - k, 1)).toISOString().slice(0, 7); if (d < String(u.hire_date).slice(0, 7) && k) break; months.push(d); }
   const mo = months.includes(S.dmon) ? S.dmon : nowM;
+  const owner = !!u.is_admin; // المالك: إحصائيات الفريق بس (من غير رصيد إجازات ولا بياناته كموظف)
   const [d, rq, att, pm] = await Promise.all([
-    has('dashboard.view') ? api('/dashboard') : null, api('/requests/mine'), api('/attendance/mine?month=' + mo).catch(() => []), api('/payroll/mine?month=' + mo).catch(() => null),
+    has('dashboard.view') ? api('/dashboard') : null, owner ? null : api('/requests/mine'), owner ? [] : api('/attendance/mine?month=' + mo).catch(() => []), owner ? null : api('/payroll/mine?month=' + mo).catch(() => null),
   ]);
-  const bl = rq.balances, dept = S.ddept || '';
+  const bl = owner ? {} : rq.balances, dept = S.ddept || '';
   const bal = [[bl.annual_total - bl.annual_used, 'إجازة سنوية'], [bl.emergency_used, 'إجازة طارئة'], [bl.sick_used, 'إجازة مرضية'], [Number(bl.permission_hours_month).toFixed(2), 'ساعات الأذونات']];
   let stats = '';
   if (d) {
@@ -31,7 +32,7 @@ async function appDashboard(view) {
   const hrs = att.filter((r) => r.check_in && r.check_out).reduce((s, r) => s + (new Date(r.check_out) - new Date(r.check_in)) / 3600000, 0);
   const present = pm ? pm.present_days : att.filter((r) => r.check_in).length;
   const mname = (m) => `${MONTHS_AR[Number(m.slice(5)) - 1]}-${m.slice(0, 4)}`;
-  view.innerHTML = `<h3 class="dsec">الرصيد</h3><div class="dbal">${bal.map(([v, l]) => `<div class="card"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
+  view.innerHTML = owner ? (stats || '<div class="empty">لا توجد بيانات</div>') : `<h3 class="dsec">الرصيد</h3><div class="dbal">${bal.map(([v, l]) => `<div class="card"><b>${v}</b><span>${l}</span></div>`).join('')}</div>
     ${stats}
     <div class="dsh"><h3>تم استخدامه هذا الشهر</h3><label class="dmon"><select id="dmon">${months.map((m) => `<option value="${m}" ${m === mo ? 'selected' : ''}>${mname(m)}</option>`).join('')}</select><span>${mname(mo)}</span>${fi('chev_dn')}</label></div>
     <div class="dg blue wide"><b>${hrs.toFixed(2)}</b><span>ساعات العمل هذا الشهر</span></div>
@@ -41,7 +42,7 @@ async function appDashboard(view) {
       <div class="card"><div class="dut"><b>${Number(present).toFixed(2)}</b></div><span>أيام الحضور</span>${ci('present')}</div>
       <div class="card"><div class="dut"><b>${pm ? Number(pm.penalties).toFixed(1) : '0.0'}</b></div><span>الجزاءات</span>${ci('hourglass')}</div>
     </div>`;
-  $('#dmon', view).onchange = (e) => { S.dmon = e.target.value; appDashboard(view); };
+  if ($('#dmon', view)) $('#dmon', view).onchange = (e) => { S.dmon = e.target.value; appDashboard(view); };
   view.querySelectorAll('[data-all]').forEach((b) => (b.onclick = () => {
     const k = b.dataset.all;
     S.empm = Object.assign(S.empm || {}, { st: k === '*' ? [] : [k], day: today, dept });

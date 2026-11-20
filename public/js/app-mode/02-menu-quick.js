@@ -8,7 +8,7 @@ PAGES.menu = (view) => {
   const toP = (id) => ok(id) && mk(CARD_IC[id] || 'doc', PAGE_LABELS[id] || T[id], () => go(id));
   const manage = has('employees.manage');
   const secs = [
-    { t: '', cards: [
+    { t: '', cards: u.is_admin ? [mk('lock', 'تغيير كلمة المرور', changePassword)] : [
       mk('att', 'سجل الحضور', () => go('me', { tab: 'attendance' })), mk('req', 'طلباتي', () => go('me', { tab: 'general' })),
       mk('calendar', 'تقويم العمل', () => go('me', { tab: 'calendar' })), mk('money', 'الرواتب', () => go('me', { tab: 'payroll' })),
       mk('slip', 'مفردات الرواتب', () => go('me', { tab: 'slips' })), mk('lock', 'تغيير كلمة المرور', changePassword)] },
@@ -23,7 +23,7 @@ PAGES.menu = (view) => {
     ${secs.map((s) => `${s.t ? `<h3 class="msec">${s.t}</h3>` : ''}<div class="mgrid">${s.cards.map((c) => { all.push(c); return `<button class="mc" data-i="${all.length - 1}"><span class="mct">${esc(c.t)}</span>${ci(c.ic)}</button>`; }).join('')}</div>`).join('')}
     <button class="mc mlogout" id="mlo"><span class="mlic">${fi('logout')}</span><span class="mct">تسجيل الخروج</span></button>`;
   view.querySelectorAll('[data-i]').forEach((b) => (b.onclick = () => all[Number(b.dataset.i)].fn()));
-  $('#mprof', view).onclick = () => go('me', { tab: 'general' });
+  $('#mprof', view).onclick = () => { if (!u.is_admin) go('me', { tab: 'general' }); };
   $('#mlo', view).onclick = () => logout();
 };
 

@@ -70,7 +70,8 @@ PAGES.a_notif = async (view) => {
         list.innerHTML = a.length ? a.map((x) => `<div class="xni"><b dir="auto">${esc(x.title)}</b><p dir="auto">${esc(x.text)}</p><small>${x.created_at ? ago(x.created_at) : ''}</small></div>`).join('') : xEmpty('No announcements');
       } else {
         const q = new URLSearchParams({ from: f.from, to: f.to }), n = await api('/app/notifications?' + q);
-        list.innerHTML = n.length ? n.map((x) => `<div class="xni ${x.read ? '' : 'new'}"><b>${t(NOTIF_TITLE[x.cat] || 'Notification')}</b><p dir="auto">${esc(x.text)}</p><small>${ago(x.created_at)}</small></div>`).join('') : xEmpty('No notifications');
+        list.innerHTML = n.length ? n.map((x, i) => `<div class="xni ${x.read ? '' : 'new'} ${noteTarget(x) ? 'go' : ''}" data-ni="${i}"><b>${t(NOTIF_TITLE[x.cat] || 'Notification')}</b><p dir="auto">${esc(x.text)}</p><small>${ago(x.created_at)}</small></div>`).join('') : xEmpty('No notifications');
+        list.querySelectorAll('.xni.go').forEach((el) => (el.onclick = () => noteGo(n[Number(el.dataset.ni)])));
       }
     } catch (e) { list.innerHTML = xEmpty(e.message); }
   };

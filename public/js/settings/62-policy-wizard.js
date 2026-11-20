@@ -24,12 +24,14 @@ function policyWizard(cfg) {
       <button class="btn alt" id="pwback" type="button">عودة</button><button class="btn alt" id="pwcancel" type="button">إلغاء</button><button class="btn alt" id="pwsave" type="button">حفظ</button><button class="btn" id="pwnext" type="button">التالي</button></footer></div>`;
   document.body.appendChild(o);
   const q = (s) => o.querySelector(s);
+  if (cfg.noMode) q('#pwmode').remove();
+  if (cfg.icon) q('.pwh').insertAdjacentHTML('afterbegin', `<span class="pwico">${ico(cfg.icon)}</span>`);
   const onKey = (e) => { if (e.key === 'Escape') tryClose(); };
   document.addEventListener('keydown', onKey);
   const close = () => { document.removeEventListener('keydown', onKey); o.remove(); };
   const tryClose = () => { if (JSON.stringify(d) === init || confirm('إغلاق من غير حفظ التعديلات؟')) close(); };
   const isOff = (i) => !!(steps[i].off && steps[i].off(d));
-  const h = { redraw: () => drawMain(), help: (k) => drawHelp(k) };
+  const h = { redraw: () => drawMain(), help: (k) => drawHelp(k), go: (i) => goTo(i) };
   const can = (i) => !st.guided || i <= st.i || st.done.has(i) || [...st.done, st.i].some((x) => x + 1 === i);
 
   const drawNav = () => {
@@ -50,7 +52,7 @@ function policyWizard(cfg) {
     q('#pwback').style.visibility = st.i === 0 ? 'hidden' : 'visible';
     q('#pwnext').textContent = st.i >= last ? 'حفظ' : 'التالي';
     q('#pwsave').hidden = st.guided || st.i >= last;
-    q('#pwmode').querySelectorAll('button').forEach((b) => b.classList.toggle('on', (b.dataset.mode === 'guided') === st.guided));
+    if (q('#pwmode')) q('#pwmode').querySelectorAll('button').forEach((b) => b.classList.toggle('on', (b.dataset.mode === 'guided') === st.guided));
     q('#pw').classList.toggle('nohelp', !st.help);
     q('#pwhelp').classList.toggle('off', !st.help);
   };
@@ -72,6 +74,7 @@ function policyWizard(cfg) {
       el.onchange = () => { if (cfg.onChange && cfg.onChange(el.dataset.k, d)) drawMain(); };
     });
     root.querySelectorAll('[data-ck]').forEach((el) => (el.onchange = () => { d[el.dataset.ck] = el.checked; el.closest('.cc').classList.toggle('on', el.checked); drawNav(); }));
+    root.querySelectorAll('[data-tg]').forEach((el) => (el.onchange = () => { d[el.dataset.tg] = el.checked; if (cfg.onChange && cfg.onChange(el.dataset.tg, d)) drawMain(); }));
     root.querySelectorAll('[data-rc]').forEach((b) => (b.onclick = () => { const k = b.dataset.rc; d[k] = /^-?[\d.]+$/.test(b.dataset.v) ? Number(b.dataset.v) : b.dataset.v; if (cfg.onChange) cfg.onChange(k, d); drawMain(); }));
     root.querySelectorAll('[data-enable]').forEach((b) => (b.onclick = () => { d[b.dataset.enable] = true; if (cfg.onEnable) cfg.onEnable(b.dataset.enable, d); drawMain(); }));
     root.querySelectorAll('[data-sp]').forEach((b) => (b.onclick = () => {
@@ -112,7 +115,7 @@ function policyWizard(cfg) {
   q('#pwback').onclick = () => { if (st.i > 0) { let j = st.i - 1; while (st.guided && j > 0 && isOff(j)) j--; st.i = j; drawMain(); } };
   q('#pwnext').onclick = next; q('#pwsave').onclick = save;
   q('#pwhelp').onclick = () => { st.help = !st.help; drawFoot(); };
-  q('#pwmode').querySelectorAll('button').forEach((b) => (b.onclick = () => { st.guided = b.dataset.mode === 'guided'; drawMain(); }));
+  if (q('#pwmode')) q('#pwmode').querySelectorAll('button').forEach((b) => (b.onclick = () => { st.guided = b.dataset.mode === 'guided'; drawMain(); }));
   drawMain();
 }
 

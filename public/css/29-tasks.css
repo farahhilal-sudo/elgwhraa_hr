@@ -95,3 +95,5 @@ span.tkst { cursor: default; }
 .hrow { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .tkpri.two { grid-template-columns: 1fr 1fr; }
 .lnact { white-space: nowrap; } .lnact .sqb { margin-inline-start: 4px; }
+/* إشعارات قابلة للضغط */
+.note.go, html.is-app .xni.go { cursor: pointer; } .note.go:hover { background: var(--brand-l, #fff8dc); } html.is-app .xni.go:active { background: #f0f4f8; }
