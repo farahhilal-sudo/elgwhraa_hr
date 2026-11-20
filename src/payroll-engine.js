@@ -45,6 +45,10 @@ function policiesFor(user, pctx) {
   const pick = (idKey, pool) => { for (const s of same) { const p = s[idKey] && pool[String(s[idKey])]; if (p) return p; } return null; };
   return { pen: pick('penalty_id', pctx.pen), ot: pick('overtime_id', pctx.ot) };
 }
+// موعد العمل المطابق لموظف (نفس البداية والنهاية): بيحدد إعدادات يوم العمل (نافذة الدخول، الوجه، الموقع...)
+function scheduleOf(user, pctx) {
+  return pctx.schedules.find((s) => hhmm(s.start) === hhmm(user.shift_start) && hhmm(s.end) === hhmm(user.shift_end)) || null;
+}
 const graceOf = (user, st, pctx) => {
   const p = policiesFor(user, pctx).pen;
   return p && Number.isFinite(Number(p.grace)) ? Number(p.grace) : parseInt(st.grace_minutes || 0, 10);
@@ -156,7 +160,11 @@ async function computeMonth(user, month, st, tiers = []) {
   }
   // ملف الإجازة والاستراحة: لو الاستراحة غير مدفوعة بتتشال من ساعات الوردية المدفوعة (بيرتفع أجر الساعة)
   const prof = profileOf(user, pctx);
-  const unpaidBreak = prof && prof.break_paid === false ? Math.max(0, Number(prof.break_min) || 0) : 0;
+  const sch = scheduleOf(user, pctx);
+  // لو موعد العمل متفعّل فيه «تجاوز إعدادات الاستراحة»: استراحة الموعد هي غير المدفوعة بدل ملف الإجازة
+  const unpaidBreak = sch && sch.break_override === true ? Math.max(0, Number(sch.brk) || 0) : prof && prof.break_paid === false ? Math.max(0, Number(prof.break_min) || 0) : 0;
+  const dayWeight = sch && Number(sch.weight) > 0 ? Number(sch.weight) : 1; // وزن يوم العمل (نصف يوم = 0.5)
+  const needPunch = !(sch && sch.require_start === false); // لو تسجيل الدخول مش مطلوب: اليوم من غير حضور مش غياب
   const shiftHours = Math.max(1, (shiftMinutes(user.shift_start, user.shift_end) - unpaidBreak) / 60);
   const dailyRate = ((Number(user.base_salary) || 0) + (Number(user.allowances) || 0)) / 30; // أجر اليوم = (الأساسي + الحافز/البدلات) ÷ 30 بالكسور
   const hourlyRate = dailyRate / shiftHours;
@@ -202,7 +210,7 @@ async function computeMonth(user, month, st, tiers = []) {
         }
       }
       else if (covered.has(d)) leaveDays++;
-      else if (d < today) { if (!waived.has(d + '|absent')) { absentDays++; const oa = ovMap.get(d + '|absent'); if (oa) absentOvMoney += ovMoney(oa, dailyRate, hourlyRate); else absentCharge++; } }
+      else if (d < today) { if (needPunch && !waived.has(d + '|absent')) { absentDays++; const oa = ovMap.get(d + '|absent'); if (oa) absentOvMoney += ovMoney(oa, dailyRate, hourlyRate); else absentCharge += dayWeight; } }
     }
   }
   const lateFactor = parseFloat(st.late_factor || 1);
@@ -243,4 +251,4 @@ async function computeMonth(user, month, st, tiers = []) {
   };
 }
 
-module.exports = { computeMonth, getPolicyCtx, getTiers, graceOf, holidayMap, invalidatePolicyCtx, otPayFor, policiesFor, policyLate, policyOvertime, profileOf, syncAutoOvertime, tierDeduction };
+module.exports = { computeMonth, getPolicyCtx, getTiers, graceOf, scheduleOf, holidayMap, invalidatePolicyCtx, otPayFor, policiesFor, policyLate, policyOvertime, profileOf, syncAutoOvertime, tierDeduction };

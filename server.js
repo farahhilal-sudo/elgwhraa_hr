@@ -108,6 +108,9 @@ if (require.main === module) {
   // كل 10 دقايق: المهام المتأخرة بتتحوّل لطلب جزاء للمدير
   const sweep = () => require('./src/tasks').sweepOverdueTasks().catch((e) => console.error('sweepOverdueTasks:', e));
   ready.then(sweep); setInterval(sweep, 10 * 60 * 1000).unref();
+  // كل 10 دقايق: تذكيرات الحضور/الانصراف والانصراف التلقائي حسب مواعيد العمل
+  const sweepAtt = () => require('./src/attendance-jobs').sweepAttendance().catch((e) => console.error('sweepAttendance:', e));
+  ready.then(sweepAtt); setInterval(sweepAtt, 10 * 60 * 1000).unref();
   const server = app.listen(PORT, () => console.log(`الخادم يعمل على المنفذ ${PORT}`));
   // إيقاف نظيف عند إعادة تشغيل الاستضافة: نكمّل الطلبات الجارية ونقفل الاتصال بالقاعدة
   const stop = () => { server.close(() => pool.end().finally(() => process.exit(0))); setTimeout(() => process.exit(0), 8000).unref(); };

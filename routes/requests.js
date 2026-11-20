@@ -98,6 +98,12 @@ app.post('/api/requests', auth, wrap(async (req, res) => {
   const ruleErr = await checkLeaveRules(target, type, from_date, to_date);
   if (ruleErr) return res.status(400).json({ error: ruleErr });
   if (['overtime', 'permission'].includes(type) && !(Number(hours) > 0 && Number(hours) <= 24)) return res.status(400).json({ error: 'حددي عدد الساعات' });
+  // قواعد التعيين: موعد عمل مقفول عن التعيين لا يُطلب إلا من المدير أو صاحب صلاحية الإعدادات
+  if (type === 'schedule_req' && meta && /^\d{2}:\d{2}$/.test(meta.start || '') && /^\d{2}:\d{2}$/.test(meta.end || '') && !(req.user.is_admin || can(req.user, 'settings.manage'))) {
+    const hh = (t) => String(t).split(':').map(Number).join(':');
+    const sc = (await getPolicyCtx()).schedules.find((s) => hh(s.start) === hh(meta.start) && hh(s.end) === hh(meta.end) && s.assign_anyone === false);
+    if (sc) return res.status(403).json({ error: `موعد العمل «${sc.name}» لا يمكن تعيينه إلا من المدير` });
+  }
   const metaStr = JSON.stringify(meta && typeof meta === 'object' ? meta : {}).slice(0, 800);
   const id = await db.insert('INSERT INTO requests(user_id,type,from_date,to_date,hours,reason,amount,created_by,meta) VALUES(?,?,?,?,?,?,?,?,?)',
     target.id, type, from_date, ['overtime', 'permission', 'attendance_edit', 'expense', 'loan', ...Object.keys(MGR_TYPES)].includes(type) ? from_date : to_date, Number(hours) || 0, String(reason).slice(0, 500), Number(amount) || 0, req.user.id, metaStr);

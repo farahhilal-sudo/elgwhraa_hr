@@ -5,7 +5,7 @@ const { auth, wrap } = require('../src/middleware');
 const { settings, tzParts } = require('../src/bootstrap');
 const { allowedLocations, can, faceDistance, parsePhoto, toId, validDescriptor } = require('../src/helpers');
 const { db } = require('../src/db');
-const { getPolicyCtx, graceOf, syncAutoOvertime } = require('../src/payroll-engine');
+const { getPolicyCtx, graceOf, scheduleOf, syncAutoOvertime } = require('../src/payroll-engine');
 
 
 module.exports = function register(app) {
@@ -19,16 +19,22 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
   const u = req.user, st = await settings();
   // البصمة للموظفين فقط: حساب المدير مش بيسجّل حضور ولا انصراف
   if (u.is_admin) return res.status(403).json({ error: 'حسابات المديرين لا تسجّل حضور وانصراف' });
-  if (!u.face_descriptor) return res.status(403).json({ error: 'سجّلي بصمة الوجه أولاً' });
-  if (!validDescriptor(descriptor)) return res.status(400).json({ error: 'لم يتم التقاط الوجه' });
+  // إعدادات موعد العمل المطابق للموظف (نافذة الدخول، الوجه، الموقع...). من غير موعد مطابق: السلوك زي ما كان.
+  const pctx = await getPolicyCtx(), sch = scheduleOf(u, pctx);
+  const locs = await allowedLocations(u);
+  const needFace = !sch || sch.face_on !== false || (sch.face_remote === true && !locs.length);
   const photoBuf = parsePhoto(photo);
   if (!photoBuf) return res.status(400).json({ error: 'لم يتم التقاط الصورة، حاولي مرة أخرى' });
-  const score = faceDistance(descriptor, JSON.parse(u.face_descriptor));
-  if (score > parseFloat(st.face_threshold)) return res.status(403).json({ error: 'الوجه غير مطابق، حاولي مرة أخرى في إضاءة أفضل' });
-  // الموقع إجباري لو فيه مواقع معرّفة: لازم يكون الموظف داخل نطاق واحد من مواقعه المسموحة
+  let score = null;
+  if (needFace) {
+    if (!u.face_descriptor) return res.status(403).json({ error: 'سجّلي بصمة الوجه أولاً' });
+    if (!validDescriptor(descriptor)) return res.status(400).json({ error: 'لم يتم التقاط الوجه' });
+    score = faceDistance(descriptor, JSON.parse(u.face_descriptor));
+    if (score > parseFloat(st.face_threshold)) return res.status(403).json({ error: 'الوجه غير مطابق، حاولي مرة أخرى في إضاءة أفضل' });
+  }
+  // الموقع إجباري لو فيه مواقع معرّفة: لازم يكون الموظف داخل نطاق واحد من مواقعه المسموحة (إلا لو موعد العمل بيسمح بالتسجيل من أي مكان)
   let where = null;
-  const locs = await allowedLocations(u);
-  if (locs.length) {
+  if (locs.length && !(sch && sch.remote_override === true)) {
     if (!isLatLng(lat, lng)) return res.status(400).json({ error: 'فعّلي خدمة الموقع (GPS)' });
     const scored = locs.map((l) => ({ l, d: haversine(lat, lng, l.lat, l.lng) })).sort((a, b) => (a.d - a.l.radius_m) - (b.d - b.l.radius_m));
     const best = scored[0];
@@ -39,10 +45,18 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
   const now = tzParts();
   const rec = await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date);
   const iso = new Date().toISOString();
+  const ok12 = (t) => { const [h, m] = String(t).split(':').map(Number); return `${h % 12 || 12}:${String(m || 0).padStart(2, '0')} ${h < 12 ? 'ص' : 'م'}`; };
+  const dayShift = toMin(u.shift_end) > toMin(u.shift_start); // قيود الأوقات بتتطبق على الورديات داخل نفس اليوم
   if (type === 'in') {
     if (rec && rec.check_in) return res.status(409).json({ error: 'تم تسجيل الحضور اليوم بالفعل' });
-    const start = toMin(u.shift_start), grace = graceOf(u, st, await getPolicyCtx());
-    const late = now.minutes > start + grace ? now.minutes - start : 0;
+    if (sch && dayShift) {
+      if (sch.earliest_in && now.minutes < toMin(sch.earliest_in)) return res.status(403).json({ error: `تسجيل الحضور بيبدأ من الساعة ${ok12(sch.earliest_in)}` });
+      if (sch.final_in && now.minutes > toMin(sch.final_in)) return res.status(403).json({ error: `انتهى وقت تسجيل الحضور لهذا اليوم (آخر وقت ${ok12(sch.final_in)})` });
+    }
+    const start = toMin(u.shift_start), grace = graceOf(u, st, pctx);
+    // نطاق الحضور المتوقع: الوصول بين البداية و«إلى» مش تأخير
+    const winEnd = sch && sch.ci_to && toMin(sch.ci_to) > start ? toMin(sch.ci_to) : start;
+    const late = now.minutes > winEnd + grace ? now.minutes - start : 0;
     try {
       if (rec) {
         const up = await db.run('UPDATE attendance SET check_in=?,in_lat=?,in_lng=?,in_face=?,late_minutes=?,in_loc=? WHERE id=? AND check_in IS NULL', iso, la, ln, score, late, where, rec.id);
@@ -56,10 +70,20 @@ app.post('/api/attendance/punch', auth, wrap(async (req, res) => {
   } else {
     if (!rec || !rec.check_in) return res.status(409).json({ error: 'سجّلي الحضور أولاً' });
     if (rec.check_out) return res.status(409).json({ error: 'تم تسجيل الانصراف اليوم بالفعل' });
-    const early = Math.max(0, toMin(u.shift_end) - now.minutes);
+    // نهاية الوردية الفعلية: لو «حساب الخروج من وقت الدخول الفعلي» مفعّل بتتزحزح بقدر الدخول داخل نطاق الحضور
+    let endMin = toMin(u.shift_end);
+    if (sch && dayShift && sch.calc_out_from_in === true && sch.ci_to && toMin(sch.ci_to) > toMin(u.shift_start)) {
+      const inMin = tzParts(new Date(rec.check_in)).minutes, s0 = toMin(u.shift_start);
+      endMin += Math.min(Math.max(inMin, s0), toMin(sch.ci_to)) - s0;
+    }
+    if (sch && dayShift) {
+      if (sch.earliest_out && now.minutes < toMin(sch.earliest_out)) return res.status(403).json({ error: `الانصراف بيبدأ من الساعة ${ok12(sch.earliest_out)}` });
+      if (sch.allow_early_out === false && now.minutes < endMin) return res.status(403).json({ error: 'الانصراف قبل نهاية الوردية غير مسموح' });
+    }
+    const early = Math.max(0, endMin - now.minutes);
     const up = await db.run('UPDATE attendance SET check_out=?,out_lat=?,out_lng=?,out_face=?,early_minutes=?,out_loc=? WHERE id=? AND check_out IS NULL', iso, la, ln, score, early, where, rec.id);
     if (!up.rowCount) return res.status(409).json({ error: 'تم تسجيل الانصراف اليوم بالفعل' });
-    await syncAutoOvertime(u, now.date, now.minutes, st); // الدقايق بعد نهاية الشفت بتتحسب إضافي
+    await syncAutoOvertime(endMin === toMin(u.shift_end) ? u : { ...u, shift_end: `${Math.floor(endMin / 60) % 24}:${String(endMin % 60).padStart(2, '0')}` }, now.date, now.minutes, st); // الدقايق بعد نهاية الشفت بتتحسب إضافي
   }
   const saved = await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', u.id, now.date);
   try { // الصورة دليل إضافي، فلو فشل حفظها ما نفشّلش التسجيل نفسه
