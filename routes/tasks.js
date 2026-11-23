@@ -41,7 +41,7 @@ app.get('/api/tasks', auth, wrap(async (req, res) => {
 
 app.post('/api/tasks', auth, need('employees.manage'), wrap(async (req, res) => {
   const b = req.body || {}, title = String(b.title || '').trim().slice(0, 200);
-  if (!title) return res.status(400).json({ error: 'اكتبي عنوان المهمة' });
+  if (!title) return res.status(400).json({ error: 'اكتب عنوان المهمة' });
   const uid = toId(b.assignee_id), u = uid && await db.get('SELECT * FROM users WHERE id=? AND active=1 AND is_admin=0', uid);
   if (uid && !u) return res.status(400).json({ error: 'الموظف غير موجود' });
   let priority = PRIORITIES[b.priority] ? b.priority : '', due = isDate(b.due_date) ? b.due_date : null;
@@ -76,7 +76,7 @@ app.put('/api/tasks/:id', auth, wrap(async (req, res) => {
     }
   }
   if (mgr) {
-    if (b.title !== undefined) { const v = String(b.title).trim().slice(0, 200); if (!v) return res.status(400).json({ error: 'اكتبي عنوان المهمة' }); put('title', v); }
+    if (b.title !== undefined) { const v = String(b.title).trim().slice(0, 200); if (!v) return res.status(400).json({ error: 'اكتب عنوان المهمة' }); put('title', v); }
     if (b.description !== undefined) put('description', String(b.description).slice(0, 20000));
     if (b.priority !== undefined && PRIORITIES[b.priority]) put('priority', b.priority);
     if (b.due_date !== undefined) put('due_date', isDate(b.due_date) ? b.due_date : null);
@@ -143,7 +143,7 @@ const projBody = (b) => ({
 });
 app.post('/api/projects', auth, need('employees.manage'), wrap(async (req, res) => {
   const p = projBody(req.body || {});
-  if (!p.name) return res.status(400).json({ error: 'اكتبي اسم المشروع' });
+  if (!p.name) return res.status(400).json({ error: 'اكتب اسم المشروع' });
   const id = await db.insert('INSERT INTO projects(name,description,scope,target_ids,created_by) VALUES(?,?,?,?,?)', p.name, p.description, p.scope, p.ids, req.user.id);
   res.json({ ok: true, id });
 }));
@@ -151,7 +151,7 @@ app.put('/api/projects/:id', auth, need('employees.manage'), wrap(async (req, re
   const id = toId(req.params.id), cur = id && await db.get('SELECT * FROM projects WHERE id=?', id);
   if (!cur) return res.status(404).json({ error: 'المشروع غير موجود' });
   const b = req.body || {}, p = projBody({ ...cur, target_ids: parseIds(cur.target_ids), ...b });
-  if (!p.name) return res.status(400).json({ error: 'اكتبي اسم المشروع' });
+  if (!p.name) return res.status(400).json({ error: 'اكتب اسم المشروع' });
   await db.run('UPDATE projects SET name=?,description=?,scope=?,target_ids=?,active=? WHERE id=?', p.name, p.description, p.scope, p.ids, b.active === undefined ? cur.active : (b.active ? 1 : 0), id);
   res.json({ ok: true });
 }));

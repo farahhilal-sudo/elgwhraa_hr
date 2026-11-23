@@ -3,7 +3,7 @@
 const { auth, need, wrap } = require('../src/middleware');
 const { db } = require('../src/db');
 const { tzParts } = require('../src/bootstrap');
-const { toId } = require('../src/helpers');
+const { toId, notify } = require('../src/helpers');
 const { isDate } = require('../lib/utils');
 const { loanState } = require('../src/loans');
 
@@ -12,8 +12,10 @@ const decorate = (l, today) => ({ ...l, ...loanState(l, today) });
 
 async function createLoan({ user_id, name, amount, installments, date, note, request_id, by }) {
   const today = tzParts().date, on = isDate(date) ? date : today;
-  return db.insert('INSERT INTO loans(user_id,name,amount,installments,disbursed_on,start_month,note,request_id,created_by,created_by_name) VALUES(?,?,?,?,?,?,?,?,?,?)',
+  const lid = await db.insert('INSERT INTO loans(user_id,name,amount,installments,disbursed_on,start_month,note,request_id,created_by,created_by_name) VALUES(?,?,?,?,?,?,?,?,?,?)',
     user_id, String(name || 'سلفة').slice(0, 80), Number(amount), installments, on, on.slice(0, 7), String(note || '').slice(0, 300), request_id || null, by ? by.id : null, by ? by.name : '');
+  try { await notify(user_id, `تمت الموافقة على ${String(name || 'سلفة').slice(0, 80)} بقيمة ${Number(amount)} جنيه على ${installments} ${installments > 1 ? 'أقساط' : 'قسط'}، وتبدأ الخصم من شهر ${on.slice(0, 7)}`, 'adjust'); } catch (e) { console.error('loan notify failed:', e.message); }
+  return lid;
 }
 app.locals.createLoan = createLoan;
 
@@ -32,8 +34,8 @@ app.get('/api/loans', auth, need('payroll.view'), wrap(async (req, res) => {
 app.post('/api/loans', auth, need('payroll.manage'), wrap(async (req, res) => {
   const b = req.body || {}, uid = toId(b.user_id), amount = Number(b.amount), inst = Number(b.installments) || 1;
   const u = uid && await db.get('SELECT id,name FROM users WHERE id=?', uid);
-  if (!u) return res.status(400).json({ error: 'اختاري الموظف' });
-  if (!(amount > 0) || amount > 100000000) return res.status(400).json({ error: 'اكتبي مبلغ القرض' });
+  if (!u) return res.status(400).json({ error: 'اختار الموظف' });
+  if (!(amount > 0) || amount > 100000000) return res.status(400).json({ error: 'اكتب مبلغ القرض' });
   if (!Number.isInteger(inst) || inst < 1 || inst > 60) return res.status(400).json({ error: 'عدد الأقساط من 1 إلى 60' });
   const id = await createLoan({ user_id: uid, name: b.name, amount, installments: inst, date: b.date, note: b.note, by: req.user });
   res.json({ ok: true, id });

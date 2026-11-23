@@ -1,5 +1,5 @@
 'use strict';
-/* routes/avatars.js — صورة البروفايل: أول بصمة بتتحفظ تلقائي، وتتغيّر يدوي من الموظفة نفسها أو من مدير الموارد */
+/* routes/avatars.js — صورة البروفايل: أول بصمة بتتحفظ تلقائي، وتتغيّر يدوي من الموظف نفسه أو من مدير الموارد */
 const { auth, wrap } = require('../src/middleware');
 const { can, outranks, parsePhoto, toId } = require('../src/helpers');
 const { db } = require('../src/db');

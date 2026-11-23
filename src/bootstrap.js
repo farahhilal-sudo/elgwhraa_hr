@@ -91,11 +91,11 @@ async function init() {
   if (!(await db.get("SELECT 1 FROM settings WHERE key='ot_basic_v1'"))) {
     for (const [k, v] of [['overtime_minute_rate', '0'], ['overtime_factor', '2'], ['ot_basic_v1', '1']]) await db.run('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', k, v);
   }
-  // طوارئ: لو المدير نسي كلمة المرور ومفيش مدير تاني، حطي RESET_ADMIN_PASSWORD وأعيدي التشغيل (وبعدها شيليه)
+  // طوارئ: لو المدير نسي كلمة المرور ومفيش مدير تاني، حط RESET_ADMIN_PASSWORD وأعيد التشغيل (وبعدها شيله)
   await db.run("UPDATE settings SET value='GWHRAA HR' WHERE key='company_name' AND value='شركتي'"); // الاسم الافتراضي الجديد
   if (process.env.RESET_ADMIN_PASSWORD) {
     await db.run('UPDATE users SET password_hash=?, must_change=1, active=1, pending=0 WHERE username=? AND is_admin=1', bcrypt.hashSync(process.env.RESET_ADMIN_PASSWORD, 10), process.env.RESET_ADMIN_USERNAME || 'admin');
-    console.log('تمت إعادة تعيين كلمة مرور المدير (RESET_ADMIN_PASSWORD). شيلي المتغير بعد الدخول.');
+    console.log('تمت إعادة تعيين كلمة مرور المدير (RESET_ADMIN_PASSWORD). شيل المتغير بعد الدخول.');
   }
 }
 const ready = init();

@@ -1,5 +1,5 @@
 // خدمة بسيطة تخلّي الموقع يتثبت كتطبيق. البيانات دايماً من الإنترنت.
-const CACHE = 'hr-shell-v46';
+const CACHE = 'hr-shell-v48';
 const FACE = 'hr-face-v1'; // مكتبة الوجه ونماذجها (حوالي 7MB) بتتحمّل مرة واحدة بس وبعدها فورية
 // ملفات الواجهة (css + js) بالترتيب نفسه اللي في index.html
 const SHELL = [
@@ -95,6 +95,19 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   if (e.request.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
+  // ملفات الواجهة المجمّعة (إسمها فيه الهاش: عمرها ما بتتغيّر): من الكاش فوراً
+  if (url.pathname.startsWith('/assets/')) {
+    e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request).then((r) => { if (r.ok) { const cp = r.clone(); caches.open(CACHE).then((c) => c.put(e.request, cp)); } return r; })));
+    return;
+  }
+  // الصفحة الرئيسية: من الكاش فوراً وتتحدّث في الخلفية (التحديث بيظهر في الفتحة الجاية)
+  if (e.request.mode === 'navigate' && url.pathname === '/') {
+    e.respondWith(caches.open(CACHE).then((c) => c.match('/').then((hit) => {
+      const net = fetch(e.request).then((r) => { if (r.ok) c.put('/', r.clone()); return r; }).catch(() => hit);
+      return hit || net;
+    })));
+    return;
+  }
   e.respondWith(fetch(e.request).then((r) => {
     const copy = r.clone();
     caches.open(CACHE).then((c) => c.put(e.request, copy));

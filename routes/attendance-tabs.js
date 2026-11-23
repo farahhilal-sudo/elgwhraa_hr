@@ -60,7 +60,7 @@ app.get('/api/att/penalties/mine', auth, (req, res, next) => { req.query = { ...
 app.post('/api/att/penalties/flag', auth, need('attendance.edit'), wrap(async (req, res) => {
   const items = Array.isArray(req.body && req.body.items) ? req.body.items.slice(0, 500) : [];
   const applied = req.body.applied === false || req.body.applied === 0 ? 0 : 1, note = String(req.body.note || '').slice(0, 200);
-  if (!items.length) return res.status(400).json({ error: 'اختاري عنصر واحد على الأقل' });
+  if (!items.length) return res.status(400).json({ error: 'اختار عنصر واحد على الأقل' });
   for (const it of items) {
     const uid = toId(it.user_id);
     if (!uid || !isDate(it.date) || !['absent', 'late', 'early'].includes(it.kind)) return res.status(400).json({ error: 'بيانات غير صحيحة' });

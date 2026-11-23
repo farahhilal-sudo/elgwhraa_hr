@@ -24,12 +24,12 @@ app.get('/api/assets', auth, need('employees.view'), wrap(async (req, res) => {
   res.json({ rows, types, locations, employees, can_manage: can(req.user, 'employees.manage') });
 }));
 const body = (b) => {
-  const name = String(b.name || '').trim().slice(0, 150); if (!name) return { error: 'اكتبي اسم الأصل' };
+  const name = String(b.name || '').trim().slice(0, 150); if (!name) return { error: 'اكتب اسم الأصل' };
   const serialized = b.serialized === false || b.serialized === 0 || b.serialized === '0' ? 0 : 1;
   let serials = serialized ? [...new Set(String(Array.isArray(b.serials) ? b.serials.join('\n') : b.serials || '').split(/[\n,،;]+/).map((s) => s.trim()).filter(Boolean))].slice(0, 2000) : [];
   let units = Math.floor(Number(b.units));
   if (serialized && serials.length) units = serials.length; // الأرقام التسلسلية هي اللي بتحدد العدد
-  if (!(units >= 1) || units > 100000) return { error: 'اكتبي عدد الوحدات (1 أو أكتر)' };
+  if (!(units >= 1) || units > 100000) return { error: 'اكتب عدد الوحدات (1 أو أكتر)' };
   return { name, type_name: String(b.type_name || '').slice(0, 100), brand: String(b.brand || '').slice(0, 100), model: String(b.model || '').slice(0, 100), units, serialized, location: String(b.location || '').slice(0, 120), serials: JSON.stringify(serials) };
 };
 app.post('/api/assets', auth, need('employees.manage'), wrap(async (req, res) => {
@@ -112,7 +112,7 @@ app.get('/api/asset-requests', auth, wrap(async (req, res) => {
 }));
 app.post('/api/asset-requests', auth, wrap(async (req, res) => {
   const b = req.body || {}, type = String(b.type_name || '').trim().slice(0, 100);
-  if (!type) return res.status(400).json({ error: 'اختاري نوع الأصل' });
+  if (!type) return res.status(400).json({ error: 'اختار نوع الأصل' });
   let uid = req.user.id;
   if (toId(b.user_id) && toId(b.user_id) !== req.user.id) { if (!can(req.user, 'employees.manage')) return res.status(403).json({ error: 'ليس لديك صلاحية لهذا الإجراء' }); uid = toId(b.user_id); }
   const u = await db.get('SELECT id,name FROM users WHERE id=? AND active=1', uid);
@@ -129,7 +129,7 @@ app.post('/api/asset-requests/:id/decide', auth, need('employees.manage'), wrap(
   let assetId = null;
   if (b.decision === 'approved') {
     const a = toId(b.asset_id) && await db.get("SELECT * FROM assets WHERE id=? AND status='active'", toId(b.asset_id));
-    if (!a) return res.status(400).json({ error: 'اختاري الأصل اللي هيتسلّم' });
+    if (!a) return res.status(400).json({ error: 'اختار الأصل اللي هيتسلّم' });
     const d = decorate(a); if (d.available_units < 1) return res.status(400).json({ error: 'الأصل ده مفيش منه وحدات متاحة' });
     const u = await db.get('SELECT id,name FROM users WHERE id=?', r.user_id), as = [...d.assigned], ex = as.find((x) => x.user_id === u.id);
     if (ex) ex.units = (Number(ex.units) || 1) + 1; else as.push({ user_id: u.id, name: u.name, units: 1, at: new Date().toISOString() });

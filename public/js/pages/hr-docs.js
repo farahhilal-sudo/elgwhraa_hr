@@ -76,7 +76,7 @@ async function hdShowLetter(id) {
     <div class="tkmf" style="padding:0 22px 18px"><button class="btn" id="hprint">${ico('download')} طباعة / تنزيل PDF</button></div>`);
   m.querySelector('.modal').classList.add('tkmodal', 'narrow');
   $('#hprint', m).onclick = () => {
-    const w = window.open('', '_blank'); if (!w) return toast('اسمحي بالنوافذ المنبثقة عشان الطباعة');
+    const w = window.open('', '_blank'); if (!w) return toast('اسمح بالنوافذ المنبثقة عشان الطباعة');
     w.document.write(`<!doctype html><html dir="${rtl ? 'rtl' : 'ltr'}"><head><meta charset="utf-8"><title>${esc(l.template_name)}</title><style>body{font-family:Cairo,Tahoma,Arial,sans-serif;margin:48px 56px;line-height:2;font-size:16px;white-space:pre-wrap}h1{font-size:20px;text-align:center;margin:0 0 24px}</style></head><body><h1>${esc(l.template_name)}</h1>${esc(l.body)}</body></html>`);
     w.document.close(); setTimeout(() => w.print(), 300);
   };

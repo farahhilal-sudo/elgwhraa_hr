@@ -26,7 +26,7 @@ app.post('/api/login', wrap(async (req, res) => {
   const lname = username.trim().toLowerCase();
   const ip = req.ip || '', userKey = ip + '|' + lname;
   if (recentFails(userKey, 5 * 60 * 1000) >= 5 || recentFails(ip + '|*', 15 * 60 * 1000) >= 50)
-    return res.status(429).json({ error: 'محاولات كثيرة، جرّبي بعد دقائق' });
+    return res.status(429).json({ error: 'محاولات كثيرة، جرّب بعد دقائق' });
   const u = await db.get('SELECT * FROM users WHERE lower(username)=?', lname);
   const pwOk = bcrypt.compareSync(password, u ? u.password_hash : DUMMY_HASH) && !!u;
   if (u && u.pending && pwOk)
@@ -48,12 +48,12 @@ app.get('/api/public', wrap(async (req, res) => {
 
 app.post('/api/signup', wrap(async (req, res) => {
   const st = await settings();
-  if (st.signup_enabled === '0') return res.status(403).json({ error: 'إنشاء الحسابات الجديدة مغلق حالياً، تواصلي مع المدير' });
-  if (limited(req, 'signup', 5, 60 * 60 * 1000)) return res.status(429).json({ error: 'محاولات كثيرة، جرّبي بعد قليل' });
+  if (st.signup_enabled === '0') return res.status(403).json({ error: 'إنشاء الحسابات الجديدة مغلق حالياً، تواصل مع المدير' });
+  if (limited(req, 'signup', 5, 60 * 60 * 1000)) return res.status(429).json({ error: 'محاولات كثيرة، جرّب بعد قليل' });
   const b = req.body || {};
   const name = String(b.name || '').trim().slice(0, 80), username = String(b.username || '').trim();
   const password = String(b.password || ''), phone = String(b.phone || '').trim().slice(0, 30);
-  if (name.length < 3) return res.status(400).json({ error: 'اكتبي الاسم بالكامل' });
+  if (name.length < 3) return res.status(400).json({ error: 'اكتب الاسم بالكامل' });
   if (!USERNAME_RE.test(username)) return res.status(400).json({ error: 'اسم المستخدم من 3 إلى 30 حرف/رقم بدون مسافات' });
   if (password.length < 6) return res.status(400).json({ error: 'كلمة المرور 6 أحرف على الأقل' });
   if (await db.get('SELECT 1 FROM users WHERE lower(username)=?', username.toLowerCase())) return res.status(409).json({ error: 'اسم المستخدم مستخدم من قبل' });
@@ -65,10 +65,10 @@ app.post('/api/signup', wrap(async (req, res) => {
 }));
 
 app.post('/api/forgot-password', wrap(async (req, res) => {
-  if (limited(req, 'forgot', 5, 60 * 60 * 1000)) return res.status(429).json({ error: 'محاولات كثيرة، جرّبي بعد قليل' });
+  if (limited(req, 'forgot', 5, 60 * 60 * 1000)) return res.status(429).json({ error: 'محاولات كثيرة، جرّب بعد قليل' });
   const username = String((req.body || {}).username || '').trim().toLowerCase();
   const note = String((req.body || {}).note || '').trim().slice(0, 200);
-  if (!username) return res.status(400).json({ error: 'اكتبي اسم المستخدم' });
+  if (!username) return res.status(400).json({ error: 'اكتب اسم المستخدم' });
   const u = await db.get('SELECT * FROM users WHERE lower(username)=? AND active=1 AND pending=0', username);
   if (u && !(await db.get("SELECT 1 FROM password_resets WHERE user_id=? AND status='pending'", u.id))) {
     await db.run('INSERT INTO password_resets(user_id,note) VALUES(?,?)', u.id, note);
@@ -118,7 +118,7 @@ app.post('/api/me/password', auth, wrap(async (req, res) => {
 app.post('/api/me/face', auth, wrap(async (req, res) => {
   const { descriptor } = req.body || {};
   if (!validDescriptor(descriptor)) return res.status(400).json({ error: 'بيانات الوجه غير صالحة' });
-  if (req.user.face_descriptor) return res.status(409).json({ error: 'بصمة الوجه مسجلة بالفعل. اطلبي من المدير إعادة ضبطها.' });
+  if (req.user.face_descriptor) return res.status(409).json({ error: 'بصمة الوجه مسجلة بالفعل. اطلب من المدير إعادة ضبطها.' });
   await db.run('UPDATE users SET face_descriptor=? WHERE id=?', JSON.stringify(descriptor), req.user.id);
   res.json({ ok: true });
 }));

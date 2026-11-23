@@ -7,9 +7,9 @@ HELP.schedule = {
   basic: ['وزن يوم العمل', 'مقدار احتساب هذه الوردية كيوم عمل – وليس عدد الساعات. 1 = يوم كامل و0.5 = نصف يوم. وبيتضرب في خصم الغياب: غياب يوم في وردية وزنها 0.5 بيتخصم نصف يوم.', null],
   window: ['أبكر وقت مسموح لتسجيل الدخول', 'المدة التي يُسمح للموظف بتسجيل الدخول خلالها قبل بدء نافذة تسجيل الدخول. الوقت المسجَّل قبل النافذة لا يُحتسب ضمن ساعات العمل.', null, ['مثال', 'إذا بدأ الدخول في 9:00 صباحًا وتسمح بـ 30 دقيقة مبكرًا، فسيُسجَّل الدخول في 8:35 صباحًا باعتباره 9:00 صباحًا (دون رصيد إضافي).']],
   hours: ['عدد ساعات العمل', 'عدد ساعات الوردية الفعلية. نهاية الوردية بتتحسب تلقائيًا = البداية + عدد الساعات + مدة الاستراحة، وعليها بيتحسب الانصراف المبكر والوقت الإضافي.', null],
-  final_in: ['وقت تسجيل الدخول النهائي', 'لو ضبطتيه، فلن يُسمح بأي تسجيل دخول بعد هذا الوقت، ولو الموظف ما سجلش قبله يُحتسب غائبًا.', null, ['مثال', 'اضبطيه 11:00 صباحًا لضمان عدم تسجيل أحد الدخول للورديّة الصباحية بعد الساعة 11.']],
+  final_in: ['وقت تسجيل الدخول النهائي', 'لو ضبطتيه، فلن يُسمح بأي تسجيل دخول بعد هذا الوقت، ولو الموظف ما سجلش قبله يُحتسب غائبًا.', null, ['مثال', 'اضبطه 11:00 صباحًا لضمان عدم تسجيل أحد الدخول للورديّة الصباحية بعد الساعة 11.']],
   earliest_out: ['أبكر وقت مسموح به لتسجيل الانصراف', 'أي انصراف قبل هذا الوقت يُرفض. اتركيه فاضي لو مفيش حد أدنى.', null],
-  penalty: ['سياسة الجزاءات', 'التأخير والغياب والانصراف المبكر وعدم تسجيل الانصراف تُحدَّد مرة واحدة في سياسة الجزاءات وتُربط هنا. لا تحتوي السياسة على أوقات فعلية – تُحسب فروقها بالنسبة لنطاق الحضور في هذا الجدول.', 'تعديل السياسة يغيّر كل مواعيد العمل المرتبطة بها. لتغيير القواعد لهذا الجدول وحده، اربطي سياسة مختلفة.'],
+  penalty: ['سياسة الجزاءات', 'التأخير والغياب والانصراف المبكر وعدم تسجيل الانصراف تُحدَّد مرة واحدة في سياسة الجزاءات وتُربط هنا. لا تحتوي السياسة على أوقات فعلية – تُحسب فروقها بالنسبة لنطاق الحضور في هذا الجدول.', 'تعديل السياسة يغيّر كل مواعيد العمل المرتبطة بها. لتغيير القواعد لهذا الجدول وحده، اربط سياسة مختلفة.'],
   overtime: ['سياسة العمل الإضافي', 'الحد الأدنى والسقف والتقريب للوقت المعمول بعد الانصراف المحسوب تُحدَّد في سياسة العمل الإضافي. اتركيها غير مرتبطة إذا كان هذا الجدول لا يدفع عملًا إضافيًا.', null],
   face: ['التعرف على الوجه', 'تحقق من الهوية عبر مسح الوجه عند تسجيل الحضور والانصراف. الموظفون اللي مالهمش صورة وجه مسجّلة بيتعاملوا حسب إعدادات الشركة.', null],
   remind: ['تذكير بتسجيل الخروج', 'يرسل تذكيرًا قرب النهاية الرسمية للموظفين اللي لسه ما سجّلوا خروج، وتجنّب علامة تسجيل الخروج المفقود.', null],
@@ -39,7 +39,7 @@ const swPenaltyPreview = (d) => {
   const p = POL.pen.find((x) => String(x.id) === String(d.penalty_id ?? ''));
   const head = (title, goBtn) => `<div class="swlink ${p ? 'on' : ''}" data-help="penalty"><div><small>سياسة الجزاءات المرتبطة</small><b>${p ? esc(p.name) : 'لا توجد سياسة – تُطبَّق الإعدادات العامة'}</b></div>${goBtn}</div>`;
   const goBtn = '<button type="button" class="swgo" data-swgo="0">التغيير من المعلومات الأساسية</button>';
-  if (!p) return head('', goBtn) + '<p class="muted small">اربطي سياسة جزاءات من الخطوة الأولى لتظهر تفاصيل التأخير والانصراف المبكر هنا.</p>';
+  if (!p) return head('', goBtn) + '<p class="muted small">اربط سياسة جزاءات من الخطوة الأولى لتظهر تفاصيل التأخير والانصراف المبكر هنا.</p>';
   const s = d.start, g = Number(p.grace) || 0, e = d.end;
   const tiers = (p.tiers || []).slice().sort((a, b) => a.from - b.from);
   const kindTxt = (t) => (t.kind === 'minutes' ? `راتب × ${t.value} عن كل دقيقة` : t.kind === 'fixed' ? `خصم ${t.value} جنيه` : `خصم ${t.value} من أجر اليوم`);
@@ -64,7 +64,7 @@ const swOvertimePreview = (d) => {
   const p = POL.ot.find((x) => String(x.id) === String(d.overtime_id ?? ''));
   const goBtn = '<button type="button" class="swgo" data-swgo="0">التغيير من المعلومات الأساسية</button>';
   const head = `<div class="swlink ${p ? 'on' : ''}" data-help="overtime"><div><small>سياسة العمل الإضافي المرتبطة</small><b>${p ? esc(p.name) : 'لا توجد سياسة – تُطبَّق الإعدادات العامة'}</b></div>${goBtn}</div>`;
-  if (!p) return `${head}<p class="muted small">اربطي سياسة وقت إضافي من الخطوة الأولى لتظهر تفاصيلها هنا.</p>`;
+  if (!p) return `${head}<p class="muted small">اربط سياسة وقت إضافي من الخطوة الأولى لتظهر تفاصيلها هنا.</p>`;
   const row = (l, v) => `<div class="swkv"><b>${l}</b><span>${v}</span></div>`;
   const rnd = !p.calc_on ? '—' : p.rounding === 'up' ? `تقريب للأعلى · ${p.round_unit} د` : p.rounding === 'down' ? `تقريب للأسفل · ${p.round_unit} د` : 'الدقائق الفعلية';
   return head + `<div class="swkvs">${row('يبدأ الحساب', !p.calc_on ? 'لا يُحتسب' : Number(p.after_min) > 0 ? `بعد ${p.after_min} دقيقة من الانصراف` : 'من أول دقيقة إضافية')}${row('التقريب', rnd)}${row('الحد اليومي', Number(p.cap_hours) > 0 ? `${p.cap_hours} ساعة` : 'لا أحد')}${row('معامل الأجر', `× ${p.factor ?? SETV.overtime_factor ?? 1.5}`)}${row('طلب العمل الإضافي', 'يبدأه النظام تلقائيًا (ويحتاج إلى موافقة)')}</div>`;
@@ -80,10 +80,10 @@ function scheduleSteps() {
         <div class="pwfld" data-help="basic"><label class="lbl">نوع يوم العمل</label>${pwRadio('type', d.type, [['full', 'يوم كامل', 'تُحتسب الوردية كيوم عمل كامل'], ['half', 'نصف يوم', 'تُحتسب الوردية كنصف يوم']], 'two')}</div>
         <div class="pwfld" data-help="details"><label class="lbl">وزن يوم العمل</label>${pwStep('data-k="weight"', d.weight, 0.25, 0.25, 5)}</div>
         ${swTog('require_start', d.require_start, 'هل يحتاج الموظفون إلى تسجيل الدخول في بداية كل يوم عمل؟', 'لو مقفول: اليوم من غير حضور لا يُحتسب غيابًا ولا يُخصم.')}
-        <div class="pwfld" style="margin-top:18px" data-help="penalty"><label class="lbl">سياسة الجزاءات المرتبطة</label>${swPolSel('penalty_id', POL.pen, d.penalty_id, 'بدون سياسة (الإعدادات العامة)')}<p class="muted small">تُكتب السياسات لمجموعة من الموظفين كفروق زمنية عن مواعيد توقيت العمل هذا. اختاري واحدة وستُطبَّق على هذا الجدول فورًا.</p></div>
+        <div class="pwfld" style="margin-top:18px" data-help="penalty"><label class="lbl">سياسة الجزاءات المرتبطة</label>${swPolSel('penalty_id', POL.pen, d.penalty_id, 'بدون سياسة (الإعدادات العامة)')}<p class="muted small">تُكتب السياسات لمجموعة من الموظفين كفروق زمنية عن مواعيد توقيت العمل هذا. اختار واحدة وستُطبَّق على هذا الجدول فورًا.</p></div>
         <div class="pwfld" data-help="overtime"><label class="lbl">سياسة العمل الإضافي المرتبطة</label>${swPolSel('overtime_id', POL.ot, d.overtime_id, 'بدون سياسة (الإعدادات العامة)')}</div>`,
       on: (root, d, h) => { const b = root.querySelector('[data-swen]'); if (b) b.onclick = () => { d._en = true; h.redraw(); }; },
-      check: (d) => (String(d.name || '').trim() ? (Number(d.weight) > 0 && Number(d.weight) <= 5 ? null : 'وزن يوم العمل بين 0.25 و 5') : 'اكتبي اسم التوقيت') },
+      check: (d) => (String(d.name || '').trim() ? (Number(d.weight) > 0 && Number(d.weight) <= 5 ? null : 'وزن يوم العمل بين 0.25 و 5') : 'اكتب اسم التوقيت') },
     { title: 'تفاصيل الجدول', sub: 'متى يمكن للموظفين تسجيل الحضور وما مدة العمل؟', icon: 'clock', help: 'window',
       body: (d) => `<div class="pwfld" data-help="window"><label class="lbl">ما هو النطاق الزمني المتوقع لتسجيل الحضور؟ <em class="req">*</em></label>
           <div class="swpair">${swTime('start', d.start)}<i>←</i>${swTime('ci_to', d.ci_to)}</div></div>
@@ -97,7 +97,7 @@ function scheduleSteps() {
           <div class="swgrid"><div class="pwfld" data-help="final_in"><label class="lbl">ما هو وقت تسجيل الدخول النهائي؟</label>${swTime('final_in', d.final_in)}</div>
             <div class="pwfld" data-help="earliest_out"><label class="lbl">ما أبكر وقت مسموح به لتسجيل الانصراف؟</label>${swTime('earliest_out', d.earliest_out)}</div></div></details>
         ${swTog('allow_early_out', d.allow_early_out, 'السماح بتسجيل الانصراف مبكرًا', '')}${swTog('auto_out', d.auto_out, 'تسجيل الانصراف التلقائي للموظفين الذين لم يسجلوا انصرافهم', '')}`,
-      check: (d) => (!d.start || !d.end ? 'حددي وقت البداية'
+      check: (d) => (!d.start || !d.end ? 'حدد وقت البداية'
         : !(Number(d.work_hours) > 0 && Number(d.work_hours) <= 24) ? 'عدد ساعات العمل بين 0.5 و 24'
           : d.final_in && swMin(d.final_in) < swMin(d.start) ? 'وقت الدخول النهائي لازم يكون بعد بداية الوردية' : null) },
     { title: 'سياسة الجزاءات', sub: 'التأخير والغياب والانصراف المبكر وعدم تسجيل الانصراف', icon: 'shield', help: 'penalty',
@@ -109,7 +109,7 @@ function scheduleSteps() {
     { title: 'تذكيرات الحضور والانصراف', sub: 'تنبيه الموظفين الذين قد ينسون تسجيل الحضور أو الانصراف', icon: 'bell', help: 'remind',
       body: (d) => `${swTog('remind_in', d.remind_in, 'تذكير الموظفين بتسجيل الدخول', '', d.remind_in ? `<div class="swsub">${swTime('remind_in_t', d.remind_in_t)}</div>` : '')}
         ${swTog('remind_out', d.remind_out, 'تذكير الموظفين بتسجيل الخروج', '', d.remind_out ? `<div class="swsub">${swTime('remind_out_t', d.remind_out_t)}</div>` : '')}`,
-      check: (d) => ((d.remind_in && !d.remind_in_t) || (d.remind_out && !d.remind_out_t) ? 'حددي وقت التذكير' : null) },
+      check: (d) => ((d.remind_in && !d.remind_in_t) || (d.remind_out && !d.remind_out_t) ? 'حدد وقت التذكير' : null) },
     { title: 'إعدادات الاستراحات', sub: 'استراحات مدفوعة وغير مدفوعة ضمن يوم العمل', icon: 'pause', help: 'breaks',
       body: (d) => swTog('break_override', d.break_override, 'تجاوز إعدادات الاستراحة الافتراضية', 'استراحة هذا الموعد (من خطوة تفاصيل الجدول) تُخصم من ساعات الوردية المدفوعة بدل ملف الإجازة والاستراحة.') },
     { title: 'إعدادات الأذونات', sub: 'غيابات قصيرة مدفوعة وغير مدفوعة أثناء الوردية', icon: 'key', help: 'perms',
@@ -132,7 +132,7 @@ function openScheduleWizard(spec, it, reload) {
   policyWizard({
     d, guided: !it, noMode: true, icon: 'clock', groups: [{ title: 'الجدول', idx: [0, 1, 2, 3] }, { title: 'إعدادات يوم العمل', idx: [4, 5, 6, 7, 8, 9] }],
     steps: scheduleSteps(), help: HELP.schedule,
-    title: 'مواعيد العمل', subtitle: it ? `تعديل: ${it.name}` : 'اضبطي القواعد التي تنظم الحضور لهذا الجدول', progressLabel: 'مواعيد العمل',
+    title: 'مواعيد العمل', subtitle: it ? `تعديل: ${it.name}` : 'اضبط القواعد التي تنظم الحضور لهذا الجدول', progressLabel: 'مواعيد العمل',
     onInput: (k, dd, old, root) => {
       if (['start', 'work_hours', 'brk'].includes(k)) {
         recalcEnd(dd);

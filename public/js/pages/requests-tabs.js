@@ -180,7 +180,7 @@ const rqAmt = (def) => `<label class="f">طريقة الحساب<select name="un
 async function rqCreate(type, done) {
   if (!MGR_LABEL(type)) return requestForm(done, { type });
   const people = await api('/colleagues').catch(() => []);
-  const emp = `<label class="f full">الموظف<select name="user_id" required><option value="">— اختاري —</option>${people.map((u) => `<option value="${u.id}">${esc(u.name)}${u.job_title ? ' — ' + esc(u.job_title) : ''}</option>`).join('')}</select></label>`;
+  const emp = `<label class="f full">الموظف<select name="user_id" required><option value="">— اختار —</option>${people.map((u) => `<option value="${u.id}">${esc(u.name)}${u.job_title ? ' — ' + esc(u.job_title) : ''}</option>`).join('')}</select></label>`;
   const dates = [...new Set(people.map((u) => u.department).filter(Boolean))], jobs = [...new Set(people.map((u) => u.job_title).filter(Boolean))];
   const F = {
     bonus_req: `${emp}${rqAmt()}`, deduction_req: `${emp}${rqAmt()}`,

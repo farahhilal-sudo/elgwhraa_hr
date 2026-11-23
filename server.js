@@ -35,7 +35,39 @@ const walkStatic = (dir, ext) => {
   try { rec(base, '/' + dir); } catch (e) { console.error('static scan skipped:', dir, e.message); }
   return out.sort();
 };
+// ===== تجميع ملفات الواجهة =====
+// index.html بيحمّل ~90 ملف (css + js): كل ملف طلب منفصل. هنا بنجمّعهم عند التشغيل في ملف css واحد وملف js واحد (بنفس الترتيب بالظبط)
+// ونقدّمهم مضغوطين بإسم فيه الهاش (cache لسنة)، وبنعدّل index.html و sw.js اللي بيتقدّموا من الذاكرة بس — الملفات الأصلية في public/ زي ما هي.
+const BUNDLES = {};
+const rawSrc = (f) => fs.readFileSync(path.join(__dirname, 'public', f), 'utf8');
+const minCss = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s*\n\s*/g, '\n').replace(/[ \t]{2,}/g, ' ');
+function buildBundles() {
+  let html = rawSrc('/index.html');
+  const cssFiles = [...html.matchAll(/<link rel="stylesheet" href="(\/css\/[^"]+)">/g)].map((m) => m[1]);
+  const jsFiles = [...html.matchAll(/<script src="(\/js\/[^"]+)"><\/script>/g)].map((m) => m[1]);
+  if (!cssFiles.length || !jsFiles.length) return null;
+  const css = cssFiles.map((f) => minCss(rawSrc(f))).join('\n');
+  const js = jsFiles.map((f) => rawSrc(f)).join('\n;\n');
+  const h = (t) => crypto.createHash('sha1').update(t).digest('hex').slice(0, 10);
+  const cssUrl = `/assets/app.${h(css)}.css`, jsUrl = `/assets/app.${h(js)}.js`;
+  BUNDLES[cssUrl] = css; BUNDLES[jsUrl] = js;
+  let first = true;
+  html = html.replace(/\s*<link rel="stylesheet" href="\/css\/[^"]+">/g, () => { if (!first) return ''; first = false; return `\n  <link rel="stylesheet" href="${cssUrl}">`; });
+  html = html.replace(/\s*<script src="\/js\/[^"]+"><\/script>/g, '').replace('</body>', `  <script src="${jsUrl}"></script>\n</body>`);
+  html = html.replace('<link rel="manifest"', `<link rel="preload" href="${jsUrl}" as="script">\n  <link rel="manifest"`);
+  const swSrc = rawSrc('/sw.js').replace(/const SHELL = \[[\s\S]*?\n\];/, `const SHELL = ['/', '/icon.svg', '/logo.png', '/icon-192.png', '/manifest.json', '${cssUrl}', '${jsUrl}'];`);
+  return { html, swSrc, cssFiles, jsFiles };
+}
+let bundled = null;
+try { bundled = buildBundles(); } catch (e) { console.error('bundle build skipped:', e.message); }
+const pack = (raw, br) => ({ raw, etag: '"' + crypto.createHash('sha1').update(raw).digest('hex').slice(0, 20) + '"', br: zlib.brotliCompressSync(Buffer.from(raw), { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: br } }), gz: zlib.gzipSync(raw, { level: 9 }) });
+if (bundled) {
+  for (const [u, t] of Object.entries(BUNDLES)) staticCache.set(u, pack(t, 10));
+  staticCache.set('/index.html', pack(bundled.html, 9));
+  staticCache.set('/sw.js', pack(bundled.swSrc, 9));
+}
 for (const f of ['/index.html', '/manifest.json', ...walkStatic('js', '.js'), ...walkStatic('css', '.css')]) {
+  if (bundled && f === '/index.html') continue;
   try {
     const raw = fs.readFileSync(path.join(__dirname, 'public', f));
     staticCache.set(f, {
@@ -48,7 +80,8 @@ app.use((req, res, next) => {
   if (req.method !== 'GET') return next();
   const key = req.path === '/' ? '/index.html' : req.path, e = staticCache.get(key);
   if (!e) return next();
-  res.setHeader('ETag', e.etag); res.setHeader('Cache-Control', 'no-cache'); res.setHeader('Vary', 'Accept-Encoding');
+  res.setHeader('ETag', e.etag); res.setHeader('Vary', 'Accept-Encoding');
+  res.setHeader('Cache-Control', key.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache');
   res.setHeader('Content-Type', STATIC_MIME[path.extname(key)]);
   if (req.headers['if-none-match'] === e.etag) return res.status(304).end();
   const ae = String(req.headers['accept-encoding'] || '');
@@ -56,14 +89,14 @@ app.use((req, res, next) => {
   if (/\bgzip\b/.test(ae)) { res.setHeader('Content-Encoding', 'gzip'); return res.end(e.gz); }
   res.end(e.raw);
 });
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1d' }));
 
 // للاستضافات اللي بتفحص الصحة أو أدوات "إبقاء السيرفر صاحي" — مبتلمسش قاعدة البيانات
 app.get('/healthz', (req, res) => res.type('text').send('ok'));
 
 // أي طلب /api بيستنى لحد ما قاعدة البيانات تجهز (أول تشغيل)
 app.use('/api', (req, res, next) => {
-  ready.then(() => next(), () => res.status(503).json({ error: 'قاعدة البيانات غير متاحة حالياً، حاولي بعد لحظات' }));
+  ready.then(() => next(), () => res.status(503).json({ error: 'قاعدة البيانات غير متاحة حالياً، حاول بعد لحظات' }));
 });
 
 // ===== مجموعات الـ API (بنفس ترتيب التسجيل الأصلي) =====

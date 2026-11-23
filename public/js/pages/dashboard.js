@@ -93,7 +93,7 @@ PAGES.dashboard = async (view) => {
     view.querySelectorAll('[data-go]').forEach((b) => (b.onclick = () => go2(C[Number(b.dataset.go)][3])));
     drawLegacy(d);
     $('#dmiss', view).innerHTML = `<div class="card dmiss"><div class="dwh"><h3>موظفون بجداول ناقصة</h3><i class="dsq">${DSVG.cal}</i></div>
-      ${d.no_schedule ? `<div class="dmrow warn"><i class="dsq warn">${DSVG.cal}</i><div><b>${d.no_schedule} موظف بدون موعد عمل</b><span>حددي الوردية من بيانات الموظف</span></div></div>`
+      ${d.no_schedule ? `<div class="dmrow warn"><i class="dsq warn">${DSVG.cal}</i><div><b>${d.no_schedule} موظف بدون موعد عمل</b><span>حدد الوردية من بيانات الموظف</span></div></div>`
         : `<div class="dmrow"><i class="dsq ok">${DSVG.cal}</i><div><b>جميع الموظفين لديهم جدول اليوم</b><span>لا يلزم اتخاذ إجراء الآن</span></div></div>`}</div>`;
   };
   view.querySelectorAll('.dgf [data-k]').forEach((el) => (el.onchange = () => { G[el.dataset.k] = el.value; el.closest('.sel2').classList.toggle('ph', !el.value); drawStats().catch((e) => toast(e.message, true)); }));

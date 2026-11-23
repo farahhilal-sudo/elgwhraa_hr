@@ -5,7 +5,7 @@ PAGES.loans = async (view) => {
   const STL = { active: ['جارية', 'lw'], done: ['منتهية', 'ld'], cancelled: ['ملغاة', 'lc'] };
   const dmy = (d) => (d ? `${d.slice(0, 4)} - ${d.slice(5, 7)} - ${d.slice(8, 10)}` : '—');
   view.innerHTML = `${financeTabs('loans')}<div class="lnbar">
-      <div class="lnrow"><label class="dfi"><select id="lu"><option value="">اختاري الموظف</option></select></label>
+      <div class="lnrow"><label class="dfi"><select id="lu"><option value="">اختار الموظف</option></select></label>
         <label class="dfi grow"><input id="lq" placeholder="كود / الموظف / الهاتف" value="${esc(F.q)}"></label>
         <label class="dfi"><select id="ls"><option value="">كل الحالات</option>${Object.entries(STL).map(([k, v]) => `<option value="${k}" ${F.st === k ? 'selected' : ''}>${v[0]}</option>`).join('')}</select></label></div>
       <div class="lnrow"><label class="dfi dfd"><input type="date" id="lf" value="${F.from}" title="ممنوح من"></label><label class="dfi dfd"><input type="date" id="lt" value="${F.to}" title="ممنوح على"></label>
@@ -33,7 +33,7 @@ PAGES.loans = async (view) => {
     o.querySelector('.modal').style.maxWidth = '560px';
   };
   const form = (l) => `<form class="form" id="lf2">
-      ${l ? '' : `<label class="f full">الموظف<select name="user_id" required><option value="">اختاري الموظف</option>${data.employees.map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>`}
+      ${l ? '' : `<label class="f full">الموظف<select name="user_id" required><option value="">اختار الموظف</option>${data.employees.map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>`}
       <label class="f">الاسم<input name="name" value="${esc(l ? l.name : 'سلفة')}" maxlength="80"></label>
       <label class="f">المبلغ<input type="number" name="amount" min="1" step="any" required value="${l ? l.amount : ''}" ${l && l.paid > 0 ? 'disabled' : ''}></label>
       <label class="f">عدد الأقساط (شهري)<input type="number" name="installments" min="1" max="60" value="${l ? l.installments : 1}" ${l && l.paid > 0 ? 'disabled' : ''}></label>

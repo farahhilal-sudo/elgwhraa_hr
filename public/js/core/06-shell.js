@@ -7,8 +7,8 @@ window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); inst
 function installApp() {
   if (installEv) { installEv.prompt(); installEv.userChoice.finally(() => { installEv = null; }); return; }
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
-  modal(`<h3>تثبيت التطبيق</h3><p>${ios ? 'من Safari: اضغطي زرار المشاركة <b>⬆</b> ثم <b>إضافة إلى الشاشة الرئيسية</b>.' : 'من قائمة المتصفح (⋮): اختاري <b>تثبيت التطبيق</b> أو <b>إضافة إلى الشاشة الرئيسية</b>.'}</p>
-    <p class="muted small">بعد التثبيت افتحيه من أيقونته على الشاشة، وهيظهر كتطبيق بشريط سفلي من غير شريط المتصفح.</p><div class="actions"><button class="btn" data-close>تمام</button></div>`);
+  modal(`<h3>تثبيت التطبيق</h3><p>${ios ? 'من Safari: اضغط زرار المشاركة <b>⬆</b> ثم <b>إضافة إلى الشاشة الرئيسية</b>.' : 'من قائمة المتصفح (⋮): اختار <b>تثبيت التطبيق</b> أو <b>إضافة إلى الشاشة الرئيسية</b>.'}</p>
+    <p class="muted small">بعد التثبيت افتحه من أيقونته على الشاشة، وهيظهر كتطبيق بشريط سفلي من غير شريط المتصفح.</p><div class="actions"><button class="btn" data-close>تمام</button></div>`);
 }
 // قائمة بمجموعات (زي الشاشة): عنصر مفرد أو مجموعة فيها عناصر فرعية
 const ATT_TABS = [
@@ -69,7 +69,7 @@ function renderShell() {
   S.pg = {};
   const u = S.me.user, canSearch = has('employees.view');
   // التطبيق (الشكل المرجعي): الجدول · لوحة المعلومات · طلباتي · القائمة. الموقع زي ما هو.
-  const third = IS_APP ? (has('employees.view') ? ['employees', t('Employees'), 'b_team'] : ['a_requests', t('My Requests'), 'b_req']) : has('employees.view') ? ['employees', 'الموظفون', 'b_team'] : ['me:attendance', 'سجلي', 'b_clock'];
+  const third = IS_APP ? (has('employees.view') ? ['employees', t('Employees'), 'b_team'] : ['a_requests', t('My Requests'), 'b_req']) : has('employees.view') ? ['employees', 'الموظفون', 'b_team'] : ['me:attendance', 'سجل', 'b_clock'];
   const bnav = IS_APP ? [['home', t('Schedule'), 'b_sched'], ['dashboard', t('Dashboard'), 'b_dash'], null, third, ['menu', t('Menu'), 'b_menu']]
     : [['home', 'الجدول', 'b_sched'], ['dashboard', 'لوحة المعلومات', 'b_dash'], null, third, ['menu', 'القائمة', 'b_menu']];
   const isOn = (k) => (k === 'menu' ? !['home', 'dashboard', third[0] === 'employees' ? 'employees' : third[0] === 'a_requests' ? 'a_requests' : 'me'].includes(S.page) : (k === S.page || (k === 'me:attendance' && S.page === 'me')));
@@ -77,7 +77,7 @@ function renderShell() {
     <header class="topbar">
       <button class="iconbtn hmb" id="hmb" aria-label="القائمة">${ico('menu')}</button>
       <div class="brand"><img src="/logo.png" alt=""><span>GWHRAA HR</span></div>
-      ${canSearch ? `<form class="search" id="srch">${ico('search')}<input id="sq" placeholder="ابحثي عن موظف بالاسم أو اسم المستخدم أو الهاتف..." autocomplete="off"></form>` : '<div class="grow"></div>'}
+      ${canSearch ? `<form class="search" id="srch">${ico('search')}<input id="sq" placeholder="ابحث عن موظف بالاسم أو اسم المستخدم أو الهاتف..." autocomplete="off"></form>` : '<div class="grow"></div>'}
       <div class="chip" id="cdate">${ico('calendar')}<span dir="ltr"></span></div>
       <div class="chip" id="cclk">${ico('clock')}<span dir="ltr">--:--:--</span></div>
       <button class="iconbtn" id="bell">${ico('bell')}${S.me.unread ? `<span class="dot">${S.me.unread}</span>` : ''}</button>
@@ -129,16 +129,17 @@ function renderShell() {
 }
 async function boot() {
   try {
-    if (!S.meta) S.meta = await api('/meta');
-    S.me = await api('/me');
+    // الطلبين مع بعض (كانوا ورا بعض): التحميل الأول أسرع
+    const [meta, me] = await Promise.all([S.meta || api('/meta'), api('/me')]);
+    S.meta = meta; S.me = me;
   } catch { return renderLogin(); }
   if (S.me.user.must_change) return forcePassword();
   renderShell();
 }
 function forcePassword() {
   $('#app').innerHTML = `<div class="login"><form class="card" id="pf">
-    <h2 style="margin-bottom:6px">اختاري كلمة مرور جديدة</h2>
-    <p class="muted" style="margin:0 0 14px">لازم تغيّري كلمة المرور المؤقتة قبل ما تكملي.</p>
+    <h2 style="margin-bottom:6px">اختار كلمة مرور جديدة</h2>
+    <p class="muted" style="margin:0 0 14px">لازم تغيّر كلمة المرور المؤقتة قبل ما تكمل.</p>
     <div class="grid"><label class="f">كلمة المرور الجديدة (6 أحرف على الأقل)<input name="n" type="password" minlength="6" required autocomplete="new-password"></label>
     <button class="btn big" style="font-size:16px;padding:12px">حفظ ومتابعة</button></div></form></div>`;
   $('#pf').onsubmit = (e) => { e.preventDefault(); run($('button', e.target), async () => { const r = await api('/me/password', 'POST', { new_password: e.target.n.value }); if (r.token) { S.token = r.token; localStorage.setItem('tk', r.token); } await boot(); }); };

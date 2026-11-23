@@ -228,9 +228,12 @@ async function computeMonth(user, month, st, tiers = []) {
   const sumCat = (c) => round2(adj.filter((x) => x.kind === 'deduction' && (x.category || '') === c).reduce((t, x) => t + x.amount, 0));
   const manualSocial = sumCat('social'), manualMedical = sumCat('medical'), manualTax = sumCat('tax'), manualOther = round2(manualDeductions - manualSocial - manualMedical - manualTax);
   // المرتب بيتحسب يوم بيوم: كل يوم بيعدّي (من أول الشهر أو من تاريخ التعيين) بيستحق فيه الموظف أجر يوم = (الأساسي + البدلات) ÷ 30
-  // الشهر المنتهي = 30 يوم كاملين، والشهر الجاري = الأيام اللي عدّت لحد النهارده (بما فيها اليوم)
+  // الشهر المنتهي = 30 يوم كاملين، والشهر الجاري = الأيام اللي خلصت لحد امبارح (النهارده لسه ما خلصش)
   const startAcc = user.hire_date > first ? user.hire_date : first;
-  const elapsed = startAcc <= upto ? [...eachDay(startAcc, upto)].length : 0;
+  // اليوم الجاري مش بيتحسب أجره إلا لما يخلص (لحد امبارح)؛ أما الجزاءات (تأخير...) فبتتحسب فوراً
+  const yesterday = new Date(new Date(today + 'T00:00:00Z').getTime() - 864e5).toISOString().slice(0, 10);
+  const accUpto = upto < yesterday ? upto : yesterday;
+  const elapsed = startAcc <= accUpto ? [...eachDay(startAcc, accUpto)].length : 0;
   const accruedDays = last < today && user.hire_date <= first ? 30 : Math.min(30, elapsed);
   const accruedBasic = round2((user.base_salary / 30) * accruedDays), accruedAllowances = round2((user.allowances / 30) * accruedDays);
   const compensationPay = round2(compPay);

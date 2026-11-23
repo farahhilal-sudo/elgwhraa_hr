@@ -17,7 +17,7 @@ async function empForm(u, done) {
   const isNew = !u, canSal = isNew || u.base_salary !== undefined, meAdmin = S.me.user.is_admin;
   const v = (k, d = '') => esc(u && u[k] != null && u[k] !== '' ? u[k] : d);
   const uniqOf = (k) => [...new Set(ppl.map((x) => x[k]).filter(Boolean))];
-  const faceTxt = isNew ? 'هتسجّلها الموظفة من جهازها عند أول تسجيل حضور' : u.face_exempt ? 'غير مطلوبة (حساب مدير)' : u.face_enrolled ? 'مسجلة' : 'غير مسجلة (بتسجّلها الموظفة من جهازها)';
+  const faceTxt = isNew ? 'هيسجّلها الموظف من جهازه عند أول تسجيل حضور' : u.face_exempt ? 'غير مطلوبة (حساب مدير)' : u.face_enrolled ? 'مسجلة' : 'غير مسجلة (بتسجّلها الموظف من جهازها)';
   const C = (u && u.emp_cfg) || {}, cv = (k, d) => (C[k] === undefined ? d : C[k]);
   const ctg = (k, d, t, sub) => `<div class="ew-tg"><label><span><b>${t}</b>${sub ? `<small>${sub}</small>` : ''}</span><span class="tgl"><input type="checkbox" data-c="${k}" ${cv(k, d) ? 'checked' : ''}><i></i></span></label></div>`;
   const csel = (k, d, l, opts, full) => `<label class="f ${full ? 'full' : ''}">${l}<select data-c="${k}">${opts.map(([x, t]) => `<option value="${x}" ${String(cv(k, d)) === String(x) ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`;
@@ -97,7 +97,7 @@ async function empForm(u, done) {
     close(); return out;
   }
   const o = modal(`<form id="ewf" novalidate class="ew">
-    <div class="ew-top"><button type="button" class="im-x" data-close aria-label="إغلاق">×</button><div class="ew-title"><span class="ew-ico">${ico('user')}</span><div><h3>${isNew ? 'موظف جديد' : 'تعديل بيانات الموظف'}</h3><div class="muted small">${isNew ? 'أضيفي موظفاً جديداً وحدّدي إعداداته' : 'حدّثي بيانات هذا الموظف وإعداداته'}</div></div></div></div>
+    <div class="ew-top"><button type="button" class="im-x" data-close aria-label="إغلاق">×</button><div class="ew-title"><span class="ew-ico">${ico('user')}</span><div><h3>${isNew ? 'موظف جديد' : 'تعديل بيانات الموظف'}</h3><div class="muted small">${isNew ? 'أضيف موظفاً جديداً وحدّد إعداداته' : 'حدّث بيانات هذا الموظف وإعداداته'}</div></div></div></div>
     <div class="ew-main"><nav class="ew-nav"><div class="ew-navh">الأقسام</div>${navHtml()}</nav>
       <div class="ew-panes">${steps.map((s, i) => `<section class="ew-pane" data-p="${i}" hidden><h4>${s.t}</h4><p class="muted small">${s.h}</p><div class="form">${s.html}</div></section>`).join('')}</div></div>
     <div class="ew-foot"><button class="btn" id="ewNext" type="submit">التالي</button>${isNew ? '' : '<button type="button" class="btn alt" id="ewSave">حفظ</button>'}<button type="button" class="btn alt" id="ewBack">السابق</button><button type="button" class="btn alt" data-close>إلغاء</button><span class="muted small" id="ewHint"></span></div></form>`);
@@ -136,7 +136,7 @@ async function empForm(u, done) {
   navs.forEach((n) => (n.onclick = () => show(Number(n.dataset.s))));
   $('#ewBack', o).onclick = () => show(Math.max(0, cur - 1));
   if ($('#ewSave', o)) $('#ewSave', o).onclick = save;
-  if ($('#ewResetFace', o)) $('#ewResetFace', o).onclick = () => { if (confirm('إعادة ضبط بصمة وجه الموظف؟ هيسجّلها من جديد.')) run($('#ewResetFace', o), async () => { await api(`/employees/${u.id}/reset-face`, 'POST'); $('#ewFaceTxt', o).textContent = 'تمت إعادة الضبط، هتسجّلها الموظفة من جهازها'; $('#ewResetFace', o).remove(); u.face_enrolled = false; }); };
+  if ($('#ewResetFace', o)) $('#ewResetFace', o).onclick = () => { if (confirm('إعادة ضبط بصمة وجه الموظف؟ هيسجّلها من جديد.')) run($('#ewResetFace', o), async () => { await api(`/employees/${u.id}/reset-face`, 'POST'); $('#ewFaceTxt', o).textContent = 'تمت إعادة الضبط، هيسجّلها الموظف من جهازه'; $('#ewResetFace', o).remove(); u.face_enrolled = false; }); };
   const ss = $('#schsel', o);
   if (ss) ss.onchange = () => { const [a, b] = ss.value.split('|'); if (a) { f.shift_start.value = a; f.shift_end.value = b; } };
   const money2 = (n) => (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);

@@ -64,7 +64,7 @@ function tkForm(data, t, done) {
       <label class="f full">المشروع<select name="project_id"><option value="">بدون مشروع</option>${data.projects.map((p) => `<option value="${p.id}" ${v.project_id === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></label>
       <div class="f full">الوصف${tkEditor(v.description)}</div></div>
       <div class="tkmf"><button class="btn" id="tksave">حفظ</button>${edit ? '<button type="button" class="btn alt bad" id="tkdel">حذف المهمة</button>' : ''}<span class="grow"></span>
-      <span class="muted small">${edit ? '' : 'لو سبتي الأولوية أو التاريخ فاضيين، بتتطبق قواعد التعيين.'}</span></div></form>`);
+      <span class="muted small">${edit ? '' : 'لو سبت الأولوية أو التاريخ فاضيين، بتتطبق قواعد التعيين.'}</span></div></form>`);
   o.querySelector('.modal').classList.add('tkmodal');
   const getHtml = tkBindEditor(o), f = $('#tkf', o);
   f.onsubmit = (e) => {

@@ -6,7 +6,7 @@ const pwNum = (attrs, v, unit) => `<div class="ufld"><input type="number" ${attr
 const pwStep = (attrs, v, step, min, max) => `<div class="stp"><button type="button" data-sp="-1" data-step="${step}" aria-label="إنقاص">−</button><input type="number" step="${step}" min="${min}" max="${max}" ${attrs} value="${esc(v ?? '')}"><button type="button" data-sp="1" data-step="${step}" aria-label="زيادة">+</button></div>`;
 const pwRadio = (name, val, opts, cls = '') => `<div class="rcs ${cls}">${opts.map(([v, t, s, dis]) => `<button type="button" class="rc ${String(val) === String(v) ? 'on' : ''}" data-rc="${name}" data-v="${v}" ${dis ? 'disabled' : ''}><span class="rd"></span><span><b>${t}</b>${s ? `<small>${s}</small>` : ''}</span></button>`).join('')}</div>`;
 const pwCheck = (key, on, t, s) => `<label class="cc ${on ? 'on' : ''}"><input type="checkbox" data-ck="${key}" ${on ? 'checked' : ''}><span><b>${t}</b><small>${s}</small></span></label>`;
-const pwOff = (title, key, btn) => `<div class="pwoff"><b>${title}</b><p class="muted small">فعّليه الأول عشان تقدري تضبطي إعداداته.</p><button type="button" class="btn" data-enable="${key}">${btn}</button></div>`;
+const pwOff = (title, key, btn) => `<div class="pwoff"><b>${title}</b><p class="muted small">فعّله الأول عشان تقدر تضبط إعداداته.</p><button type="button" class="btn" data-enable="${key}">${btn}</button></div>`;
 
 function policyWizard(cfg) {
   const { d, steps, groups } = cfg;
@@ -167,7 +167,7 @@ function penaltySteps() {
       body: (d) => `<div class="pwfld" data-help="details"><label class="lbl">اسم السياسة</label><input data-k="name" value="${esc(d.name)}" maxlength="120" placeholder="مثال: سياسة جزاءات الإنتاج" autocomplete="off"></div>
         <div class="pwfld" data-help="pick"><label class="lbl">أيّ من هذه الجزاءات تطبقها هذه السياسة؟</label><p class="muted small">الغياب غير مدرج لأنه مطبق دائماً: اليوم الذي لا يوجد به تسجيل حضور ولا طلب إجازة لا بد أن يُحسم بشيء ما.</p>
         <div class="ccs">${pwCheck('late_on', d.late_on, 'التأخير', 'الوصول بعد بداية الوردية وانتهاء السماحية')}${pwCheck('early_on', d.early_on, 'الانصراف المبكر', 'الانصراف قبل نهاية الوردية')}${pwCheck('partial_on', d.partial_on, 'الانصراف الناقص', 'يوم به تسجيل حضور دون تسجيل انصراف')}</div></div>`,
-      check: (d) => (String(d.name || '').trim() ? null : 'اكتبي اسم السياسة') },
+      check: (d) => (String(d.name || '').trim() ? null : 'اكتب اسم السياسة') },
     { title: 'الغياب', sub: 'لا يوجد تسجيل حضور على الإطلاق', icon: 'user', help: 'absence',
       body: (d) => `<div class="pwfld" data-help="absence"><label class="lbl">معامل خصم الغياب</label><p class="muted small">عدد أيام الأجر المخصومة عن كل يوم غياب (1 = أجر يوم كامل).</p>${pwStep('data-k="absence_factor"', d.absence_factor, 0.25, 0, 10)}</div>
         <div class="pwfld" data-help="deduct"><label class="lbl">خصم من</label>${pwRadio('deduct_from', 'salary', [['salary', 'المرتب'], ['leave', 'الأجازات', null, true]], 'two')}<p class="muted small">الخصم من رصيد الإجازات غير متاح، فالجزاءات بتتخصم من المرتب.</p></div>`,
@@ -178,12 +178,12 @@ function penaltySteps() {
         <div class="pwfld" data-help="method"><label class="lbl">كيف يجب حساب عقوبات التأخير؟</label>${pwRadio('late_method', d.late_method, [['minutes', 'دقائق', 'المُعامل × الدقائق داخل النطاق'], ['periods', 'فترات زمنية', 'خصم ثابت لكل شريحة']], 'two')}</div>
         <div class="pwfld" data-help="deduct"><label class="lbl">خصم من</label>${pwRadio('deduct_from', 'salary', [['salary', 'المرتب'], ['leave', 'الأجازات', null, true]], 'two')}</div>
         <div class="pwfld"><div class="tiersh"><label class="lbl">مستويات الجزاءات النشطة</label><button type="button" class="btn alt sm" id="tadd">+ إضافة شريحة</button></div>${d.tiers.map((t, i) => tierCard(d, st, t, i)).join('')}</div>
-        <div class="pwcalc" data-help="calc"><b>جرّبي حساب خصم</b><div class="row"><input type="number" id="pcs" placeholder="المرتب الشهري" value="6000"><input type="number" id="pch" placeholder="ساعات الوردية" value="8"><input type="number" id="pcm" placeholder="دقائق التأخير" value="45"><b id="pcr"></b></div></div>`),
+        <div class="pwcalc" data-help="calc"><b>جرّب حساب خصم</b><div class="row"><input type="number" id="pcs" placeholder="المرتب الشهري" value="6000"><input type="number" id="pch" placeholder="ساعات الوردية" value="8"><input type="number" id="pcm" placeholder="دقائق التأخير" value="45"><b id="pcr"></b></div></div>`),
       on: (root, d, h, st) => { if (d.late_on) tierBind(root, d, h, st); },
       check: (d) => {
         if (!d.late_on) return null;
         if (!(Number(d.grace) >= 0 && Number(d.grace) <= 240)) return 'سماحية التأخير بين 0 و 240 دقيقة';
-        if (!d.tiers.length) return 'أضيفي شريحة تأخير واحدة على الأقل';
+        if (!d.tiers.length) return 'أضيف شريحة تأخير واحدة على الأقل';
         const ts = [...d.tiers].sort((a, b) => a.from - b.from);
         for (let i = 0; i < ts.length; i++) {
           const t = ts[i], to = t.to === null || t.to === '' ? null : Number(t.to);
@@ -211,7 +211,7 @@ function overtimeSteps() {
     { title: 'تفاصيل السياسة', sub: 'الاسم وهل الوقت الإضافي يُحتسب', icon: 'file', help: 'details',
       body: (d) => `<div class="pwfld" data-help="details"><label class="lbl">اسم السياسة</label><input data-k="name" value="${esc(d.name)}" maxlength="120" placeholder="مثال: وقت إضافي الإنتاج" autocomplete="off"></div>
         <div class="pwfld" data-help="calc"><label class="lbl">هل يُحتسب الوقت الإضافي؟</label>${pwRadio('calc_on', d.calc_on ? 'true' : 'false', [['true', 'يُحتسب', 'الساعات الإضافية المعتمدة بتتدفع'], ['false', 'لا يُحتسب', 'لا تُحتسب الساعات بعد الانصراف']], 'two')}</div>`,
-      check: (d) => (String(d.name || '').trim() ? null : 'اكتبي اسم السياسة') },
+      check: (d) => (String(d.name || '').trim() ? null : 'اكتب اسم السياسة') },
     { title: 'البداية والحد', sub: 'متى يبدأ الاحتساب وأقصى ساعات', icon: 'timer', help: 'start', off: (d) => !d.calc_on,
       body: (d) => (!d.calc_on ? pwOff('الوقت الإضافي لا يُحتسب في هذه السياسة', 'calc_on', 'تفعيل احتساب الوقت الإضافي') : `<div class="pwfld" data-help="start"><label class="lbl">يبدأ الاحتساب بعد</label>${pwNum('min="0" max="600" data-k="after_min"', d.after_min, 'د')}<p class="muted small">من أول كل طلب وقت إضافي معتمد (0 = من أول دقيقة).</p></div>
         <div class="pwfld" data-help="cap"><label class="lbl">الحد اليومي</label>${pwNum('min="0" max="24" step="0.25" data-k="cap_hours"', d.cap_hours, 'س')}<p class="muted small">أقصى ساعات إضافية في الطلب الواحد (0 = بدون حد).</p></div>`),
@@ -220,7 +220,7 @@ function overtimeSteps() {
       body: (d) => (!d.calc_on ? pwOff('الوقت الإضافي لا يُحتسب في هذه السياسة', 'calc_on', 'تفعيل احتساب الوقت الإضافي') : `<div class="pwfld" data-help="rounding"><label class="lbl">التقريب</label>${pwRadio('rounding', d.rounding, [['none', 'الدقائق الفعلية', 'من غير تقريب'], ['up', 'تقريب للأعلى'], ['down', 'تقريب للأسفل']])}
         ${d.rounding !== 'none' ? `<label class="lbl" style="margin-top:12px">وحدة التقريب</label><select data-k="round_unit">${[5, 10, 15, 30, 60].map((n) => `<option value="${n}" ${Number(d.round_unit) === n ? 'selected' : ''}>${n} دقيقة</option>`).join('')}</select>` : ''}</div>
         <div class="pwfld" data-help="factor"><label class="lbl">معامل أجر الساعة الإضافية</label>${pwStep('data-k="factor"', d.factor, 0.25, 0.25, 10)}</div>
-        <div class="pwcalc" data-help="sim"><b>جرّبي حساب</b><div class="row"><input type="number" id="osh" step="0.25" placeholder="ساعات الطلب" value="2.4"><b id="osr"></b></div></div>`),
+        <div class="pwcalc" data-help="sim"><b>جرّب حساب</b><div class="row"><input type="number" id="osh" step="0.25" placeholder="ساعات الطلب" value="2.4"><b id="osr"></b></div></div>`),
       on: (root, d) => { const i = root.querySelector('#osh'), r = root.querySelector('#osr'); if (i) { const c = () => { r.textContent = Number(i.value) > 0 ? `المحتسب: ${Math.round(polOtCalc(d, Number(i.value)) * 100) / 100} ساعة × ${d.factor}` : ''; }; i.oninput = c; c(); } },
       check: (d) => (!d.calc_on ? null : !(Number(d.factor) > 0 && Number(d.factor) <= 10) ? 'معامل الوقت الإضافي بين 0.1 و 10' : null) },
   ];

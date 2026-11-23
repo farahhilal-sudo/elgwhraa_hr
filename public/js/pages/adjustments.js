@@ -24,7 +24,7 @@ const adjPage = (cfg) => async (view) => {
   $('#am').onchange = load; $('#ak').onchange = load;
   if ($('#aadd')) $('#aadd').onclick = () => {
     const o = modal(`<h3>إضافة بند</h3><form class="form" id="nf">
-      <label class="f full">الموظف<select name="user_id" required><option value="">اختاري الموظف</option>${data.employees.map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>
+      <label class="f full">الموظف<select name="user_id" required><option value="">اختار الموظف</option>${data.employees.map((e) => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>
       <label class="f">النوع<select name="kind">${cfg.kinds.map((k) => `<option value="${k}">${{ bonus: 'مكافأة', penalty: 'جزاء', deduction: 'خصم' }[k]}</option>`).join('')}</select></label>
       ${adjAmtHtml()}
       <label class="f">عن شهر<input type="month" name="month" value="${$('#am').value}" required></label>

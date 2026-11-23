@@ -17,7 +17,7 @@ stub('src/payroll-engine.js', { getPolicyCtx: async () => ({}), graceOf: () => 0
 const routes = {};
 require('../routes/attendance-admin')({ get: (p, ...h) => (routes['GET ' + p] = h.at(-1)), post: (p, ...h) => (routes['POST ' + p] = h.at(-1)), put: (p, ...h) => (routes['PUT ' + p] = h.at(-1)), delete: (p, ...h) => (routes['DELETE ' + p] = h.at(-1)) });
 const call = async (body) => { let code = 200, out; const res = { status(c) { code = c; return this; }, json(o) { out = o; return this; } }; await routes['POST /api/attendance/checkout']({ user: { id: 1, name: 'المدير' }, body }, res); return { code, out }; };
-const reset = () => Object.assign(ST, { rec: null, users: { 5: { id: 5, name: 'موظفة', is_admin: 0, shift_end: '17:00' } }, runs: [], audits: [], ot: [] });
+const reset = () => Object.assign(ST, { rec: null, users: { 5: { id: 5, name: 'موظف', is_admin: 0, shift_end: '17:00' } }, runs: [], audits: [], ot: [] });
 
 test('checkout: مرفوض لو الموظف مش موجود / مدير / ما سجلش حضور / انصرف قبل كده', async () => {
   reset();

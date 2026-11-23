@@ -135,7 +135,7 @@ app.delete('/api/employees/:id', auth, need('employees.manage'), wrap(async (req
   const hist = await db.get(`SELECT (SELECT COUNT(*) FROM payslips WHERE user_id=$1)+(SELECT COUNT(*) FROM attendance WHERE user_id=$1)+(SELECT COUNT(*) FROM requests WHERE user_id=$1)
     +(SELECT COUNT(*) FROM adjustments WHERE user_id=$1)+(SELECT COUNT(*) FROM loans WHERE user_id=$1) AS n`.replace(/\$1/g, '?'), id, id, id, id, id);
   if (Number(hist.n) > 0)
-    return res.status(409).json({ error: 'للموظف سجلات (حضور / طلبات / مرتبات)، والإزالة النهائية هتمسحها. استخدمي «إيقاف» بدل الإزالة: بيتشال من الموظفين وسجله القديم يفضل محفوظ.' });
+    return res.status(409).json({ error: 'للموظف سجلات (حضور / طلبات / مرتبات)، والإزالة النهائية هتمسحها. استخدم «إيقاف» بدل الإزالة: بيتشال من الموظفين وسجله القديم يفضل محفوظ.' });
   await db.run('UPDATE users SET manager_id=NULL WHERE manager_id=?', id);
   await db.run('DELETE FROM users WHERE id=?', id); // باقي بياناته بتتمسح تلقائياً (ON DELETE CASCADE)
   await audit(req, 'employee.delete', u.username, u.name);
@@ -148,7 +148,7 @@ app.post('/api/employees/:id/reset-face', auth, need('employees.manage'), wrap(a
   if (!guardAdminTarget(req, res, tu)) return;
   await db.run('UPDATE users SET face_descriptor=NULL WHERE id=?', id);
   await audit(req, 'employee.reset_face', tu.username);
-  await notify(id, 'تمت إعادة ضبط بصمة الوجه، سجّليها من جديد');
+  await notify(id, 'تمت إعادة ضبط بصمة الوجه، سجّلها من جديد');
   res.json({ ok: true });
 }));
 

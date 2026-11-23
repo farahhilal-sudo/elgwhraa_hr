@@ -118,17 +118,17 @@ app.post('/api/adjustments', auth, need('payroll.manage'), wrap(async (req, res)
   if (!uid || !target || !isMonth(month) || !['deduction', 'bonus', 'penalty'].includes(kind) || !(Number(amount) > 0))
     return res.status(400).json({ error: 'بيانات غير صحيحة' });
   if (await db.get('SELECT 1 FROM payslips WHERE user_id=? AND month=?', uid, month)) return res.status(400).json({ error: 'تم صرف مرتب هذا الشهر، لا يمكن إضافة بنود عليه' });
-  if (await db.get('SELECT 1 FROM payroll_locks WHERE user_id=? AND month=?', uid, month)) return res.status(400).json({ error: 'مرتب هذا الشهر مقفول، افتحي القفل الأول' });
+  if (await db.get('SELECT 1 FROM payroll_locks WHERE user_id=? AND month=?', uid, month)) return res.status(400).json({ error: 'مرتب هذا الشهر مقفول، افتح القفل الأول' });
   await db.run('INSERT INTO adjustments(user_id,month,kind,amount,reason,created_by,category) VALUES(?,?,?,?,?,?,?)', uid, month, kind, Number(amount), String(reason).slice(0, 200), req.user.id, category);
   await audit(req, 'adjustment.add', `user_id=${uid} ${month}`, `${kind} ${Number(amount)}`);
-  await notify(uid, `تمت إضافة ${{ bonus: 'مكافأة', penalty: 'جزاء', deduction: 'خصم' }[kind]} بقيمة ${Number(amount)} عن شهر ${month}`);
+  await notify(uid, `تمت إضافة ${{ bonus: 'مكافأة', penalty: 'جزاء', deduction: 'خصم' }[kind]} بقيمة ${Number(amount)} عن شهر ${month}${String(reason || '').trim() ? ' — ' + String(reason).trim().slice(0, 80) : ''}`, kind === 'penalty' ? 'penalty' : 'adjust');
   res.json({ ok: true });
 }));
 app.delete('/api/adjustments/:id', auth, need('payroll.manage'), wrap(async (req, res) => {
   const id = toId(req.params.id);
   const a = id && await db.get('SELECT * FROM adjustments WHERE id=?', id);
   if (a && (await db.get('SELECT 1 FROM payslips WHERE user_id=? AND month=?', a.user_id, a.month))) return res.status(400).json({ error: 'تم صرف مرتب هذا الشهر، لا يمكن حذف بنوده' });
-  if (a && (await db.get('SELECT 1 FROM payroll_locks WHERE user_id=? AND month=?', a.user_id, a.month))) return res.status(400).json({ error: 'مرتب هذا الشهر مقفول، افتحي القفل الأول' });
+  if (a && (await db.get('SELECT 1 FROM payroll_locks WHERE user_id=? AND month=?', a.user_id, a.month))) return res.status(400).json({ error: 'مرتب هذا الشهر مقفول، افتح القفل الأول' });
   if (id) { await db.run('DELETE FROM adjustments WHERE id=?', id); if (a) await audit(req, 'adjustment.delete', `user_id=${a.user_id} ${a.month}`, `${a.kind} ${a.amount}`); }
   res.json({ ok: true });
 }));

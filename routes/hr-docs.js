@@ -54,7 +54,7 @@ app.get('/api/doc-requests', auth, wrap(async (req, res) => {
 }));
 app.post('/api/doc-requests', auth, wrap(async (req, res) => {
   const b = req.body || {}, tpl = await tplOf(toId(b.template_id));
-  if (!tpl || !tpl.active) return res.status(400).json({ error: 'اختاري نوع المستند' });
+  if (!tpl || !tpl.active) return res.status(400).json({ error: 'اختار نوع المستند' });
   let uid = req.user.id;
   if (toId(b.user_id) && toId(b.user_id) !== req.user.id) { if (!canManage(req.user)) return deny(res); uid = toId(b.user_id); }
   const u = await db.get('SELECT * FROM users WHERE id=? AND active=1', uid);
@@ -72,7 +72,7 @@ app.post('/api/doc-requests/:id/decide', auth, need('employees.manage'), wrap(as
   let letterId = null;
   if (d === 'approved') {
     const tpl = await tplOf(r.template_id), user = await db.get('SELECT * FROM users WHERE id=?', r.user_id);
-    if (!tpl) return res.status(400).json({ error: 'القالب اتحذف، ارفضي الطلب أو أعيدي إنشاء القالب' });
+    if (!tpl) return res.status(400).json({ error: 'القالب اتحذف، ارفض الطلب أو أعيد إنشاء القالب' });
     letterId = await issueLetter({ user, tpl, language: r.language, destination: r.destination, date: tzParts().date, by: req.user, requestId: r.id });
   }
   await db.run('UPDATE doc_requests SET status=?, decided_by=?, decided_at=?, letter_id=? WHERE id=?', d, req.user.id, new Date().toISOString(), letterId, r.id);
@@ -104,8 +104,8 @@ app.get('/api/doc-letters/:id', auth, wrap(async (req, res) => {
 }));
 app.post('/api/doc-letters', auth, need('employees.manage'), wrap(async (req, res) => {
   const b = req.body || {}, tpl = await tplOf(toId(b.template_id)), u = toId(b.user_id) && await db.get('SELECT * FROM users WHERE id=? AND is_admin=0', toId(b.user_id));
-  if (!u) return res.status(400).json({ error: 'اختاري الموظف' });
-  if (!tpl) return res.status(400).json({ error: 'اختاري القالب' });
+  if (!u) return res.status(400).json({ error: 'اختار الموظف' });
+  if (!tpl) return res.status(400).json({ error: 'اختار القالب' });
   const id = await issueLetter({ user: u, tpl, language: tpl.language, destination: b.destination, date: isDate(b.date) ? b.date : tzParts().date, by: req.user });
   await notify(u.id, `تم إصدار خطاب (${tpl.name}) لك`);
   res.json({ ok: true, id });

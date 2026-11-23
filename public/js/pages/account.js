@@ -150,7 +150,7 @@ PAGES.me = async (view) => {
         ['الأساسي', 'tb', (m) => money(m.accrued_basic)], ['البدلات', 'tb', (m) => money(m.accrued_allowances)], ['الإجمالي', 'tb', (m) => money(m.accrued_basic + m.accrued_allowances)],
         ['المكافآت', 'tg', (m) => money(m.bonuses)], ['الوقت الإضافي', 'tg', (m) => money(m.overtime_pay)],
         ['خصم التأخير', 'tp', (m) => money(m.late_deduction)], ['خصم الغياب', 'tp', (m) => money(m.absence_deduction)], ['الجزاءات', 'tp', (m) => money(m.penalties)], ['خصومات أخرى', 'tp', (m) => money(m.manual_deductions)],
-        ['مستحق الدفع', 'tn', (m) => money(m.net)], ['قيد الانتظار', 'tn', (m) => money(m.paid ? 0 : m.net)], ['مدفوع', 'tn', (m) => money(m.paid ? m.net : 0)],
+        ['مستحق الدفع', 'tn', (m) => money(m.net)], ['قيد الانتظار', 'tn', (m) => moneyInt(m.paid ? 0 : m.net)], ['مدفوع', 'tn', (m) => money(m.paid ? m.net : 0)],
       ];
       body.innerHTML = rows.length ? `<div class="tablewrap ptwrap"><table class="ptable"><tr><th class="who">الفترة</th>${cols.map(([hh, c]) => `<th class="${c}">${hh}</th>`).join('')}<th></th></tr>
         ${rows.map((m, i) => `<tr><td class="who"><b>${monthName(m.month)}</b><div class="muted small">${m.paid ? 'مدفوع' : monthRange(m.month)[1] < today ? 'بانتظار الصرف' : 'جارٍ الحساب'}</div></td>${cols.map(([, c, fn]) => `<td class="${c}">${fn(m)}</td>`).join('')}<td><button class="link" data-v="${i}">عرض</button></td></tr>`).join('')}</table></div>

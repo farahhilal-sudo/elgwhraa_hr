@@ -37,7 +37,7 @@ async function renderLogin() {
 }
 function signupForm() {
   const o = modal(`<h3>إنشاء حساب جديد</h3>
-    <p class="muted small" style="margin:0 0 12px">هيتم إنشاء حساب موظف، وهتقدري تدخلي بعد ما المدير يوافق عليه. المدير هو اللي بيحدد صلاحياتك.</p>
+    <p class="muted small" style="margin:0 0 12px">هيتم إنشاء حساب موظف، وهتقدر تدخل بعد ما المدير يوافق عليه. المدير هو اللي بيحدد صلاحياتك.</p>
     <form class="form" id="sg">
       <label class="f full">الاسم بالكامل<input name="name" required minlength="3" maxlength="80" autocomplete="name"></label>
       <label class="f">اسم المستخدم (للدخول)<input name="username" required minlength="3" maxlength="30" autocapitalize="none" autocomplete="username"></label>
@@ -50,20 +50,20 @@ function signupForm() {
     if (f.password.value !== f.password2.value) throw new Error('كلمتا المرور غير متطابقتين');
     await api('/signup', 'POST', { name: f.name.value, username: f.username.value.trim(), phone: f.phone.value, password: f.password.value });
     o.close();
-    modal(`<h3>تم إرسال طلبك ✔</h3><p>حسابك بانتظار موافقة المدير. هتقدري تدخلي باسم المستخدم وكلمة المرور بعد القبول.</p><div class="actions"><button class="btn" data-close>تمام</button></div>`);
+    modal(`<h3>تم إرسال طلبك ✔</h3><p>حسابك بانتظار موافقة المدير. هتقدر تدخل باسم المستخدم وكلمة المرور بعد القبول.</p><div class="actions"><button class="btn" data-close>تمام</button></div>`);
   }); };
 }
 function forgotForm(username) {
   const o = modal(`<h3>نسيت كلمة المرور</h3>
-    <p class="muted small" style="margin:0 0 12px">اكتبي اسم المستخدم وهيوصل طلب للمدير. بعد ما يراجعه هيدّيكي كلمة مرور مؤقتة، وتغيّريها أول ما تدخلي.</p>
+    <p class="muted small" style="margin:0 0 12px">اكتب اسم المستخدم وهيوصل طلب للمدير. بعد ما يراجعه هيديك كلمة مرور مؤقتة، وتغيّرها أول ما تدخل.</p>
     <form class="grid" id="fg">
       <label class="f">اسم المستخدم<input name="username" value="${esc(username)}" required autocapitalize="none"></label>
-      <label class="f">رقم الهاتف أو ملاحظة تساعد المدير يتأكد إنك أنتِ (اختياري)<input name="note" maxlength="200"></label>
+      <label class="f">رقم الهاتف أو ملاحظة تساعد المدير يتأكد إنك أنت (اختياري)<input name="note" maxlength="200"></label>
       <div class="actions"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">إرسال الطلب</button></div></form>`);
   const f = $('#fg', o);
   f.onsubmit = (e) => { e.preventDefault(); run($('.btn:not(.alt)', f), async () => {
     await api('/forgot-password', 'POST', { username: f.username.value.trim(), note: f.note.value });
     o.close();
-    modal(`<h3>تم إرسال الطلب</h3><p>لو اسم المستخدم صحيح، المدير هيوصله طلبك ويديكي كلمة مرور مؤقتة. تواصلي معه لو اتأخر.</p><div class="actions"><button class="btn" data-close>تمام</button></div>`);
+    modal(`<h3>تم إرسال الطلب</h3><p>لو اسم المستخدم صحيح، المدير هيوصله طلبك ويديك كلمة مرور مؤقتة. تواصل معه لو اتأخر.</p><div class="actions"><button class="btn" data-close>تمام</button></div>`);
   }); };
 }

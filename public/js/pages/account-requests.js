@@ -27,7 +27,7 @@ function requestForm(done, preset = {}) {
     <label class="f" id="tod">إلى تاريخ<input type="date" name="to_date" value="${t}" required></label>
     <label class="f full" id="hrs" hidden>عدد الساعات<input type="number" name="hours" min="0.25" max="24" step="0.25"></label>
     <label class="f full" id="amt" hidden>المبلغ<input type="number" name="amount" min="1" step="0.01"></label>
-    <label class="f full" id="ptn" hidden>الزميل<select name="partner"><option value="">— اختاري —</option></select></label>
+    <label class="f full" id="ptn" hidden>الزميل<select name="partner"><option value="">— اختار —</option></select></label>
     <label class="f full">السبب / ملاحظات<textarea name="reason" rows="3" maxlength="500"></textarea></label>
     <div class="actions full"><button type="button" class="btn alt" data-close>إلغاء</button><button class="btn">إرسال الطلب</button></div></form>`);
   const f = $('#rf', o);

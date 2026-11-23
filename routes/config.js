@@ -54,7 +54,7 @@ function cfgPolicy(kind, d) {
     if (d.partial_on && !(d.partial_value > 0 && d.partial_value <= (d.partial_kind === 'fixed' ? 1000000 : 10))) return 'قيمة خصم الانصراف الناقص غير صحيحة';
     if (d.tiers.length > 20) return 'حد أقصى 20 شريحة';
     if (d.late_on) {
-      if (!d.tiers.length) return 'أضيفي شريحة تأخير واحدة على الأقل';
+      if (!d.tiers.length) return 'أضيف شريحة تأخير واحدة على الأقل';
       d.tiers.sort((a, b) => a.from - b.from);
       for (let i = 0; i < d.tiers.length; i++) {
         const t = d.tiers[i];
@@ -75,7 +75,7 @@ function cfgPolicy(kind, d) {
     if (!(d.factor > 0) || d.factor > 10) return 'معامل الوقت الإضافي بين 0.1 و 10';
   } else if (kind === 'holiday') {
     d.archived = truthy(d.archived); d.yearly = truthy(d.yearly);
-    if (!isDate(d.date)) return 'اختاري تاريخ بداية العطلة';
+    if (!isDate(d.date)) return 'اختار تاريخ بداية العطلة';
     if (d.to === '' || d.to === null || d.to === undefined) d.to = d.date;
     if (!isDate(d.to) || d.to < d.date) return 'تاريخ نهاية العطلة لازم يكون بعد البداية أو نفس اليوم';
     if ([...eachDay(d.date, d.to)].length > 60) return 'العطلة الواحدة حد أقصى 60 يوم';
@@ -92,11 +92,11 @@ function cfgPolicy(kind, d) {
     d.rule = ['max_consecutive', 'max_concurrent', 'blackout'].includes(d.rule) ? d.rule : 'max_consecutive';
     d.scope = d.scope === 'department' ? 'department' : 'all';
     d.types = (Array.isArray(d.types) ? d.types : []).filter((t) => ['annual_leave', 'sick_leave', 'emergency_leave'].includes(t));
-    if (!d.types.length) return 'اختاري نوع إجازة واحد على الأقل';
+    if (!d.types.length) return 'اختار نوع إجازة واحد على الأقل';
     d.value = Math.round(nz(d.value, 0));
     if (d.rule !== 'blackout' && (d.value < 1 || d.value > 365)) return 'القيمة لازم تكون من 1 إلى 365';
     if (d.rule === 'blackout') {
-      if (!isDate(d.from) || !isDate(d.to) || d.to < d.from) return 'حددي فترة المنع (من وإلى)';
+      if (!isDate(d.from) || !isDate(d.to) || d.to < d.from) return 'حدد فترة المنع (من وإلى)';
     } else { d.from = ''; d.to = ''; }
   } else if (kind === 'leave_profile') {
     d.archived = truthy(d.archived); d.carry = truthy(d.carry); d.break_paid = !(d.break_paid === false || d.break_paid === 'false' || d.break_paid === 0 || d.break_paid === '0');
@@ -109,7 +109,7 @@ function cfgPolicy(kind, d) {
 }
 function cfgBody(b, kind) {
   const name = String(b.name || '').trim().slice(0, 120);
-  if (!name) return { error: 'اكتبي الاسم' };
+  if (!name) return { error: 'اكتب الاسم' };
   const data = {};
   for (const [k, v] of Object.entries(b)) {
     if (['id', 'kind', 'name', 'active', 'created_at'].includes(k)) continue;

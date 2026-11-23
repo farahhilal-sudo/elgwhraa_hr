@@ -30,7 +30,7 @@ ATT_VIEWS.att_calendar = async (body) => {
       ${d.days.map((x) => `<button class="cald ${x.weekend ? 'wk' : ''} ${x.holidays.length ? 'hol' : ''} ${x.date === today ? 'now' : ''}" data-d="${x.date}"><b>${Number(x.date.slice(8))}</b>
         ${x.holidays.map((h) => `<em class="hn">${esc(h)}</em>`).join('')}${x.weekend && !x.holidays.length ? '<em class="wn">عطلة أسبوعية</em>' : ''}
         ${!x.weekend && !x.holidays.length && x.date <= today ? `<span class="cs"><span class="cc g" title="حضور">${x.present + x.late}</span>${x.late ? `<span class="cc a" title="متأخر">${x.late}</span>` : ''}${x.absent ? `<span class="cc r" title="غائب">${x.absent}</span>` : ''}${x.leave ? `<span class="cc b" title="إجازة">${x.leave}</span>` : ''}</span>` : ''}</button>`).join('')}</div>
-      <p class="muted small" style="margin:10px 0 0">اضغطي على أي يوم لفتح سجل الحضور الخاص به. العطلات الرسمية بتتضاف من الإعدادات ← الحضور ← العطلات الرسمية.</p></div>`;
+      <p class="muted small" style="margin:10px 0 0">اضغط على أي يوم لفتح سجل الحضور الخاص به. العطلات الرسمية بتتضاف من الإعدادات ← الحضور ← العطلات الرسمية.</p></div>`;
     $('#cprev', body).onclick = () => { month = shift(-1); draw().catch((e) => toast(e.message, true)); };
     $('#cnext', body).onclick = () => { month = shift(1); draw().catch((e) => toast(e.message, true)); };
     $('#ctoday', body).onclick = () => { month = thisMonth(); draw().catch((e) => toast(e.message, true)); };

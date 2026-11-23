@@ -21,19 +21,19 @@ const attOnChange = (k, dd) => {
   return ['mode', 'applies', 'scope'].includes(k);
 };
 const nameFld = (d, ph) => `<div class="pwfld" data-help="details"><label class="lbl">الاسم</label><input data-k="name" value="${esc(d.name)}" placeholder="${ph}" maxlength="80"></div>`;
-const nameChk = (d) => (String(d.name || '').trim() ? null : 'اكتبي الاسم');
+const nameChk = (d) => (String(d.name || '').trim() ? null : 'اكتب الاسم');
 
 HELP.holiday = {
   details: ['العطلة الرسمية', 'يوم أو فترة بتتعامل معاها الشركة كإجازة رسمية. الموظفين مش بيتحسبلهم غياب ولا تأخير في الأيام دي، وبتظهر في لوحة المعلومات كيوم عطلة.', 'لو موظف اشتغل في العطلة، بتتطبق عليه «قاعدة التعويض» المناسبة (لو فيه).'],
   yearly: ['التكرار', 'تتكرر كل سنة: نفس اليوم والشهر كل سنة (مناسبة للأعياد الثابتة). مرة واحدة: بتتطبق في السنة اللي اخترتيها بس (مناسبة للأعياد المتحركة).', null],
-  dates: ['فترة العطلة', 'اختاري أول يوم وآخر يوم. لو العطلة يوم واحد سيبي «إلى» فاضية.', 'الحد الأقصى للعطلة الواحدة 60 يوم.'],
+  dates: ['فترة العطلة', 'اختار أول يوم وآخر يوم. لو العطلة يوم واحد سيب «إلى» فاضية.', 'الحد الأقصى للعطلة الواحدة 60 يوم.'],
 };
 HELP.compensation_rule = {
   details: ['قاعدة التعويض', 'بتحدد إيه اللي الموظف بياخده لو اشتغل في يوم المفروض يكون إجازة. بتتطبق في حساب المرتب الشهري.', 'أول قاعدة مفعّلة مطابقة هي اللي بتتطبق: المحددة (عطلة/أسبوعية) قبل «الاثنين».'],
   applies: ['بتنطبق على', 'العطلات الرسمية: الأيام المسجّلة في «العطلات الرسمية». الإجازة الأسبوعية: أيام الويك إند من الإعدادات المتنوعة. الاثنين: أي يوم من النوعين.', null],
   ckind: ['شكل التعويض', 'أجر إضافي: بيتضاف للمرتب (أجر اليوم × المعامل). يوم إجازة بدل: بيتسجل للموظف رصيد أيام بدل بتظهر في كشف المرتب.', null],
   cfactor: ['معامل أجر اليوم', 'أجر اليوم = المرتب الأساسي ÷ 30. المعامل 2 يعني الموظف بياخد أجر يومين عن اليوم اللي اشتغله.', null],
-  csim: ['جرّبي حساب', 'اكتبي مرتب وشوفي قيمة التعويض عن يوم عمل واحد.', null],
+  csim: ['جرّب حساب', 'اكتب مرتب وشوف قيمة التعويض عن يوم عمل واحد.', null],
   cdays: ['أيام الإجازة البدل', 'عدد أيام الإجازة اللي الموظف يكسبها عن كل يوم اشتغله في العطلة.', null],
   cmin: ['الحد الأدنى لساعات العمل', 'التعويض مش بيتطبق إلا لو الموظف سجّل حضور وانصراف وساعاته وصلت للحد ده. 0 = أي يوم فيه تسجيل حضور.', null],
 };
@@ -48,7 +48,7 @@ HELP.holiday_limit = {
 HELP.leave_profile = {
   details: ['ملف الإجازة والاستراحة', 'مجموعة أرصدة إجازات وقواعد استراحة بتتربط بالموظف من صفحة بياناته. الموظف اللي ليه ملف بيتفحص رصيده عند تقديم أي طلب إجازة.', 'الموظف اللي مالوش ملف بيستخدم «الإجازة السنوية» من بياناته.'],
   annual: ['الإجازة السنوية', 'عدد أيام الإجازة السنوية في السنة. لو الطلب هيعدي الرصيد بيترفض.', null],
-  sick: ['المرضية والطارئة', 'أقصى أيام في السنة لكل نوع. اكتبي 0 لو مفيش حد.', null],
+  sick: ['المرضية والطارئة', 'أقصى أيام في السنة لكل نوع. اكتب 0 لو مفيش حد.', null],
   carry: ['ترحيل الرصيد', 'لو مفعّل، الرصيد المتبقي بيتنقل للسنة اللي بعدها.', null],
   brk: ['الاستراحة', 'مدة الاستراحة اليومية. لو غير مدفوعة بتتشال من ساعات الوردية المدفوعة (فبيزيد أجر الساعة المستخدم في الخصومات والوقت الإضافي).', 'مدفوعة: مفيش أي تأثير على الحساب.'],
 };
@@ -73,10 +73,10 @@ const ATT_DEF = {
         check: nameChk },
       { title: 'فترة العطلة', sub: 'أول يوم وآخر يوم', icon: 'calendar', help: 'dates',
         body: (d) => `<div class="pwfld" data-help="dates"><label class="lbl">من تاريخ</label><input type="date" data-k="date" value="${esc(d.date)}"></div>
-          <div class="pwfld" data-help="dates"><label class="lbl">إلى تاريخ <span class="muted small">(سيبيه فاضي لو يوم واحد)</span></label><input type="date" data-k="to" value="${esc(d.to && d.to !== d.date ? d.to : '')}"></div>
+          <div class="pwfld" data-help="dates"><label class="lbl">إلى تاريخ <span class="muted small">(سيبه فاضي لو يوم واحد)</span></label><input type="date" data-k="to" value="${esc(d.to && d.to !== d.date ? d.to : '')}"></div>
           <div class="pwcalc"><b id="hsum"></b></div>`,
         on: (root, d) => { const s = root.querySelector('#hsum'); const c = () => { const n = dayCount(d.date, d.to || d.date); s.textContent = d.date && n ? `${plural(n, 'يوم واحد', 'أيام')} · ${dmy(d.date)}${n > 1 ? ' ← ' + dmy(d.to) : ''}` : ''; }; root.querySelectorAll('[data-k]').forEach((i) => i.addEventListener('input', c)); c(); },
-        check: (d) => (!d.date ? 'اختاري تاريخ بداية العطلة' : d.to && d.to < d.date ? 'نهاية العطلة قبل بدايتها' : dayCount(d.date, d.to || d.date) > 60 ? 'العطلة الواحدة حد أقصى 60 يوم' : null) },
+        check: (d) => (!d.date ? 'اختار تاريخ بداية العطلة' : d.to && d.to < d.date ? 'نهاية العطلة قبل بدايتها' : dayCount(d.date, d.to || d.date) > 60 ? 'العطلة الواحدة حد أقصى 60 يوم' : null) },
     ],
   },
   compensation_rule: {
@@ -101,7 +101,7 @@ const ATT_DEF = {
           ${d.mode === 'time_off'
     ? `<div class="pwfld" data-help="cdays"><label class="lbl">أيام الإجازة البدل عن كل يوم عمل</label>${pwStep('data-k="days"', d.days, 0.5, 0.5, 5)}</div>`
     : `<div class="pwfld" data-help="cfactor"><label class="lbl">معامل أجر اليوم</label>${pwStep('data-k="factor"', d.factor, 0.25, 0.25, 10)}</div>
-          <div class="pwcalc" data-help="csim"><b>جرّبي حساب</b><div class="ufld"><input type="number" id="csal" min="0" step="100" value="6000"><span>مرتب</span></div><div id="cres" class="pwres"></div></div>`}
+          <div class="pwcalc" data-help="csim"><b>جرّب حساب</b><div class="ufld"><input type="number" id="csal" min="0" step="100" value="6000"><span>مرتب</span></div><div id="cres" class="pwres"></div></div>`}
           <div class="pwfld" data-help="cmin"><label class="lbl">الحد الأدنى لساعات العمل</label>${pwNum('min="0" max="24" step="0.5" data-k="min_hours"', d.min_hours, 'ساعة')}</div>`,
         on: (root, d) => { const s = root.querySelector('#csal'), r = root.querySelector('#cres'); if (!s) return; const c = () => { const day = (Number(s.value) || 0) / 30; r.innerHTML = `أجر اليوم ${money(day)} ← تعويض اليوم الواحد <b>${money(day * (Number(d.factor) || 0))}</b>`; }; s.addEventListener('input', c); root.querySelectorAll('[data-k="factor"],[data-sp]').forEach((i) => i.addEventListener(i.dataset.sp ? 'click' : 'input', () => setTimeout(c, 0))); c(); },
         check: (d) => (d.mode === 'time_off' ? (!(Number(d.days) > 0) || Number(d.days) > 5 ? 'أيام الإجازة البدل بين 0.5 و 5' : null) : (!(Number(d.factor) > 0) || Number(d.factor) > 10 ? 'معامل أجر اليوم بين 0.25 و 10' : null)) || (Number(d.min_hours) < 0 || Number(d.min_hours) > 24 ? 'ساعات العمل بين 0 و 24' : null) },
@@ -129,11 +129,11 @@ const ATT_DEF = {
           ? `<div class="pwfld" data-help="block"><label class="lbl">ممنوع من</label><input type="date" data-k="from" value="${esc(d.from)}"></div><div class="pwfld" data-help="block"><label class="lbl">إلى</label><input type="date" data-k="to" value="${esc(d.to)}"></div>`
           : `<div class="pwfld" data-help="value"><label class="lbl">${d.rule === 'max_concurrent' ? 'أقصى عدد موظفين في إجازة في نفس اليوم' : 'أقصى عدد أيام في الطلب الواحد'}</label>${pwStep('data-k="value"', d.value, 1, 1, 365)}</div>
             ${d.rule === 'max_concurrent' ? `<div class="pwfld" data-help="scope"><label class="lbl">النطاق</label>${pwRadio('scope', d.scope, [['all', 'كل الشركة', 'كل الموظفين'], ['department', 'نفس القسم', 'موظفين نفس قسم مقدم الطلب']], 'two')}</div>` : ''}`),
-        check: (d) => (d.rule === 'blackout' ? (!d.from || !d.to ? 'حددي فترة المنع (من وإلى)' : d.to < d.from ? 'نهاية الفترة قبل بدايتها' : null) : (!(Number(d.value) >= 1) ? 'القيمة لازم تكون 1 أو أكتر' : null)) },
+        check: (d) => (d.rule === 'blackout' ? (!d.from || !d.to ? 'حدد فترة المنع (من وإلى)' : d.to < d.from ? 'نهاية الفترة قبل بدايتها' : null) : (!(Number(d.value) >= 1) ? 'القيمة لازم تكون 1 أو أكتر' : null)) },
       { title: 'أنواع الإجازات', sub: 'القاعدة بتتطبق على أنهي إجازات', icon: 'calendar', help: 'types',
         body: (d) => `<div class="pwfld" data-help="types"><label class="lbl">تُطبق على</label>${LV_LIST.map(([k, l, s]) => `<label class="cc ${d.types.includes(k) ? 'on' : ''}"><input type="checkbox" data-ty="${k}" ${d.types.includes(k) ? 'checked' : ''}><span><b>إجازة ${l}</b><small>${s}</small></span></label>`).join('')}</div>`,
         on: (root, d) => root.querySelectorAll('[data-ty]').forEach((el) => (el.onchange = () => { const s = new Set(d.types); if (el.checked) s.add(el.dataset.ty); else s.delete(el.dataset.ty); d.types = [...s]; el.closest('.cc').classList.toggle('on', el.checked); })),
-        check: (d) => (d.types.length ? null : 'اختاري نوع إجازة واحد على الأقل') },
+        check: (d) => (d.types.length ? null : 'اختار نوع إجازة واحد على الأقل') },
     ],
   },
   leave_profile: {

@@ -7,7 +7,7 @@ PAGES.home = async (view) => {
   const u = S.me.user, today = S.me.today_date;
   if (u.is_admin) { // البصمة للموظفين فقط، المدير بيتابع بس
     view.innerHTML = `<div class="narrow"><div class="card prof"><div class="avatar big">${esc(initials(u.name))}</div><div class="info"><b>${esc(u.name)}</b><span class="muted">${esc(u.job_title || 'مدير النظام')}</span></div></div>
-      <div class="card" style="margin-top:12px;text-align:center"><p style="margin:0;font-weight:700">تسجيل الحضور والانصراف بالبصمة للموظفين فقط</p><p class="muted small" style="margin:6px 0 0">تابعي حضورهم بالصورة والموقع من «الموظفون» أو «سجل الحضور».</p></div></div>`;
+      <div class="card" style="margin-top:12px;text-align:center"><p style="margin:0;font-weight:700">تسجيل الحضور والانصراف بالبصمة للموظفين فقط</p><p class="muted small" style="margin:6px 0 0">تابع حضورهم بالصورة والموقع من «الموظفون» أو «سجل الحضور».</p></div></div>`;
     return;
   }
   const weekend = String(S.me.settings.weekend_days || '').split(',').filter(Boolean).map(Number);
@@ -58,7 +58,7 @@ PAGES.home = async (view) => {
     else {
       status = `<div class="muted" style="text-align:center">موعد تسجيل الحضور - ${fmt12(u.shift_start)} - ${fmt12(endGrace)}</div>`;
       action = !u.face_enrolled && !u.face_exempt
-        ? `<p class="small" style="background:var(--warn-l);color:var(--warn);padding:10px;border-radius:10px;margin:14px 0 10px">لازم تسجّلي بصمة وجهك مرة واحدة قبل أول تسجيل حضور.</p><button class="pbtn" id="enroll">تسجيل بصمة الوجه</button>`
+        ? `<p class="small" style="background:var(--warn-l);color:var(--warn);padding:10px;border-radius:10px;margin:14px 0 10px">لازم تسجّل بصمة وجهك مرة واحدة قبل أول تسجيل حضور.</p><button class="pbtn" id="enroll">تسجيل بصمة الوجه</button>`
         : '<button class="pbtn" id="go">تسجيل الحضور <span>⇥</span></button>';
     }
     $('#pc').innerHTML = `<div class="shift">(${esc(fmt12(u.shift_start))} - ${esc(fmt12(u.shift_end))})</div>${status}${body}${action}

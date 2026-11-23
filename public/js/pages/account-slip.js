@@ -29,7 +29,7 @@ function slipHtml(m) {
 }
 function printSlip(m) {
   const w = window.open('', '_blank');
-  if (!w) return toast('اسمحي بالنوافذ المنبثقة عشان تتحمل النسخة PDF', true);
+  if (!w) return toast('اسمح بالنوافذ المنبثقة عشان تتحمل النسخة PDF', true);
   const css = [...document.styleSheets].map((ss) => { try { return [...ss.cssRules].map((r) => r.cssText).join('\n'); } catch { return ''; } }).join('\n');
   w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>مفردات المرتب - ${esc(m.name)} - ${m.month}</title><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet"><style>${css} body{background:#fff;padding:24px} .slipcard{border:0!important;max-width:760px;margin:auto}</style></head><body>${slipHtml(m)}</body></html>`);
   w.document.close();

@@ -10,6 +10,7 @@
       if (m === 'app' || (st && m !== 'web')) document.documentElement.classList.add('is-app');
     })();
   </script>
+  <script>try { if (localStorage.getItem('tk')) document.documentElement.classList.add('has-tk'); } catch (e) {}</script>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7d84a">
   <title>GWHRAA HR</title>
@@ -21,8 +22,24 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="الحضور">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
-  <!-- الستايل مقسّم لملفات بنفس ترتيب الأصل (الترتيب مهم لأن الأحدث بيغلب). شوفي README ← "هيكل المشروع" -->
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- الخط بيتحمّل من غير ما يوقف عرض الصفحة (display=swap) -->
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet"></noscript>
+  <style>
+    /* شاشة تحميل مبدئية: بتظهر فوراً (قبل ما ملفات الواجهة تتحمّل) لو فيه جلسة مسجّلة، وبتتشال أول ما التطبيق يرسم */
+    html, body { background: #f2f5fa; } body { margin: 0; font-family: Cairo, system-ui, sans-serif; }
+    #boot { display: none; } html.has-tk #boot { display: block; }
+    #boot .bh { height: 56px; background: #f7d84a; display: flex; align-items: center; gap: 12px; padding: 0 16px; }
+    #boot .bl { width: 34px; height: 34px; border-radius: 10px; background: #fff; } #boot .bt { width: 110px; height: 14px; border-radius: 7px; background: rgba(255,255,255,.7); }
+    #boot .bb { max-width: 1100px; margin: 0 auto; padding: 16px; display: grid; gap: 12px; }
+    #boot .bc { height: 92px; border-radius: 14px; background: #fff; border: 1px solid #f1e6b0; position: relative; overflow: hidden; }
+    #boot .bc::after, #boot .bl::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(247,216,74,.22), transparent); transform: translateX(100%); animation: bsh 1.2s infinite; }
+    #boot .bl { position: relative; overflow: hidden; } @keyframes bsh { to { transform: translateX(-100%); } }
+    html.is-app #boot .bb { padding-bottom: 80px; } html.is-app #boot .bn { display: block; } #boot .bn { display: none; position: fixed; bottom: 0; left: 0; right: 0; height: 60px; background: #fff; border-top: 1px solid #f1e6b0; }
+  </style>
+
+  <!-- الستايل مقسّم لملفات بنفس ترتيب الأصل (الترتيب مهم لأن الأحدث بيغلب). شوف README ← "هيكل المشروع" -->
   <link rel="stylesheet" href="/css/01-base.css">
   <link rel="stylesheet" href="/css/02-account-page.css">
   <link rel="stylesheet" href="/css/03-components.css">
@@ -58,7 +75,7 @@
   <link rel="stylesheet" href="/css/31-leave-wizard.css">
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app"><div id="boot" aria-hidden="true"><div class="bh"><div class="bl"></div><div class="bt"></div></div><div class="bb"><div class="bc"></div><div class="bc"></div><div class="bc"></div><div class="bc" style="height:140px"></div></div><div class="bn"></div></div></div>
   <div id="toast" class="toast" hidden></div>
   <!-- الكود مقسّم: core (الأساس) ← pages (صفحة لكل ملف) ← settings ← app-mode ← boot. الترتيب مهم. -->
   <script src="/js/core/01-utils.js"></script>

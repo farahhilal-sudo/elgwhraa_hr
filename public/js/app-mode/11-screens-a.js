@@ -155,7 +155,8 @@ PAGES.home = async (view) => {
     if (type === 'out') { // تأكيد الانصراف (برسالة مخصوصة لو قبل نهاية الوردية)
       const nowM = hm(isoHM(new Date().toISOString())), endM = hm(u.shift_end), startM = hm(u.shift_start), overnight = endM <= startM;
       const early = overnight ? (nowM >= startM ? nowM < endM + 1440 : nowM < endM) : nowM < endM;
-      if (!(await xConfirm(t(early ? 'You are signing out early, are you sure you want to sign out?' : 'Are you sure you want to sign out?')))) return;
+      // وقت الانصراف جه: انصراف عادي من غير رسالة. قبل الموعد بس: تنبيه إن وقت الانصراف لسه ما جاش
+      if (early && !(await xConfirm(t('Sign-out time has not arrived yet. Do you still want to sign out?') + ` (${t("Shift ends")} ${tmA(u.shift_end)})`))) return;
     }
     const label = btn.innerHTML;
     await run(btn, async () => {

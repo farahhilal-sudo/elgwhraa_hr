@@ -9,7 +9,7 @@ const { db } = require('../src/db');
 const needLocAccess = (req, res, next) => (can(req.user, 'settings.manage') || can(req.user, 'employees.manage') ? next() : res.status(403).json({ error: 'ليس لديك صلاحية لهذا الإجراء' }));
 function parseLoc(b) {
   const name = String(b.name || '').trim().slice(0, 60), lat = Number(b.lat), lng = Number(b.lng), radius = parseInt(b.radius_m, 10);
-  if (!name) return { error: 'اكتبي اسم الموقع' };
+  if (!name) return { error: 'اكتب اسم الموقع' };
   if (!(b.lat !== '' && b.lng !== '' && isFinite(lat) && isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180)) return { error: 'إحداثيات غير صحيحة' };
   if (!(radius >= 20 && radius <= 5000)) return { error: 'النطاق من 20 إلى 5000 متر' };
   return { name, lat, lng, radius };

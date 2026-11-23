@@ -1,8 +1,8 @@
-// بيانات تجريبية فقط (أسماء وهمية). شغّليه محلياً للتجربة: npm run seed
+// بيانات تجريبية فقط (أسماء وهمية). شغّله محلياً للتجربة: npm run seed
 // لازم DATABASE_URL يكون متحدد (قاعدة تجريبية، مش قاعدة الإنتاج!)
-// حماية: السكريبت ده بيضيف حسابات كلمة مرورها 123456، فمايشتغلش إلا لو أنتِ صرّحتي بكده صراحةً
+// حماية: السكريبت ده بيضيف حسابات كلمة مرورها 123456، فمايشتغلش إلا لو أنت صرّحت بكده صراحةً
 if (process.env.NODE_ENV === 'production' || process.env.ALLOW_SEED !== '1') {
-  console.error('رفض التشغيل: ده سكريبت تجريبي. على قاعدة تجريبية فقط شغّليه هكذا: ALLOW_SEED=1 npm run seed');
+  console.error('رفض التشغيل: ده سكريبت تجريبي. على قاعدة تجريبية فقط شغّله هكذا: ALLOW_SEED=1 npm run seed');
   process.exit(1);
 }
 const bcrypt = require('bcryptjs');
@@ -11,7 +11,7 @@ const { db, pool, ready } = require('./server');
 const people = [
   ['سارة أحمد', 'sara', 'مدير التشغيل', 'الإدارة', 9000, ['dashboard.view', 'employees.view', 'employees.manage', 'attendance.view_all', 'attendance.edit', 'requests.view_all', 'requests.approve', 'payroll.view', 'payroll.manage', 'reports.view']],
   ['محمد علي', 'mohamed', 'فني إنتاج', 'الإنتاج', 5400, []],
-  ['منى حسن', 'mona', 'موظفة استقبال', 'المكتب', 3500, []],
+  ['منى حسن', 'mona', 'موظف استقبال', 'المكتب', 3500, []],
   ['كريم سعيد', 'karim', 'محاسب', 'المالية', 6000, []],
   ['هبة عادل', 'heba', 'مصممة', 'التسويق', 5000, []],
 ];

@@ -18,7 +18,7 @@ function loadFace() {
         resolve();
       } catch (e) { reject(e); }
     };
-    s.onerror = () => reject(new Error('تعذّر تحميل نظام التعرّف على الوجه، تأكدي من الإنترنت'));
+    s.onerror = () => reject(new Error('تعذّر تحميل نظام التعرّف على الوجه، تأكد من الإنترنت'));
     document.head.appendChild(s);
   }).catch((e) => { faceReady = null; throw e; });
   return faceReady;
@@ -44,34 +44,34 @@ function captureFace(title, opts = {}) {
     const st = (t) => ($('#fst', o).innerHTML = t);
     (async () => {
       try {
-        if (!navigator.mediaDevices?.getUserMedia) throw new Error('المتصفح لا يدعم الكاميرا (تأكدي من استخدام رابط https)');
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error('المتصفح لا يدعم الكاميرا (تأكد من استخدام رابط https)');
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
         const v = $('video', o); v.srcObject = stream; await v.play();
         await loadFace();
-        st('ضعي وجهك داخل الدائرة ثم اضغطي التقاط');
+        st('ضع وجهك داخل الدائرة ثم اضغط التقاط');
         $('#fgo', o).disabled = false;
         $('#fgo', o).onclick = async () => {
           const btn = $('#fgo', o); btn.disabled = true;
           try {
             const ds = [], N = opts.quick ? 1 : 3; let photo = null;
             for (let i = 0; i < N; i++) {
-              st(`<span class="spin"></span> جارٍ التقاط الوجه (${i + 1}/${N})... ثبّتي وجهك`);
+              st(`<span class="spin"></span> جارٍ التقاط الوجه (${i + 1}/${N})... ثبّت وجهك`);
               let d = null;
               for (let tries = 0; tries < 6 && !d; tries++) {
                 d = await faceapi.detectSingleFace(v, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor();
                 if (!d) await new Promise((r) => setTimeout(r, 300));
               }
-              if (!d) throw new Error('مش لاقي وجه واضح، قرّبي وزوّدي الإضاءة');
+              if (!d) throw new Error('مش لاقي وجه واضح، قرّب وزوّد الإضاءة');
               ds.push(Array.from(d.descriptor)); if (opts.photo && !photo) photo = snapPhoto(v);
               if (N > 1) await new Promise((r) => setTimeout(r, 350));
             }
-            if (N === 3 && (dist(ds[0], ds[1]) > 0.45 || dist(ds[0], ds[2]) > 0.45)) throw new Error('الوجه اتحرك كتير، حاولي تاني وانتِ ثابتة');
+            if (N === 3 && (dist(ds[0], ds[1]) > 0.45 || dist(ds[0], ds[2]) > 0.45)) throw new Error('الوجه اتحرك كتير، حاول تاني وأنت ثابتة');
             const avg = N === 1 ? ds[0] : ds[0].map((_, i) => (ds[0][i] + ds[1][i] + ds[2][i]) / 3);
             done = true; stop(); o.remove(); resolve(opts.photo ? { descriptor: avg, photo } : avg);
           } catch (e) { st(`<span class="neg">${esc(e.message)}</span>`); btn.disabled = false; }
         };
       } catch (e) {
-        st(`<span class="neg">${esc(e.name === 'NotAllowedError' ? 'لازم تسمحي بالكاميرا من إعدادات المتصفح' : e.message)}</span>`);
+        st(`<span class="neg">${esc(e.name === 'NotAllowedError' ? 'لازم تسمح بالكاميرا من إعدادات المتصفح' : e.message)}</span>`);
       }
     })();
   });
@@ -81,7 +81,7 @@ function getPos() {
     if (!navigator.geolocation) return reject(new Error('المتصفح لا يدعم تحديد الموقع'));
     navigator.geolocation.getCurrentPosition(
       (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
-      (e) => reject(new Error(e.code === 1 ? 'لازم تسمحي بالوصول للموقع (GPS)' : 'تعذّر تحديد موقعك، فعّلي الـ GPS وحاولي تاني')),
+      (e) => reject(new Error(e.code === 1 ? 'لازم تسمح بالوصول للموقع (GPS)' : 'تعذّر تحديد موقعك، فعّل الـ GPS وحاول تاني')),
       { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
   });
 }

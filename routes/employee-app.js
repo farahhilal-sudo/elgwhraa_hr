@@ -48,7 +48,7 @@ app.get('/api/app/breaks', auth, wrap(async (req, res) => {
 }));
 app.post('/api/app/breaks/start', auth, wrap(async (req, res) => {
   const today = tzParts().date, a = await db.get('SELECT * FROM attendance WHERE user_id=? AND date=?', req.user.id, today);
-  if (!a || !a.check_in) return res.status(400).json({ error: 'سجّلي الحضور الأول' });
+  if (!a || !a.check_in) return res.status(400).json({ error: 'سجّل الحضور الأول' });
   if (a.check_out) return res.status(400).json({ error: 'تم تسجيل الانصراف' });
   if (await db.get('SELECT 1 FROM breaks WHERE user_id=? AND date=? AND end_at IS NULL', req.user.id, today)) return res.status(400).json({ error: 'عندك استراحة شغالة' });
   await db.run('INSERT INTO breaks(user_id,date,start_at) VALUES(?,?,?)', req.user.id, today, new Date().toISOString());

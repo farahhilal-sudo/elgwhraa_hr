@@ -4,7 +4,7 @@ const { Pool } = require('pg');
 
 const DATABASE_URL = process.env.DATABASE_URL;
 if (!DATABASE_URL) {
-  console.error('لازم تحددي متغير البيئة DATABASE_URL (رابط قاعدة بيانات PostgreSQL). راجعي README.');
+  console.error('لازم تحدد متغير البيئة DATABASE_URL (رابط قاعدة بيانات PostgreSQL). راجع README.');
   process.exit(1);
 }
 
