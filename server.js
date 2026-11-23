@@ -60,20 +60,23 @@ function buildBundles() {
 }
 let bundled = null;
 try { bundled = buildBundles(); } catch (e) { console.error('bundle build skipped:', e.message); }
-const pack = (raw, br) => ({ raw, etag: '"' + crypto.createHash('sha1').update(raw).digest('hex').slice(0, 20) + '"', br: zlib.brotliCompressSync(Buffer.from(raw), { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: br } }), gz: zlib.gzipSync(raw, { level: 9 }) });
+// الضغط بيتعمل أول مرة الملف يتطلب (مش عند التشغيل) — عشان السيرفر يفتح فوراً حتى على استضافة بطيئة، وبعدها بيتخزّن في الذاكرة
+const pack = (raw, br = 9) => {
+  const e = { raw, etag: '"' + crypto.createHash('sha1').update(raw).digest('hex').slice(0, 20) + '"' };
+  let b = null, g = null;
+  Object.defineProperty(e, 'br', { get: () => b || (b = zlib.brotliCompressSync(Buffer.from(raw), { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: br } })) });
+  Object.defineProperty(e, 'gz', { get: () => g || (g = zlib.gzipSync(raw, { level: 9 })) });
+  return e;
+};
 if (bundled) {
-  for (const [u, t] of Object.entries(BUNDLES)) staticCache.set(u, pack(t, 10));
+  for (const [u, t] of Object.entries(BUNDLES)) staticCache.set(u, pack(t, 9));
   staticCache.set('/index.html', pack(bundled.html, 9));
   staticCache.set('/sw.js', pack(bundled.swSrc, 9));
 }
 for (const f of ['/index.html', '/manifest.json', ...walkStatic('js', '.js'), ...walkStatic('css', '.css')]) {
   if (bundled && f === '/index.html') continue;
   try {
-    const raw = fs.readFileSync(path.join(__dirname, 'public', f));
-    staticCache.set(f, {
-      raw, etag: '"' + crypto.createHash('sha1').update(raw).digest('hex').slice(0, 20) + '"',
-      br: zlib.brotliCompressSync(raw, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 9 } }), gz: zlib.gzipSync(raw, { level: 9 }),
-    });
+    staticCache.set(f, pack(fs.readFileSync(path.join(__dirname, 'public', f))));
   } catch (e) { console.error('static precompress skipped:', f, e.message); }
 }
 app.use((req, res, next) => {
