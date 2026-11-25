@@ -1,0 +1,61 @@
+/* 32-employees-more.css — سجل الإيقاف / تغييرات المسمى / الهيكل التنظيمي / المستندات / الإجراءات */
+.mfcard { padding: 14px; margin-bottom: 12px; }
+.mfg { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.mf span { display: block; font-size: 12px; font-weight: 700; margin-bottom: 4px; color: var(--ink); }
+.mf select, .mf input, .mfs { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; min-height: 40px; }
+.mfs { width: auto; min-width: 150px; }
+.mfbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
+.mfbar .grow { flex: 1; }
+.xbox { border: 1px dashed var(--brand-d); background: var(--brand-l); border-radius: 10px; padding: 12px; max-height: 46vh; overflow: auto; display: grid; gap: 8px; }
+.xbox .xhd { margin-top: 6px; }
+.mstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }
+.mstat { display: flex; align-items: center; gap: 12px; background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; padding-inline-end: 14px; }
+.mstat .mi { background: var(--c); color: var(--i); width: 64px; align-self: stretch; display: grid; place-items: center; }
+.mstat .mi .ico { width: 24px; height: 24px; }
+.mstat span { display: block; font-size: 12px; color: var(--muted); } .mstat b { font-size: 22px; }
+.mstat > div:last-child { padding: 10px 0; }
+/* الهيكل التنظيمي */
+.orgbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.orgbar .grow { flex: 1; }
+.orgseg { display: inline-flex; background: #eef1f5; border-radius: 10px; padding: 4px; }
+.orgseg button { border: 0; background: none; padding: 8px 18px; border-radius: 8px; font: inherit; cursor: pointer; color: var(--muted); }
+.orgseg button.on { background: #fff; color: var(--brand-d); font-weight: 700; box-shadow: 0 1px 3px #0001; }
+.orgbox { background: #fff; border: 1px solid var(--line); border-radius: 12px; height: 62vh; min-height: 420px; overflow: auto; background-image: radial-gradient(#d9dee5 1px, transparent 1px); background-size: 16px 16px; }
+.orgz { transform-origin: top center; min-width: 100%; width: max-content; padding: 28px 24px; display: flex; flex-direction: column; align-items: center; transition: transform .15s; }
+.onode { display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1px solid var(--line); border-top: 3px solid #f59e0b; border-radius: 10px; padding: 8px 12px; min-width: 150px; max-width: 210px; text-align: start; position: relative; }
+.onode b { font-size: 13px; display: block; } .onode span { font-size: 11px; color: var(--muted); display: block; }
+.oco { border-top-color: #dc2626; font-size: 15px; padding: 14px 22px; max-width: none; }
+.oco .ico { width: 22px; height: 22px; }
+.oemp .oi { min-width: 0; flex: 1; } .oemp .oi b, .oemp .oi span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.otg { border: 0; background: none; color: #d97706; font: inherit; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 2px; padding: 0; }
+.otg .ico { width: 12px; height: 12px; }
+.odep { flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; max-width: none; }
+.odep em { font-style: normal; font-size: 12px; color: #d97706; font-weight: 700; }
+.oline { height: 22px; border-inline-start: 1.5px dashed #c3cad3; width: 0; margin: 0 auto; }
+.odepts { display: grid; grid-template-columns: repeat(4, 210px); gap: 12px; justify-content: center; padding-top: 12px; border-top: 1.5px dashed #c3cad3; }
+.otree ul { display: flex; justify-content: center; padding: 22px 0 0; margin: 0; position: relative; list-style: none; }
+.otree { margin: 0; padding: 0; list-style: none; display: flex; justify-content: center; }
+.otree li { list-style: none; display: flex; flex-direction: column; align-items: center; position: relative; padding: 22px 8px 0; }
+.otree li::before, .otree li::after { content: ''; position: absolute; top: 0; width: 50%; height: 22px; border-top: 1.5px dashed #c3cad3; }
+.otree li::before { right: 50%; } .otree li::after { left: 50%; }
+.otree li:only-child::before, .otree li:only-child::after { display: none; }
+.otree li:first-child::before, .otree li:last-child::after { border-top: 0; }
+.otree ul::before { content: ''; position: absolute; top: 0; left: 50%; height: 22px; border-inline-start: 1.5px dashed #c3cad3; }
+.otree > li { padding-top: 0; } .otree > li::before, .otree > li::after { display: none; }
+/* المستندات */
+.mdocs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.mdoc { padding: 0; overflow: hidden; }
+.mdh { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; flex-direction: row-reverse; } .mdh h3 { margin: 0; font-size: 17px; }
+.mdc { display: flex; justify-content: space-between; padding: 0 16px 12px; color: var(--muted); } .mdc b { color: #d97706; font-size: 18px; }
+.mdb { border-top: 1px solid var(--line); max-height: 280px; overflow: auto; } .mdb table { width: 100%; } .mdb .empty { padding: 28px; text-align: center; }
+.mdt { margin: 16px 0 8px; }
+/* الإجراءات */
+.procq { margin: 6px 0 14px; font-size: 20px; }
+.pboard { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; align-items: flex-start; }
+.pcol { min-width: 210px; flex: 1; background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.pch { display: flex; align-items: center; justify-content: space-between; flex-direction: row-reverse; gap: 8px; padding: 14px; background: var(--brand-l); color: var(--brand-d); font-weight: 700; }
+.pch b { flex: 1; text-align: start; }
+.pact { display: flex; align-items: center; gap: 10px; width: calc(100% - 20px); margin: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fff; font: inherit; cursor: pointer; text-align: start; }
+.pact:hover { border-color: var(--brand-d); background: var(--brand-l); }
+.pact .ico { color: var(--brand-d); width: 20px; height: 20px; flex: none; } .pact span { flex: 1; font-size: 13px; }
+@media (max-width: 760px) { .mstats, .mdocs { grid-template-columns: 1fr; } .odepts { grid-template-columns: repeat(2, 170px); } .mfbar .btn, .mfbar .mfs { width: 100%; } }

@@ -1,5 +1,5 @@
 // خدمة بسيطة تخلّي الموقع يتثبت كتطبيق. البيانات دايماً من الإنترنت.
-const CACHE = 'hr-shell-v48';
+const CACHE = 'hr-shell-v51';
 const FACE = 'hr-face-v1'; // مكتبة الوجه ونماذجها (حوالي 7MB) بتتحمّل مرة واحدة بس وبعدها فورية
 // ملفات الواجهة (css + js) بالترتيب نفسه اللي في index.html
 const SHELL = [
@@ -29,7 +29,7 @@ const SHELL = [
   '/css/20-photos-maps.css',
   '/css/21-employee-profile.css',
   '/css/22-attendance-requests-tabs.css',
-  '/css/23-compact.css', '/css/24-profile-attendance.css', '/css/25-app-screens.css', '/css/26-app-admin.css', '/css/25-payroll-sheet.css', '/css/26-theme-yellow.css', '/css/30-schedule-wizard.css', '/css/31-leave-wizard.css', '/css/27-tidy.css', '/css/28-employee-cards.css', '/css/29-tasks.css',
+  '/css/23-compact.css', '/css/24-profile-attendance.css', '/css/25-app-screens.css', '/css/26-app-admin.css', '/css/25-payroll-sheet.css', '/css/26-theme-yellow.css', '/css/30-schedule-wizard.css', '/css/31-leave-wizard.css', '/css/32-employees-more.css', '/css/27-tidy.css', '/css/28-employee-cards.css', '/css/29-tasks.css',
   '/js/core/01-utils.js',
   '/js/core/02-media.js',
   '/js/core/03-face-location.js',
@@ -44,6 +44,8 @@ const SHELL = [
   '/js/pages/account-requests.js',
   '/js/pages/dashboard.js',
   '/js/pages/employees-tabs.js',
+  '/js/pages/employees-more.js',
+  '/js/pages/employees-more2.js',
   '/js/pages/employees.js',
   '/js/pages/employee-form.js',
   '/js/pages/attendance-tabs.js',

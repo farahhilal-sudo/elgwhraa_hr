@@ -138,7 +138,11 @@ PAGES.employees = async (view) => {
     $('#vtog', body).onclick = () => { f.view = f.view === 'cards' ? 'table' : 'cards'; render(); };
     if ($('#tsv', body)) $('#tsv', body).onclick = () => { const n = prompt('اسم القالب'); if (!n) return; const { tpl, ...rest } = f; run(null, async () => { const r = await api('/config/filter_template', 'POST', { name: n, filters: JSON.stringify(rest) }); toast('تم حفظ القالب'); S.empf.tpl = String(r.id); again(); }); };
     if ($('#tdel', body)) $('#tdel', body).onclick = () => { if (confirm('حذف القالب ده؟')) run(null, async () => { await api('/config/filter_template/' + f.tpl, 'DELETE'); S.empf.tpl = ''; again(); }); };
-    $('#exp', body).onclick = () => csv('employees.csv', [['الاسم', 'اسم المستخدم', 'المسمى', 'القسم', 'الجنسية', 'الهاتف', 'الوردية', 'تاريخ التعيين', 'الحالة'], ...rows.map((u) => [u.name, u.username, u.job_title, u.department, u.nationality, u.phone, `${u.shift_start}-${u.shift_end}`, u.hire_date, u.active ? 'نشط' : 'موقوف'])]);
+    $('#exp', body).onclick = () => { // ملف Excel بنفس أعمدة تصدير موظفي الشركة المعتمد
+      const mgr = (u) => (people.find((x) => x.id === u.manager_id) || {}).name || '', off = (u) => (u.location_ids || []).map((i) => (locs.find((l) => l.id === i) || {}).name).filter(Boolean).join('، ');
+      XL.download(`Company_employees_list_${attStamp()}.xlsx`, { noTitle: true, plain: true, ltr: true, sheet: 'Worksheet', headers: ['Name', 'Phone', 'Email', 'تاريخ الانضمام', 'Office', 'Department', 'Department - Level 1', 'Position', 'Attendance Profile', 'Direct Manager', 'Additional Managers'],
+        widths: [32.16, 15, 28, 16, 16, 18, 20, 20, 26, 28, 20], rows: rows.map((u) => [u.name, String(u.phone || '').replace(/^0+/, ''), u.email || '', u.hire_date, off(u), u.department, u.department, u.job_title, 'Shift Attendance Profile', mgr(u), '']) });
+    };
     if (manage) {
       $('#add', body).onclick = () => empForm(null, again);
       body.querySelectorAll('[data-e]').forEach((b) => (b.onclick = () => empForm(byId(b.dataset.e), again)));
@@ -205,7 +209,7 @@ PAGES.employees = async (view) => {
     if (has('attendance.view_all')) it.push({ ic: 'audit', t: 'عمليات التدقيق', fn: () => auditModal(u) });
     if (manage) it.push({ ic: 'building', t: 'تاريخ المكتب', fn: () => officeModal(u) });
     if (manage && u.face_enrolled && canT) it.push({ ic: 'user', t: 'إعادة ضبط بصمة الوجه', fn: () => { if (confirm('إعادة ضبط بصمة وجه الموظف؟ هيسجّلها من جديد.')) run(null, async () => { await api(`/employees/${u.id}/reset-face`, 'POST'); toast('تمت إعادة الضبط'); again(); }); } });
-    if (manage && !u.is_admin) it.push({ ic: 'pause', t: u.active ? 'إيقاف' : 'تفعيل', fn: () => { if (u.active && !confirm(`إيقاف ${u.name}؟ هيتشال من قائمة الموظفين النشطين، وكل سجله القديم (حضور وطلبات ومرتبات) يفضل محفوظ.`)) return; run(null, async () => { await api('/employees/' + u.id, 'PUT', { active: !u.active }); toast(u.active ? 'تم الإيقاف، السجل القديم محفوظ' : 'تم التفعيل'); again(); }); } });
+    if (manage && !u.is_admin) it.push({ ic: 'pause', t: u.active ? 'إيقاف' : 'تفعيل', fn: () => { if (u.active) return suspendDialog(u, again); run(null, async () => { await api('/employees/' + u.id, 'PUT', { active: !u.active }); toast(u.active ? 'تم الإيقاف، السجل القديم محفوظ' : 'تم التفعيل'); again(); }); } });
     if (manage && !u.is_admin && u.id !== S.me.user.id) it.push({ ic: 'trash', t: 'إزالة', cls: 'bad', fn: () => { if (confirm(`إزالة ${u.name} نهائياً؟ (مسموحة بس لو معندوش أي سجل. لو ليه سجلات استخدم «إيقاف».)`)) run(null, async () => { await api('/employees/' + u.id, 'DELETE'); toast('تمت الإزالة'); again(); }); } });
     if (S.me.user.is_admin && !u.is_admin) it.push({ ic: 'key', t: 'إدارة الصلاحيات', fn: () => go('permissions') });
     if (!it.length) it.push({ ic: 'info', t: 'بيانات الموظف', fn: () => infoModal(u) });

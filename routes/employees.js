@@ -65,6 +65,19 @@ app.get('/api/employees', auth, need('employees.view'), wrap(async (req, res) =>
     ...(can(req.user, 'employees.manage') ? { national_id: u.national_id || '', emp_cfg: (() => { try { return JSON.parse(u.emp_cfg || '{}'); } catch { return {}; } })() } : {}),
   })));
 }));
+// سجل الإيقاف (بيانات الموظف مدموجة) — الحسابات الموقوفة القديمة من غير سجل بتتعرض بتاريخ إيقافها
+app.get('/api/suspensions', auth, need('employees.view'), wrap(async (req, res) => {
+  const users = await db.all('SELECT * FROM users'), byId = Object.fromEntries(users.map((u) => [u.id, u]));
+  const locs = Object.fromEntries((await db.all('SELECT id,name FROM work_locations')).map((l) => [l.id, l.name]));
+  const recs = (await db.all("SELECT * FROM config_items WHERE kind='suspension' ORDER BY id DESC")).map((r) => { let d = {}; try { d = JSON.parse(r.data); } catch { /* تالف */ } return { id: r.id, d, created_at: r.created_at }; });
+  const have = new Set(recs.map((r) => r.d.user_id));
+  const legacy = users.filter((u) => !u.active && !u.is_admin && !u.pending && !have.has(u.id)).map((u) => ({ id: null, d: { user_id: u.id, start: u.suspended_at || '', end: '', reason: '', sub: '', notes: '', by: '', created: '' }, created_at: u.suspended_at || '' }));
+  res.json([...recs, ...legacy].filter((r) => byId[r.d.user_id]).map((r) => {
+    const u = byId[r.d.user_id], m = byId[u.manager_id];
+    return { id: r.id, user_id: u.id, name: u.name, code: u.employee_code || '', day_type: 'مُثَبَّت', department: u.department || '', position: u.job_title || '', office: parseIds(u.location_ids).map((i) => locs[i]).filter(Boolean).join('، '), manager: m ? m.name : '', gender: u.gender === 'male' ? 'Male' : u.gender === 'female' ? 'Female' : '', hire_date: u.hire_date || '', national_id: u.national_id || '',
+      start: r.d.start || '', end: r.d.end || '', created: r.d.created || r.created_at || '', by: r.d.by || '', reason: r.d.reason || '', sub: r.d.sub || '', notes: r.d.notes || '' };
+  }));
+}));
 app.post('/api/employees', auth, need('employees.manage'), wrap(async (req, res) => {
   const b = req.body || {};
   // اسم المستخدم = رقم الهاتف، وكلمة المرور الافتراضية 123456789 (الموظف ما بيحطش كلمة سر لنفسه)
@@ -122,6 +135,16 @@ app.put('/api/employees/:id', auth, need('employees.manage'), wrap(async (req, r
     if (b.role === 'admin') { sets.push('active=1'); }
   }
   if (sets.length) await db.run(`UPDATE users SET ${sets.join(',')} WHERE id=?`, ...vals, u.id);
+  // سجل الإيقاف: إيقاف جديد بيتسجل بسببه، والتفعيل بيقفل آخر إيقاف مفتوح
+  if (b.active !== undefined && !u.is_admin && !u.pending) {
+    const today = tzParts().date, clip = (v, n) => String(v || '').slice(0, n);
+    if (!b.active && u.active) {
+      await db.run("INSERT INTO config_items(kind,name,data,active) VALUES('suspension',?,?,1)", u.name, JSON.stringify({ user_id: u.id, start: isDate(b.suspend_start) ? b.suspend_start : today, end: '', reason: clip(b.suspend_reason, 80), sub: clip(b.suspend_sub, 80), notes: clip(b.suspend_notes, 300), by: req.user.name, created: new Date().toISOString() }));
+    } else if (b.active && !u.active) {
+      const open = (await db.all("SELECT id,data FROM config_items WHERE kind='suspension' ORDER BY id DESC")).find((r) => { try { const d = JSON.parse(r.data); return d.user_id === u.id && !d.end; } catch { return false; } });
+      if (open) await db.run('UPDATE config_items SET data=? WHERE id=?', JSON.stringify({ ...JSON.parse(open.data), end: today }), open.id);
+    }
+  }
   if (sets.length) await audit(req, 'employee.update', u.username, 'fields: ' + sets.map((x) => x.split('=')[0]).join(','));
   res.json({ ok: true });
 }));

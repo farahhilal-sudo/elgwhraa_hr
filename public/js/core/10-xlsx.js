@@ -22,32 +22,37 @@ const XL = (() => {
   }
   const x = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
   const colName = (i) => String.fromCharCode(65 + i);
-  const cell = (r, c, v, s) => `<c r="${colName(c)}${r}" s="${s}"${typeof v === 'number' ? '' : ' t="inlineStr"'}>${v === null || v === '' || v === undefined ? '' : typeof v === 'number' ? `<v>${v}</v>` : `<is><t xml:space="preserve">${x(v)}</t></is>`}</c>`;
+  const serial = (d) => Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86400000) + 25569;
+  const cell = (r, c, v, s) => /^D\d{4}-\d\d-\d\d$/.test(v) ? `<c r="${colName(c)}${r}" s="5"><v>${serial(v.slice(1))}</v></c>` : `<c r="${colName(c)}${r}" s="${s}"${typeof v === 'number' ? '' : ' t="inlineStr"'}>${v === null || v === '' || v === undefined ? '' : typeof v === 'number' ? `<v>${v}</v>` : `<is><t xml:space="preserve">${x(v)}</t></is>`}</c>`;
   /* opts: { title, headers[], rows[][], widths[], sheet } */
   function build(opts) {
-    const n = opts.headers.length, last = colName(n - 1), total = opts.rows.length + 2;
-    let sd = `<row r="1">${opts.headers.map((_, i) => cell(1, i, i === 0 ? opts.title : '', 1)).join('')}</row>`;
-    sd += `<row r="2" ht="37.5" customHeight="1">${opts.headers.map((h, i) => cell(2, i, h, 2)).join('')}</row>`;
-    opts.rows.forEach((r, ri) => { sd += `<row r="${ri + 3}">${opts.headers.map((_, i) => cell(ri + 3, i, r[i] === undefined || r[i] === '' ? '-' : r[i], 3)).join('')}</row>`; });
+    const n = opts.headers.length, last = colName(n - 1), nt = !!opts.noTitle, hr = nt ? 1 : 2, total = opts.rows.length + hr, hs = opts.plain ? 4 : 2, bs = opts.plain ? 0 : 3, nd = (v) => (v === undefined || v === '' ? '-' : v);
+    let sd = nt ? '' : `<row r="1">${opts.headers.map((_, i) => cell(1, i, i === 0 ? opts.title : '', 1)).join('')}</row>`;
+    sd += `<row r="${hr}" ht="37.5" customHeight="1">${opts.headers.map((h, i) => cell(hr, i, h, hs)).join('')}</row>`;
+    opts.rows.forEach((r, ri) => { sd += `<row r="${ri + hr + 1}">${opts.headers.map((_, i) => cell(ri + hr + 1, i, nd(r[i]), bs)).join('')}</row>`; });
+    const pane = opts.plain ? '' : `<pane xSplit="1" ySplit="${hr}" topLeftCell="B${hr + 1}" activePane="bottomRight" state="frozen"/><selection pane="topRight"/><selection pane="bottomLeft"/><selection pane="bottomRight" activeCell="B${hr + 1}" sqref="B${hr + 1}"/>`;
     const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${last}${total}"/>
-<sheetViews><sheetView rightToLeft="1" workbookViewId="0"><pane xSplit="1" ySplit="2" topLeftCell="B3" activePane="bottomRight" state="frozen"/><selection pane="topRight"/><selection pane="bottomLeft"/><selection pane="bottomRight" activeCell="B3" sqref="B3"/></sheetView></sheetViews>
+<sheetViews><sheetView ${opts.ltr ? '' : 'rightToLeft="1" '}workbookViewId="0">${pane}</sheetView></sheetViews>
 <sheetFormatPr defaultRowHeight="15"/><cols>${opts.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>${sd}</sheetData>
-<autoFilter ref="A2:${last}${total}"/><mergeCells count="1"><mergeCell ref="A1:${last}1"/></mergeCells><pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/><pageSetup orientation="landscape"/></worksheet>`;
+${opts.plain ? '' : `<autoFilter ref="A${hr}:${last}${total}"/>`}${nt ? '' : `<mergeCells count="1"><mergeCell ref="A1:${last}1"/></mergeCells>`}<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/><pageSetup orientation="landscape"/></worksheet>`;
     const sn = x(opts.sheet || 'Sheet1');
     const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-<fonts count="3"><font><sz val="11"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="14"/><color rgb="FF39A4DC"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/><family val="2"/></font></fonts>
+<numFmts count="1"><numFmt numFmtId="164" formatCode="YYYY-MM-DD"/></numFmts>
+<fonts count="4"><font><sz val="11"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="14"/><color rgb="FF39A4DC"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/><family val="2"/></font><font><b/><sz val="11"/><name val="Calibri"/><family val="2"/></font></fonts>
 <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF39A4DC"/><bgColor indexed="64"/></patternFill></fill></fills>
 <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color auto="1"/></left><right style="thin"><color auto="1"/></right><top style="thin"><color auto="1"/></top><bottom style="thin"><color auto="1"/></bottom><diagonal/></border></borders>
 <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
-<cellXfs count="4"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+<cellXfs count="6"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
 <xf numFmtId="0" fontId="1" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1" applyAlignment="1"><alignment horizontal="left" vertical="center" wrapText="1"/></xf>
 <xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
-<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf></cellXfs>
+<xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+<xf numFmtId="0" fontId="3" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf>
+<xf numFmtId="164" fontId="0" fillId="0" borderId="1" xfId="0" applyNumberFormat="1" applyBorder="1" applyAlignment="1"><alignment horizontal="center" vertical="center"/></xf></cellXfs>
 <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
     return zip([
       ['[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>'],
       ['_rels/.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>'],
-      ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="${sn}" sheetId="1" r:id="rId1"/></sheets><definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'${sn}'!$A$2:$${last}$${total}</definedName></definedNames></workbook>`],
+      ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView/></bookViews><sheets><sheet name="${sn}" sheetId="1" r:id="rId1"/></sheets>${opts.plain ? '' : `<definedNames><definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">'${sn}'!$A$${hr}:$${last}$${total}</definedName></definedNames>`}</workbook>`],
       ['xl/_rels/workbook.xml.rels', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>'],
       ['xl/styles.xml', styles],
       ['xl/worksheets/sheet1.xml', sheet],
